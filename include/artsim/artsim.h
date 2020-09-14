@@ -7,15 +7,19 @@
 
 #include "core/arena.h"
 
-#include <cstdint>
-#include <vector>
 #include <glm/vec3.hpp>
 #include <glm/mat3x3.hpp>
 #include <artsim/math/se3.h>
 
+#include <cstdint>
+#include <vector>
+#include <unordered_map>
+
+#define OUT
+
 namespace artsim {
     enum class JointType : uint8_t {
-        Free, Revolute, Prismatic, Spherical, Euler
+        Revolute, Prismatic, Spherical
     };
 
     struct Joint {
@@ -34,24 +38,18 @@ namespace artsim {
                 float limit_max;
             } prismatic;
             struct {
-                glm::vec3 limit_cone_dir;
-                bool enable_limit;
-                float limit_cone_angle;
-            } expmap;
-            struct {
-                glm::vec3 limit_min;
-                bool enable_limit;
-                glm::vec3 limit_max;
-            } euler;
-            struct {
-                float linvel_damping;
-                float angvel_damping;
-                float max_linvel;
-                float max_angvel;
-            } free;
+            } spherical;
         };
         float damping = 0.0f;
         float max_velocity = 100.0f;
+
+        static Joint revolute_free(glm::vec3 axis);
+        static Joint revolute_limited(glm::vec3 axis, float limit_min, float limit_max);
+        static Joint prismatic_free(glm::vec3 dir);
+        static Joint prismatic_limited(glm::vec3 dir, float limit_min, float limit_max);
+        static Joint spherical_free();
+
+        uint32_t joint_dof();
     };
 
     struct Shape {
@@ -69,6 +67,9 @@ namespace artsim {
             } sphere;
         };
 
+        static Shape make_box(glm::vec3 size);
+        static Shape make_sphere(float radius);
+
         float mass(float density);
         glm::mat3 inertia(float density);
     };
@@ -76,71 +77,122 @@ namespace artsim {
     struct Material {
         float default_friction;
         float default_restitution;
-        float default_restitution_threshold;
-    };
-
-    struct Link {
-        glm::mat3 inertia; // G_i
-        float mass;
-        Shape shape;
-        artsim::transform global_pose; // M_i
-        artsim::transform local_joint_pose;
-        Id<Link> parent_id;
-        Id<Material> mat_id;
     };
 
     struct MaterialPair {
         float friction;
         float restitution;
-        float restitution_threshold;
+    };
+
+    struct Link {
+        glm::mat3 inertia;
+        float mass;
+        Shape shape;
+        transform local_link_pose;
+        transform local_joint_pose;
+        uint32_t parent_idx;
+        Id<Material> mat_id;
+
+        static Link create(glm::mat3 inertia, float mass, Shape shape,
+                           transform local_link_pose, transform local_joint_pose,
+                           int parent_idx, Id<Material> mat_id);
+    };
+
+    struct RigidBody {
+        // TODO
     };
 
     struct ArticulatedBody {
-        std::vector<Id<Joint>> joints;
-        std::vector<Id<Link>> links;
+        std::vector<Link> links;
+        std::vector<Joint> joints;
+
+        std::vector<uint32_t> joint_dofs;
+        std::vector<uint32_t> joint_dof_starts;
+
+        std::vector<int> parents;
+        std::vector<uint32_t> bfs_iteration_order;
+
+        uint32_t num_dofs;
+        bool floating;
+
+        bool build_finished = false;
+
+        uint32_t get_num_joints() const {
+            return joints.size();
+        }
+
+        uint32_t get_num_dofs() const {
+            return num_dofs;
+        };
+
+        void setup();
+    };
+
+    struct pair_hash {
+        template <class T1, class T2>
+        std::size_t operator () (std::pair<T1, T2> const &v) const
+        {
+            using std::hash;
+            return hash<T1>()(v.first) ^ (hash<T2>()(v.second) << 1);
+        }
     };
 
     struct World {
-        Arena<Joint> joints;
-        Arena<Link> links;
-        Arena<ArticulatedBody> articulatedBodies;
+        Arena<RigidBody> rigid_bodies;
+        Arena<ArticulatedBody> articulated_bodies;
+
         Arena<Material> materials;
-        Arena<MaterialPair> materialPairs;
-
-#define METHOD_GET_ID(TYPE, MEMBER) TYPE* get##TYPE(Id<TYPE> id) { return MEMBER.get(id); }
-
-        METHOD_GET_ID(Joint, joints)
-        METHOD_GET_ID(Link, links)
-        METHOD_GET_ID(ArticulatedBody, articulatedBodies)
-        METHOD_GET_ID(MaterialPair, materialPairs)
-
-#undef METHOD_GET_ID
+        std::unordered_map<std::pair<Id<Material>, Id<Material>>, MaterialPair, pair_hash> material_pairs;
 
         World() {}
 
-        Id<Joint> add_floating_joint();
-        Id<Joint> add_revolute_joint(glm::vec3 axis);
-        Id<Joint> add_revolute_joint(glm::vec3 axis, float limit_min, float limit_max);
-        Id<Joint> add_prismatic_joint(glm::vec3 dir);
-        Id<Joint> add_prismatic_joint(glm::vec3 dir, float limit_min, float limit_max);
-        Id<Joint> add_spherical_joint();
+#define METHOD_GET_ID(TYPE, NAME, MEMBER) TYPE* get_##NAME(Id<TYPE> id) { return MEMBER.get(id); }
+#define METHOD_REMOVE_ID(TYPE, NAME, MEMBER) void remove_##NAME(Id<TYPE> id) { MEMBER.release(id); }
 
-        Id<Shape> add_box_shape(glm::vec3 size);
-        Id<Shape> add_sphere_shape(float radius);
-
-        Id<Link> add_link(glm::mat3 inertia, float mass, Shape shape,
-                          artsim::transform global_link_pose, artsim::transform global_joint_pose,
-                          int parent_idx, uint32_t mat_idx);
-        Id<Link> add_floating_link(glm::mat3 inertia, float mass, Shape shape,
-                                   artsim::transform global_link_pose, uint32_t mat_idx);
-    };
-
-    struct MaterialDatabase {
-        std::vector<std::vector<MaterialPair>> material_pairs; // TOOD: make this more data-oriented
-
-        MaterialPair get_material_pair(uint32_t mat1_idx, uint32_t mat2_idx) {
-            return material_pairs[mat1_idx][mat2_idx];
+        Id<Material> add_material(float default_friction = 1.0f,
+                                  float default_restitution = 0.0f) {
+            auto id = materials.make();
+            auto ptr = materials.get(id);
+            ptr->default_friction = default_friction;
+            ptr->default_restitution = default_restitution;
+            return id;
         }
+        METHOD_GET_ID(Material, material, materials)
+        METHOD_REMOVE_ID(Material, material, materials)
+
+        void add_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
+                               float friction, float restitution) {
+            material_pairs[std::make_pair(mat1_id, mat2_id)] = MaterialPair {friction, restitution};
+        }
+
+        void remove_material_pair(Id<Material> mat1_id, Id<Material> mat2_id) {
+            material_pairs.erase(std::make_pair(mat1_id, mat2_id));
+        }
+
+        Id<ArticulatedBody> add_articulated_body(bool floating = false) {
+            auto id = articulated_bodies.make();
+            auto ptr = articulated_bodies.get(id);
+            ptr->floating = floating;
+            return id;
+        }
+
+        METHOD_GET_ID(ArticulatedBody, articulated_body, articulated_bodies)
+        METHOD_REMOVE_ID(ArticulatedBody, articulated_body, articulated_bodies)
+
+        void add_link_and_joint_to_articulation(Id<ArticulatedBody> art_id, Link link, Joint joint) {
+            auto art = articulated_bodies.get(art_id);
+            art->links.push_back(link);
+            art->joints.push_back(joint);
+        }
+
+        void build_articulation(Id<ArticulatedBody> art_id) {
+            auto art = articulated_bodies.get(art_id);
+            art->setup();
+        }
+
+#undef METHOD_GET_ID
+#undef METHOD_DELETE_ID
+
     };
 
     struct ContactPoint {

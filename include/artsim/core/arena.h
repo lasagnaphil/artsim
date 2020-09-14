@@ -48,17 +48,18 @@ struct Id {
     bool operator!=(const Id<T>& other) const {
         return !((*this) == other);
     }
-
-    T* operator->() const;
-    T& operator*() const;
-
-    T* get();
-    T* tryGet();
-    void release();
-    void reset() {
-        release();
-    }
 };
+
+namespace std {
+    template <class T>
+    struct hash<Id<T>>
+    {
+        std::size_t operator()(const Id<T>& id) const {
+            using std::hash;
+            return hash<uint32_t>()(id.index) ^ (hash<uint32_t>()(id.generation) << 1);
+        }
+    };
+}
 
 template <typename T>
 struct Arena {

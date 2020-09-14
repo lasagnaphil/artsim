@@ -11,9 +11,9 @@ if (NOT TARGET Eigen3)
     find_package(Eigen3 REQUIRED)
 endif()
 
-add_library(artsim src/artsim.cpp)
+add_library(artsim src/artsim.cpp src/dynamics.cpp)
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(artsim PUBLIC glm glmx Eigen3::Eigen)
+target_link_libraries(artsim PUBLIC glm Eigen3::Eigen)
 
 if (ARTSIM_BUILD_DEMOS)
     add_subdirectory(demo)

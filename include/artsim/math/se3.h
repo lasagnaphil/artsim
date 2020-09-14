@@ -57,9 +57,7 @@ namespace artsim {
     inline ttransform<T> inverse(const ttransform<T>& t) {
         return ttransform<T>(conjugate(t.q) * (-t.v), conjugate(t.q));
     }
-}
 
-namespace artsim {
     template <class T>
     struct tscrew {
         using vec3 = glm::vec<3, T, glm::defaultp>;
@@ -194,23 +192,23 @@ namespace artsim {
     }
 
     template <class T>
-    inline tscrew<T> big_adj(ttransform<T> t, tscrew<T> V) {
+    inline tscrew<T> Ad(ttransform<T> t, tscrew<T> V) {
         glm::vec3 w = t.q * V.w;
         return tscrew<T>(w, glm::cross(t.v, w) + t.q * V.v);
     }
 
     template <class T>
-    inline tscrew<T> big_T_adj(ttransform<T> t, tscrew<T> V) {
+    inline tscrew<T> AdT(ttransform<T> t, tscrew<T> V) {
         return tscrew<T>(glm::conjugate(t.q) * (V.w + glm::cross(V.v, t.v)), glm::conjugate(t.q) * V.v);
     }
 
     template <class T>
-    inline tscrew<T> small_adj(tscrew<T> V1, tscrew<T> V2) {
+    inline tscrew<T> ad(tscrew<T> V1, tscrew<T> V2) {
         return tscrew<T>(glm::cross(V1.w, V2.w), glm::cross(V1.v, V2.w) + glm::cross(V1.w, V2.v));
     }
 
     template <class T>
-    inline tscrew<T> small_T_adj(tscrew<T> V1, tscrew<T> V2) {
+    inline tscrew<T> adT(tscrew<T> V1, tscrew<T> V2) {
         return tscrew<T>(glm::cross(V2.w, V1.w) + glm::cross(V2.v, V1.v), glm::cross(V2.v, V1.w));
     }
 
@@ -311,6 +309,19 @@ namespace artsim {
         return quadratic_form(G.I, V.w) + G.m*glm::length2(V.v) - 2*G.m*glm::dot(glm::cross(V.w, V.v), G.c);
     }
 
+    // Symmetric 6x6 matrix. (Articulation matrix)
+    /*
+     *     Symmetric 6x6 matrix
+           ---------- ----------
+        0 |          |          |
+        1 |    I     |    C     |
+        2 |          |          |
+           ---------- ----------
+        3 |          |          |
+        4 |   C^T    |    M     |
+        5 |          |          |
+           ---------- ----------
+     */
     template <class T>
     struct tsmat6x6 {
         glm::tmat3x3<T> I, M;
@@ -396,6 +407,7 @@ namespace artsim {
     using screw = tscrew<float>;
     using spmat = tspmat<float>;
     using smat6x6 = tsmat6x6<float>;
+    using mat6x6 = glm::mat<6, 6, float>;
 }
 
 
