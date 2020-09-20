@@ -69,10 +69,10 @@ TEST_CASE("Double pendulum") {
 
     for (int i = 0; i < 240; i++) {
         // MESSAGE("Iteration " << i);
-        mass_matrix<float>(art, q.data(), M.data());
+        mass_matrix<float>(art, q.data(), OUT M.data());
         check_dp_M(M.data(), q[0], q[1]);
         rne_inverse_dynamics(art, q.data(), qdot.data(), q2dot.data(),
-                             glm::vec3(0, -g, 0), f_ext.data(), h.data(), T_global.data());
+                             glm::vec3(0, -g, 0), f_ext.data(), OUT h.data(), OUT T_global.data());
         /*
         if (i == 0) {
             REQUIRE(T_global[0].v.y == doctest::Approx(-l1));
@@ -80,6 +80,6 @@ TEST_CASE("Double pendulum") {
         }
          */
         check_dp_b(h[0], h[1], q[0], q[1], qdot[0], qdot[1]);
-        euler_step(art, tau.data(), glm::vec3(0, -g, 0), dt, q.data(), qdot.data());
+        euler_step(art, tau.data(), glm::vec3(0, -g, 0), dt, OUT q.data(), OUT qdot.data());
     }
 }

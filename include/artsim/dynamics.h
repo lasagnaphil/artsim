@@ -129,12 +129,6 @@ namespace artsim {
         tscrew<T> f_ext;
         tvec3<T> q2dot;         // dof
 
-        // PARENT
-        ttransform<T> T_parent_global_inv;  // set before pass 1
-        tscrew<T> v_parent;                 // set before pass 1
-        tscrew<T> a_parent;                 // set before pass 1
-        tscrew<T> f_parent = tscrew<T>();   // set after pass 1
-
         // INTERMEDIATE VALUES
         ttransform<T> T_global_inv;
 
@@ -146,10 +140,9 @@ namespace artsim {
 
         // kin must be calculated using jcalc() before this call
         void rnea_pass1() {
-            if (has_parent) T_global_inv = T_parent_global_inv * kin.Tinv;
-            else T_global_inv = T_parent_global_inv;
-            v = Ad(kin.Tinv, v_parent) + kin.v;
-            a = Ad(kin.Tinv, a_parent) + ad(v, kin.v) + kin.c;
+            if (has_parent) T_global_inv = T_global_inv * kin.Tinv;
+            v = Ad(kin.Tinv, v) + kin.v;
+            a = Ad(kin.Tinv, a) + ad(v, kin.v) + kin.c;
             for (int i = 0; i < joint_dof; i++) {
                 a += kin.S[i] * q2dot[i];
             }
@@ -161,7 +154,7 @@ namespace artsim {
                 tau[i] = dot(kin.S[i], f);
             }
             if (has_parent) {
-                f_parent += AdT(kin.Tinv, f);
+                f = AdT(kin.Tinv, f);
             }
         }
     };
@@ -194,14 +187,14 @@ namespace artsim {
 
         for (int i : art.bfs_iteration_order) {
             if (i != 0) {
-                data[i].T_parent_global_inv = data[art.parents[i]].T_global_inv;
-                data[i].v_parent = data[art.parents[i]].v;
-                data[i].a_parent = data[art.parents[i]].a;
+                data[i].T_global_inv = data[art.parents[i]].T_global_inv;
+                data[i].v = data[art.parents[i]].v;
+                data[i].a = data[art.parents[i]].a;
             }
             else {
-                data[i].T_parent_global_inv = ttransform<T>();
-                data[i].v_parent = tscrew<T>();
-                data[i].a_parent = tscrew<T>(tvec3<T>(0), -gravity);
+                data[i].T_global_inv = ttransform<T>();
+                data[i].v = tscrew<T>();
+                data[i].a = tscrew<T>(tvec3<T>(0), -gravity);
             }
             data[i].rnea_pass1();
 
@@ -211,7 +204,7 @@ namespace artsim {
             int i = art.bfs_iteration_order[j];
             data[i].rnea_pass2();
             if (i != 0) {
-                data[art.parents[i]].f += data[i].f_parent;
+                data[art.parents[i]].f += data[i].f;
             }
         }
 
@@ -269,7 +262,7 @@ namespace artsim {
             v = Ad(kin.Tinv, v_parent) + kin.v;
             c = ad(v, kin.v) + kin.c;
             I_a = I;
-            p_a = adT(v, I * v) - AdT(T_global_inv, f_ext);
+            p_a = -adT(v, I * v) - AdT(T_global_inv, f_ext);
         }
 
         inline void featherstone_pass2() {
