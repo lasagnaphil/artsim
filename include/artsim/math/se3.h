@@ -5,6 +5,8 @@
 #ifndef ARTSIM_SE3_H
 #define ARTSIM_SE3_H
 
+#include "common.h"
+
 #include <glm/vec3.hpp>
 #include <glm/mat3x3.hpp>
 #include <glm/mat4x4.hpp>
@@ -15,17 +17,13 @@
 namespace artsim {
     template <class T>
     struct ttransform {
-        using vec3 = glm::tvec3<T>;
-        using quat = glm::tquat<T>;
-        using mat4 = glm::tmat4x4<T>;
-
         glm::tvec3<T> v;
         glm::tquat<T> q;
 
-        ttransform() : v(0.0f), q(glm::identity<quat>()) {}
-        explicit ttransform(vec3 v) : v(v), q(glm::identity<quat>()) {}
-        explicit ttransform(quat q) : v(glm::identity<vec3>()), q(q) {}
-        ttransform(vec3 v, quat q) : v(v), q(q) {}
+        ttransform() : v(0), q(1, 0, 0, 0) {}
+        explicit ttransform(glm::tvec3<T> v) : v(v), q(1, 0, 0, 0) {}
+        explicit ttransform(glm::tquat<T> q) : v(0), q(q) {}
+        ttransform(glm::tvec3<T> v, glm::tquat<T> q) : v(v), q(q) {}
     };
 
     template <class T>
@@ -64,7 +62,7 @@ namespace artsim {
 
         vec3 w, v;
 
-        tscrew() : w(0.0f), v(0.0f) {}
+        tscrew() : w(0), v(0) {}
         tscrew(vec3 w, vec3 v) : w(w), v(v) {}
     };
 
@@ -152,8 +150,9 @@ namespace artsim {
         glm::tvec3<T> w_cross_v = glm::cross(V.w, V.v);
         glm::tvec3<T> p = V.v * theta + (1 - glm::cos(theta)) * w_cross_v +
                       (theta - glm::sin(theta)) * glm::cross(V.w, w_cross_v);
+        glm::tquat<T> q = artsim::exp(V.w * theta);
 
-        return ttransform(p, exp(V.w * theta));
+        return ttransform<T>(p, q);
     }
 
     template <class T>

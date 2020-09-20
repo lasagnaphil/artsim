@@ -5,6 +5,8 @@
 #include "artsim/artsim.h"
 #include "artsim/math/se3.h"
 
+#include <queue>
+
 using namespace artsim;
 
 Joint Joint::revolute_free(glm::vec3 axis) {
@@ -135,5 +137,30 @@ void ArticulatedBody::setup() {
 
     for (int i = 0; i < num_joints; i++) {
         parents[i] = links[i].parent_idx;
+    }
+    children_buffer.reserve(links.size()-1);
+    children_buffer_starts.resize(links.size()+1);
+    for (int i = 0; i < links.size(); i++) {
+        children_buffer_starts[i] = children_buffer.size();
+        for (int j = 1; j < links.size(); j++) {
+            if (i == parents[j]) {
+                children_buffer.push_back(j);
+            }
+        }
+    }
+    children_buffer_starts[links.size()] = children_buffer.size();
+
+    std::queue<uint32_t> queue;
+    queue.push(0);
+    while (!queue.empty()) {
+        uint32_t i = queue.front();
+        queue.pop();
+        uint32_t num_children = get_num_children(i);
+        bfs_iteration_order.push_back(i);
+
+        const uint32_t* i_children = get_children(i);
+        for (uint32_t c = 0; c < num_children; c++) {
+            queue.push(i_children[c]);
+        }
     }
 }

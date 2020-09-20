@@ -105,14 +105,17 @@ namespace artsim {
     struct ArticulatedBody {
         std::vector<Link> links;
         std::vector<Joint> joints;
+        transform root_transform = transform();
 
         std::vector<uint32_t> joint_dofs;
         std::vector<uint32_t> joint_dof_starts;
 
         std::vector<int> parents;
+        std::vector<uint32_t> children_buffer;
+        std::vector<uint32_t> children_buffer_starts;
         std::vector<uint32_t> bfs_iteration_order;
 
-        uint32_t num_dofs;
+        uint32_t num_dofs = 0;
         bool floating;
 
         bool build_finished = false;
@@ -124,6 +127,21 @@ namespace artsim {
         uint32_t get_num_dofs() const {
             return num_dofs;
         };
+
+        uint32_t get_num_children(uint32_t joint_idx) const {
+            return children_buffer_starts[joint_idx+1] - children_buffer_starts[joint_idx];
+        }
+
+        const uint32_t* get_children(uint32_t joint_idx) const {
+            return &children_buffer[children_buffer_starts[joint_idx]];
+        }
+
+        ArticulatedBody(bool floating = false) : floating(floating) {}
+
+        void add_link_and_joint(Link link, Joint joint) {
+            links.push_back(link);
+            joints.push_back(joint);
+        }
 
         void setup();
     };

@@ -8,6 +8,7 @@
 #include "artsim/artsim.h"
 #include "artsim/math/se3.h"
 #include <queue>
+#include <Eigen/Dense>
 
 namespace artsim {
     using namespace glm;
@@ -21,27 +22,29 @@ namespace artsim {
     };
 
     template <class T>
-    void jcalc(const Joint& joint, const Link& link, const T* q, OUT KinematicsData<T>& kin) {
+    void jcalc(const Joint& joint, const Link& link,
+               const T*__restrict q, const T*__restrict qdot, OUT KinematicsData<T>& kin) {
         switch (joint.type) {
             case JointType::Revolute: {
                 tscrew<T> S = Ad(link.local_joint_pose, screw(joint.revolute.axis, tvec3<T>(0)));
-                kin.Tinv = big_adj(S, -q[0]) * inverse(link.local_link_pose);
+                kin.Tinv = move(S, -q[0]) * inverse(link.local_link_pose);
                 kin.S[0] = S;
-                kin.v = S * q[0];
+                kin.v = S * qdot[0];
                 kin.c = tscrew<T>();
             } break;
             case JointType::Prismatic: {
                 tscrew<T> S = Ad(link.local_joint_pose, screw(tvec3<T>(0), joint.prismatic.dir));
-                kin.Tinv = big_adj(S, -q[0]) * inverse(link.local_link_pose);
+                kin.Tinv = move(S, -q[0]) * inverse(link.local_link_pose);
                 kin.S[0] = S;
-                kin.v = S * q[0];
+                kin.v = S * qdot[0];
                 kin.c = tscrew<T>();
             } break;
             case JointType::Spherical: {
                 glm::tvec3<T> qvec = tvec3<T>(q[0], q[1], q[2]);
-                kin.Tinv = link.local_joint_pose * exp(-qvec) * inverse(link.local_joint_pose) * inverse(link.local_link_pose);
+                glm::tquat<T> qexp_inv = artsim::exp(-qvec);
+                kin.Tinv = link.local_joint_pose * ttransform<T>(qexp_inv) * inverse(link.local_joint_pose) * inverse(link.local_link_pose);
 
-                glm::tmat3x3<T> joint_basis_vecs = glm::mat3_cast<T>(link.local_joint_pose);
+                glm::tmat3x3<T> joint_basis_vecs = glm::mat3_cast<T>(link.local_joint_pose.q);
                 kin.S[0].w = joint_basis_vecs[0];
                 kin.S[0].v = glm::cross(link.local_joint_pose.v, joint_basis_vecs[0]);
                 kin.S[1].w = joint_basis_vecs[1];
@@ -49,7 +52,7 @@ namespace artsim {
                 kin.S[2].w = joint_basis_vecs[2];
                 kin.S[2].v = glm::cross(link.local_joint_pose.v, joint_basis_vecs[2]);
 
-                kin.v = kin.S[0] * q[0] + kin.S[1] * q[1] + kin.S[2] * q[2];
+                kin.v = kin.S[0] * qdot[0] + kin.S[1] * qdot[1] + kin.S[2] * qdot[2];
                 kin.c = tscrew<T>();
             } break;
         }
@@ -118,10 +121,9 @@ namespace artsim {
 
     template <class T>
     struct RecursiveNewtonEulerData {
+        // IN
         uint32_t joint_dof;
         bool has_parent;
-
-        // IN
         KinematicsData<T> kin;
         tspmat<T> I;
         tscrew<T> f_ext;
@@ -129,7 +131,9 @@ namespace artsim {
 
         // PARENT
         ttransform<T> T_parent_global_inv;  // set before pass 1
-        tscrew<T> f_parent; // set after pass 1
+        tscrew<T> v_parent;                 // set before pass 1
+        tscrew<T> a_parent;                 // set before pass 1
+        tscrew<T> f_parent = tscrew<T>();   // set after pass 1
 
         // INTERMEDIATE VALUES
         ttransform<T> T_global_inv;
@@ -142,21 +146,22 @@ namespace artsim {
 
         // kin must be calculated using jcalc() before this call
         void rnea_pass1() {
-            if (has_parent) T_global_inv = kin.Tinv * T_parent_global_inv;
-            v = Ad(kin.Tinv, v) + kin.v;
-            a = Ad(kin.Tinv, a) + ad(v, kin.v) + kin.c;
+            if (has_parent) T_global_inv = T_parent_global_inv * kin.Tinv;
+            else T_global_inv = T_parent_global_inv;
+            v = Ad(kin.Tinv, v_parent) + kin.v;
+            a = Ad(kin.Tinv, a_parent) + ad(v, kin.v) + kin.c;
             for (int i = 0; i < joint_dof; i++) {
                 a += kin.S[i] * q2dot[i];
             }
-            f = I * a + adT(v, I * v) - AdT(T_parent_global_inv, f_ext);
+            f = I * a - adT(v, I * v) - AdT(T_global_inv, f_ext);
         }
 
         void rnea_pass2() {
             for (int i = 0; i < joint_dof; i++) {
-                tau[i] = dot(kin.S[i], f[i]);
-                if (has_parent) {
-                    f_parent += AdT(kin.Tinv, f);
-                }
+                tau[i] = dot(kin.S[i], f);
+            }
+            if (has_parent) {
+                f_parent += AdT(kin.Tinv, f);
             }
         }
     };
@@ -164,34 +169,63 @@ namespace artsim {
     template <class T>
     void rne_inverse_dynamics(const ArticulatedBody& art,
                               const T*__restrict q, const T*__restrict qdot, const T*__restrict q2dot,
-                              const T*__restrict tau) {
+                              glm::tvec3<T> gravity,
+                              const tscrew<T>*__restrict f_ext,
+                              OUT T*__restrict tau, OUT ttransform<T>* T_global = nullptr) {
 
         int num_joints = art.get_num_joints();
         std::vector<RecursiveNewtonEulerData<T>> data(num_joints);
 
-        // TODO: populate data
+        int cur_dof = 0;
+        for (int i = 0; i < num_joints; i++) {
+            data[i].joint_dof = art.joint_dofs[i];
+            data[i].has_parent = i != 0;
+            jcalc(art.joints[i], art.links[i], q + cur_dof, qdot + cur_dof, data[i].kin);
+            data[i].I = tspmat<T>(art.links[i].inertia, glm::vec3(0), art.links[i].mass);
+            data[i].f_ext = f_ext[i];
+
+            int num_dofs = art.joint_dofs[i];
+            for (int j = 0; j < num_dofs; j++) {
+                data[i].q2dot[j] = q2dot[cur_dof + j];
+            }
+            cur_dof += num_dofs;
+        }
+
 
         for (int i : art.bfs_iteration_order) {
-            jcalc(art.joints[i], art.links[i], data[i].kin);
             if (i != 0) {
                 data[i].T_parent_global_inv = data[art.parents[i]].T_global_inv;
+                data[i].v_parent = data[art.parents[i]].v;
+                data[i].a_parent = data[art.parents[i]].a;
+            }
+            else {
+                data[i].T_parent_global_inv = ttransform<T>();
+                data[i].v_parent = tscrew<T>();
+                data[i].a_parent = tscrew<T>(tvec3<T>(0), -gravity);
             }
             data[i].rnea_pass1();
-            if (i != 0) {
-                data[i].f_parent = data[art.parents[i]].f;
-            }
+
         }
 
         for (int j = num_joints - 1; j >= 0; j--) {
             int i = art.bfs_iteration_order[j];
             data[i].rnea_pass2();
+            if (i != 0) {
+                data[art.parents[i]].f += data[i].f_parent;
+            }
         }
 
-        int cur_dof = 0;
+        cur_dof = 0;
         for (int i = 0; i < num_joints; i++) {
             int num_dofs = art.joint_dofs[i];
             for (int j = 0; j < num_dofs; j++) {
                 tau[cur_dof + j] = data[i].tau[j];
+            }
+            cur_dof += num_dofs;
+        }
+        if (T_global) {
+            for (int i = 1; i < num_joints; i++) {
+                T_global[i] = inverse(data[i].T_global_inv) * art.root_transform;
             }
         }
     }
@@ -291,15 +325,29 @@ namespace artsim {
 
     template <class T>
     void featherstone_forward_dynamics(const ArticulatedBody& art,
-                                       const T*__restrict q, const T*__restrict qdot, OUT T*__restrict q2dot) {
+                                       const T*__restrict q, const T*__restrict qdot,
+                                       const tscrew<T>*__restrict f_ext, const float*__restrict tau,
+                                       OUT T*__restrict q2dot) {
 
         int num_joints = art.get_num_joints();
         std::vector<FeatherstoneData<T>> data(num_joints);
 
-        // TODO: populate data
+        int cur_dof = 0;
+        for (int i = 0; i < num_joints; i++) {
+            data[i].joint_dof = art.joint_dofs[i];
+            data[i].has_parent = i != 0;
+            jcalc(art.joints[i], art.links[i], q + cur_dof, qdot + cur_dof, data[i].kin);
+            data[i].I = tspmat<T>(art.links[i].inertia, glm::vec3(0), art.links[i].mass);
+            data[i].f_ext = f_ext[i];
+
+            int num_dofs = art.joint_dofs[i];
+            for (int j = 0; j < num_dofs; j++) {
+                data[i].tau[j] = tau[cur_dof + j];
+            }
+            cur_dof += num_dofs;
+        }
 
         for (int i : art.bfs_iteration_order) {
-            jcalc(art.joints[i], art.links[i], data[i].kin);
             if (i != 0) {
                 data[i].T_parent_global_inv = data[art.parents[i]].T_global_inv;
                 data[i].v_parent = data[art.parents[i]].v;
@@ -321,13 +369,86 @@ namespace artsim {
             data[i].featherstone_pass3();
         }
 
-        int cur_dof = 0;
+        cur_dof = 0;
         for (int i = 0; i < num_joints; i++) {
             int num_dofs = art.joint_dofs[i];
             for (int j = 0; j < num_dofs; j++) {
                 q2dot[cur_dof + j] = data[i].q2dot[j];
             }
+            cur_dof += num_dofs;
         }
+    }
+
+    template <class T>
+    void mass_matrix(const ArticulatedBody& art, const T*__restrict q, OUT T* M) {
+        uint32_t dof = art.get_num_dofs();
+        std::vector<T> qdot(dof, 0);
+        std::vector<T> q2dot(dof, 0);
+        std::vector<tscrew<T>> f_ext(art.get_num_joints(), tscrew<T>());
+        std::vector<T> tau(dof, 0);
+
+        q2dot[0] = 1;
+        rne_inverse_dynamics(art, q, qdot.data(), q2dot.data(), glm::tvec3<T>(0), f_ext.data(), M);
+        for (int i = 1; i < dof; i++) {
+            q2dot[i-1] = 0;
+            q2dot[i] = 1;
+            rne_inverse_dynamics(art, q, qdot.data(), q2dot.data(), glm::tvec3<T>(0), f_ext.data(), M + i*dof);
+        }
+    }
+
+    template <class T>
+    void all_forces(const ArticulatedBody& art,
+                    glm::tvec3<T> gravity,
+                    const T*__restrict q, const T*__restrict qdot,
+                    OUT T* tau) {
+        int dof = art.get_num_dofs();
+        std::vector<T> q2dot(dof, 0);
+        std::vector<tscrew<T>> f_ext(art.get_num_joints(), tscrew<T>());
+        rne_inverse_dynamics(art, q, qdot, q2dot.data(), gravity, f_ext.data(), tau);
+    }
+
+    template <class T>
+    void forward_dynamics_using_rnea(const ArticulatedBody& art,
+                                     glm::tvec3<T> gravity,
+                                     const T*__restrict q, const T*__restrict qdot, const T*__restrict tau,
+                                     OUT T* q2dot) {
+        using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
+        using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+
+        int dof = art.get_num_dofs();
+        Matrix M(dof, dof);
+        Vector h(dof);
+        Vector b(dof);
+        Vector tau_ext = Eigen::Map<const Vector>(tau, dof);
+        mass_matrix(art, q, M.data());
+        all_forces(art, gravity, q, qdot, h.data());
+        b.noalias() = tau_ext - h;
+        Eigen::Map<Vector> x = Eigen::Map<Vector>(q2dot, dof);
+        x.noalias() = M.llt().solve(b);
+    }
+
+    template <class T>
+    void integrate_implicit_euler(const ArticulatedBody& art,
+                                  float dt, const T*__restrict q2dot,
+                                  OUT T*__restrict q, OUT T*__restrict qdot) {
+        // TODO: Support spherical joints
+        int num_dofs = art.get_num_dofs();
+        for (int i = 0; i < num_dofs; i++) {
+            qdot[i] += q2dot[i] * dt;
+        }
+        for (int i = 0; i < num_dofs; i++) {
+            q[i] += qdot[i] * dt;
+        }
+    }
+
+    template <class T>
+    void euler_step(const ArticulatedBody& art, const T*__restrict tau, glm::tvec3<T> gravity, T dt,
+                    OUT T*__restrict q, OUT T*__restrict qdot) {
+        int num_dofs = art.get_num_dofs();
+        std::vector<T> q2dot(num_dofs);
+        forward_dynamics_using_rnea(art, gravity, q, qdot, tau, q2dot.data());
+
+        integrate_implicit_euler(art, dt, q2dot.data(), q, qdot);
     }
 }
 
