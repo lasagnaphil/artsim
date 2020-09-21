@@ -8,6 +8,8 @@
 #include "artsim/math/common.h"
 using namespace artsim;
 
+#include <chrono>
+
 TEST_CASE("Double pendulum") {
     float m1 = 1.0f;
     float m2 = 1.0f;
@@ -34,6 +36,8 @@ TEST_CASE("Double pendulum") {
     std::vector<float> q(dof, 0.0f);
     std::vector<float> qdot(dof, 0.0f);
     std::vector<float> q2dot(dof, 0.0f);
+    std::vector<float> q2dot_1(dof, 0.0f);
+    std::vector<float> q2dot_2(dof, 0.0f);
     std::vector<float> tau(dof, 0.0f);
     std::vector<screw> f_ext(art.get_num_joints(), screw());
 
@@ -44,7 +48,7 @@ TEST_CASE("Double pendulum") {
     std::vector<float> h(dof, 0.0f);
 
     q[0] = 0.25f * glm::pi<float>();
-    q[1] = 0.0f * glm::pi<float>();
+    q[1] = 0.25f * glm::pi<float>();
     qdot[0] = 0.0f;
     qdot[1] = 0.0f;
 
@@ -67,19 +71,45 @@ TEST_CASE("Double pendulum") {
     KinematicsData<float> kdata;
     std::vector<transform> T_global(art.get_num_joints());
 
-    for (int i = 0; i < 240; i++) {
+    // Performance comparison.
+    {
+        auto t1 = std::chrono::high_resolution_clock::now();
+        for (int i = 0; i < 1000000; i++) {
+            featherstone_forward_dynamics(art, glm::vec3(0, -g, 0), f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot_1.data());
+        }
+        auto t2 = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+        MESSAGE("1000000 iters of featherstone forward dynamics: " << duration.count() << " ms");
+    }
+
+    {
+        auto t1 = std::chrono::high_resolution_clock::now();
+        for (int i = 0; i < 1000000; i++) {
+            forward_dynamics_using_rnea(art, glm::vec3(0, -g, 0), f_ext.data(), q.data(), qdot.data(), tau.data(), OUT
+                                        q2dot_2.data());
+        }
+        auto t2 = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+        MESSAGE("1000000 iters of rnea forward dynamics: " << duration.count() << " ms");
+    }
+
+    for (int i = 0; i < 1000; i++) {
         // MESSAGE("Iteration " << i);
         mass_matrix<float>(art, q.data(), OUT M.data());
         check_dp_M(M.data(), q[0], q[1]);
         rne_inverse_dynamics(art, q.data(), qdot.data(), q2dot.data(),
                              glm::vec3(0, -g, 0), f_ext.data(), OUT h.data(), OUT T_global.data());
-        /*
-        if (i == 0) {
-            REQUIRE(T_global[0].v.y == doctest::Approx(-l1));
-            REQUIRE(T_global[1].v.y == doctest::Approx(-l2));
-        }
-         */
         check_dp_b(h[0], h[1], q[0], q[1], qdot[0], qdot[1]);
-        euler_step(art, tau.data(), glm::vec3(0, -g, 0), dt, OUT q.data(), OUT qdot.data());
+
+        featherstone_forward_dynamics(art, glm::vec3(0, -g, 0), f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot_1.data());
+        forward_dynamics_using_rnea(art, glm::vec3(0, -g, 0), f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot_2.data());
+
+        for (int d = 0; d < dof; d++) {
+            REQUIRE(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-6));
+        }
+
+        q2dot = q2dot_1;
+
+        integrate_implicit_euler(art, dt, q2dot.data(), OUT q.data(), OUT qdot.data());
     }
 }

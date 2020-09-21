@@ -53,20 +53,18 @@ Joint Joint::spherical_free() {
 
 uint32_t Joint::joint_dof() {
     switch (type) {
-        case JointType::Revolute: return 1; break;
-        case JointType::Prismatic: return 1; break;
-        case JointType::Spherical: return 3; break;
+        case JointType::Revolute: return 1;
+        case JointType::Prismatic: return 1;
+        case JointType::Spherical: return 3;
+        default: return 0;
     }
 }
 
 float Shape::mass(float density) {
     switch (type) {
-        case Type::Box: {
-            return density * box.size.x * box.size.y * box.size.z;
-        } break;
-        case Type::Sphere: {
-            return 4.f / 3.f * glm::pi<float>() * sphere.radius * sphere.radius * sphere.radius;
-        } break;
+        case Type::Box: return density * box.size.x * box.size.y * box.size.z;
+        case Type::Sphere: return 4.f / 3.f * glm::pi<float>() * sphere.radius * sphere.radius * sphere.radius;
+        default: return 0;
     }
 }
 
@@ -149,7 +147,6 @@ void ArticulatedBody::setup() {
         }
     }
     children_buffer_starts[links.size()] = children_buffer.size();
-
     std::queue<uint32_t> queue;
     queue.push(0);
     while (!queue.empty()) {

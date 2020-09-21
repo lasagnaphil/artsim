@@ -233,7 +233,7 @@ namespace artsim {
 
     template <class T>
     inline glm::tmat3x3<T> symmetric_cartesian_product(glm::tvec3<T> w) {
-        return glm::tmat3x3<T>(w.x * w.x, w.y * w.y, w.z * w.z, w.x * w.y, w.y * w.z, w.z * w.x);
+        return cartesian_product(w, w);
     }
 
     // Spatial matrix.
@@ -266,8 +266,7 @@ namespace artsim {
 
     template <class T>
     inline tspmat<T>& operator+=(tspmat<T>& G1, const tspmat<T>& G2) {
-        G1.I += G2.I; G1.c += G2.c; G1.m += G2.m;
-        return G1;
+        G1.I += G2.I; G1.c += G2.c; G1.m += G2.m; return G1;
     }
 
     template <class T>
@@ -277,8 +276,32 @@ namespace artsim {
 
     template <class T>
     inline tspmat<T>& operator-=(tspmat<T>& G1, const tspmat<T>& G2) {
-        G1.I -= G2.I; G1.c -= G2.c; G1.m -= G2.m;
-        return G1;
+        G1.I -= G2.I; G1.c -= G2.c; G1.m -= G2.m; return G1;
+    }
+
+    template <class T>
+    inline tspmat<T> operator*(const tspmat<T>& G, T k) {
+        return tspmat<T>(G.I*k, G.c*k, G.m*k);
+    }
+
+    template <class T>
+    inline tspmat<T> operator*(T k, const tspmat<T>& G) {
+        return tspmat<T>(G.I*k, G.c*k, G.m*k);
+    }
+
+    template <class T>
+    inline tspmat<T> operator*=(tspmat<T>& G, T k) {
+        G.I *= k; G.c *= k; G.m *= k; return G;
+    }
+
+    template <class T>
+    inline tspmat<T> operator/(const tspmat<T>& G, T k) {
+        return tspmat<T>(G.I/k, G.c/k, G.m/k);
+    }
+
+    template <class T>
+    inline tspmat<T> operator/=(tspmat<T>& G, T k) {
+        G.I /= k; G.c /= k; G.m /= k; return G;
     }
 
     template <class T>
@@ -327,31 +350,56 @@ namespace artsim {
         glm::tmat3x3<T> C;
 
         tsmat6x6() = default;
-        tsmat6x6(glm::tmat3x3<T> I, glm::tmat3x3<T> M, glm::tmat3x3<T> C) : I(I), M(M), C(C) {}
+        tsmat6x6(glm::tmat3x3<T> I, glm::tmat3x3<T> C, glm::tmat3x3<T> M) : I(I), C(C), M(M) {}
         explicit tsmat6x6(const tspmat<T>& G)
                 : I(G.I), M(G.m, 0, 0, 0, G.m, 0, 0, 0, G.m), C(G.m * skew_symmetric(G.c)) {}
     };
 
     template <class T>
     inline tsmat6x6<T> operator+(const tsmat6x6<T>& G1, const tsmat6x6<T>& G2) {
-        return tsmat6x6<T>(G1.I + G2.I, G1.M + G2.M, G1.C + G2.C);
+        return tsmat6x6<T>(G1.I + G2.I, G1.C + G2.C, G1.M + G2.M);
     }
 
     template <class T>
     inline tsmat6x6<T>& operator+=(tsmat6x6<T>& G1, const tsmat6x6<T>& G2) {
-        G1.I += G2.I; G1.M += G2.M; G1.C += G2.C;
+        G1.I += G2.I; G1.C += G2.C; G1.M += G2.M;
         return G1;
     }
 
     template <class T>
     inline tsmat6x6<T> operator-(const tsmat6x6<T>& G1, const tsmat6x6<T>& G2) {
-        return tsmat6x6<T>(G1.I - G2.I, G1.M - G2.M, G1.C - G2.C);
+        return tsmat6x6<T>(G1.I - G2.I, G1.C - G2.C, G1.M - G2.M);
     }
 
     template <class T>
     inline tsmat6x6<T>& operator-=(tsmat6x6<T>& G1, const tsmat6x6<T>& G2) {
-        G1.I -= G2.I; G1.M -= G2.M; G1.C -= G2.C;
+        G1.I -= G2.I; G1.C -= G2.C; G1.M -= G2.M;
         return G1;
+    }
+
+    template <class T>
+    inline tsmat6x6<T> operator*(const tsmat6x6<T>& G, T k) {
+        return tsmat6x6<T>(G.I*k, G.C*k, G.M*k);
+    }
+
+    template <class T>
+    inline tsmat6x6<T> operator*(T k, const tsmat6x6<T>& G) {
+        return tsmat6x6<T>(G.I*k, G.C*k, G.M*k);
+    }
+
+    template <class T>
+    inline tsmat6x6<T> operator*=(tsmat6x6<T>& G, T k) {
+        G.I *= k; G.C *= k; G.M *= k; return G;
+    }
+
+    template <class T>
+    inline tsmat6x6<T> operator/(const tsmat6x6<T>& G, T k) {
+        return tsmat6x6<T>(G.I/k, G.C/k, G.M/k);
+    }
+
+    template <class T>
+    inline tsmat6x6<T> operator/=(tsmat6x6<T>& G, T k) {
+        G.I /= k; G.C /= k; G.M /= k; return G;
     }
 
     template <class T>
