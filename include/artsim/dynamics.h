@@ -26,15 +26,15 @@ namespace artsim {
                const T*__restrict q, const T*__restrict qdot, OUT KinematicsData<T>& kin) {
         switch (joint.type) {
             case JointType::Revolute: {
-                tscrew<T> S = Ad(link.local_joint_pose, screw(joint.revolute.axis, tvec3<T>(0)));
-                kin.Tinv = move(S, -q[0]) * inverse(link.local_link_pose);
+                tscrew<T> S = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(joint.revolute.axis, tvec3<T>(0)));
+                kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_link_pose));
                 kin.S[0] = S;
                 kin.v = S * qdot[0];
                 kin.c = tscrew<T>();
             } break;
             case JointType::Prismatic: {
-                tscrew<T> S = Ad(link.local_joint_pose, screw(tvec3<T>(0), joint.prismatic.dir));
-                kin.Tinv = move(S, -q[0]) * inverse(link.local_link_pose);
+                tscrew<T> S = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(tvec3<T>(0), joint.prismatic.dir));
+                kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_link_pose));
                 kin.S[0] = S;
                 kin.v = S * qdot[0];
                 kin.c = tscrew<T>();
@@ -42,15 +42,16 @@ namespace artsim {
             case JointType::Spherical: {
                 glm::tvec3<T> qvec = tvec3<T>(q[0], q[1], q[2]);
                 glm::tquat<T> qexp_inv = artsim::exp(-qvec);
-                kin.Tinv = link.local_joint_pose * ttransform<T>(qexp_inv) * inverse(link.local_joint_pose) * inverse(link.local_link_pose);
+                ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
+                kin.Tinv = T_j * ttransform<T>(qexp_inv) * inverse(T_j) * ttransform<T>(inverse(link.local_link_pose));
 
-                glm::tmat3x3<T> joint_basis_vecs = glm::mat3_cast<T>(link.local_joint_pose.q);
+                glm::tmat3x3<T> joint_basis_vecs = glm::mat3_cast<T>(tquat<T>(link.local_joint_pose.q));
                 kin.S[0].w = joint_basis_vecs[0];
-                kin.S[0].v = glm::cross(link.local_joint_pose.v, joint_basis_vecs[0]);
+                kin.S[0].v = glm::cross(tvec3<T>(link.local_joint_pose.v), joint_basis_vecs[0]);
                 kin.S[1].w = joint_basis_vecs[1];
-                kin.S[1].v = glm::cross(link.local_joint_pose.v, joint_basis_vecs[1]);
+                kin.S[1].v = glm::cross(tvec3<T>(link.local_joint_pose.v), joint_basis_vecs[1]);
                 kin.S[2].w = joint_basis_vecs[2];
-                kin.S[2].v = glm::cross(link.local_joint_pose.v, joint_basis_vecs[2]);
+                kin.S[2].v = glm::cross(tvec3<T>(link.local_joint_pose.v), joint_basis_vecs[2]);
 
                 kin.v = kin.S[0] * qdot[0] + kin.S[1] * qdot[1] + kin.S[2] * qdot[2];
                 kin.c = tscrew<T>();
@@ -218,7 +219,7 @@ namespace artsim {
         }
         if (T_global) {
             for (int i = 1; i < num_joints; i++) {
-                T_global[i] = inverse(data[i].T_global_inv) * art.root_transform;
+                T_global[i] = inverse(data[i].T_global_inv) * ttransform<T>(art.root_transform);
             }
         }
     }
@@ -238,9 +239,9 @@ namespace artsim {
         // PARENT
         // ttransform<T> T_parent_global_inv;  // set before pass 1
         // tscrew<T> v_parent;                 // set before pass 1
-        // tsmat6x6<T> I_a_parent;             // set before pass 2
-        // tscrew<T> p_a_parent;               // set before pass 2
-        tscrew<T> a_parent;                 // set before pass 3
+        // tsmat6x6<T> I_a_parent;             // set after pass 2
+        // tscrew<T> p_a_parent;               // set after pass 2
+        // tscrew<T> a_parent;                 // set before pass 3
 
         // INTERMEDIATE VALUES
         ttransform<T> T_global_inv;
@@ -262,7 +263,7 @@ namespace artsim {
             v = Ad(kin.Tinv, v) + kin.v;
             c = ad(v, kin.v) + kin.c;
             I_a = tsmat6x6(I);
-            p_a = -adT(v, I * v) - AdT(T_global_inv, f_ext);
+            p_a = adT(v, I * v) - AdT(T_global_inv, f_ext);
         }
 
         inline void featherstone_pass2() {
@@ -274,7 +275,8 @@ namespace artsim {
                 D[0][0] = dot(kin.S[0], U[0]);
                 u[0] = tau[0] - dot(kin.S[0], p_a);
                 if (has_parent) {
-                    I_prime = I_a - symmetric_cartesian_product(U[0]) / D[0][0];
+                    tsmat6x6<T> UUt = symmetric_cartesian_product(U[0]);
+                    I_prime = I_a - UUt / D[0][0];
                     p_prime = p_a + I_a * c + u[0] / D[0][0] * U[0];
                 }
             }
@@ -300,7 +302,7 @@ namespace artsim {
         }
 
         inline void featherstone_pass3() {
-            tscrew<T> a_p = Ad(kin.Tinv, a_parent) + c;
+            tscrew<T> a_p = Ad(kin.Tinv, a) + c;
             if (joint_dof == 1) {
                 q2dot[0] = (u[0] - dot(U[0], a_p)) / D[0][0];
                 a = a_p + kin.S[0] * q2dot[0];
@@ -362,10 +364,10 @@ namespace artsim {
         }
         for (int i : art.bfs_iteration_order) {
             if (i != 0) {
-                data[i].a_parent = data[art.parents[i]].a;
+                data[i].a = data[art.parents[i]].a;
             }
             else {
-                data[i].a_parent = tscrew<T>(tvec3<T>(0), -gravity);
+                data[i].a = tscrew<T>(tvec3<T>(0), -gravity);
             }
             data[i].featherstone_pass3();
         }

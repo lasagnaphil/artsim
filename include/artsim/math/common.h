@@ -13,11 +13,11 @@ namespace artsim {
     inline glm::tvec3<T> log(glm::tquat<T> q) {
         constexpr T pi = glm::pi<T>();
         q = glm::normalize(q);
-        float a = glm::sqrt(1 - q.w*q.w);
+        T a = glm::sqrt(1 - q.w*q.w);
         if (a <= glm::epsilon<T>()) {
-            return glm::vec3(0);
+            return glm::tvec3<T>(0);
         }
-        float theta = T(2.0) * glm::atan(a, q.w);
+        T theta = T(2.0) * glm::atan(a, q.w);
         if (theta > pi) {
             theta -= 2*pi;
         }
@@ -36,8 +36,8 @@ namespace artsim {
 
     template <class T>
     inline glm::tquat<T> exp(glm::tvec3<T> v) {
-        float theta = glm::length(v);
-        if (theta <= glm::epsilon<float>()) {
+        T theta = glm::length(v);
+        if (theta <= glm::epsilon<T>()) {
             return glm::identity<glm::tquat<T>>();
         }
         glm::tvec3<T> u = v / theta;
@@ -46,24 +46,24 @@ namespace artsim {
 
     template <class T>
     inline T extractXRot(glm::tquat<T> q) {
-        if (q.x * q.x + q.w * q.w <= glm::epsilon<float>()) {
-            return 0.0f;
+        if (q.x * q.x + q.w * q.w <= glm::epsilon<T>()) {
+            return 0;
         }
         return 2 * glm::atan(q.x, q.w);
     }
 
     template <class T>
     inline T extractYRot(glm::tquat<T> q) {
-        if (q.y * q.y + q.w * q.w <= glm::epsilon<float>()) {
-            return 0.0f;
+        if (q.y * q.y + q.w * q.w <= glm::epsilon<T>()) {
+            return 0;
         }
         return 2 * glm::atan(q.y, q.w);
     }
 
     template <class T>
     inline T extractZRot(glm::tquat<T> q) {
-        if (q.z * q.z + q.w * q.w <= glm::epsilon<float>()) {
-            return 0.0f;
+        if (q.z * q.z + q.w * q.w <= glm::epsilon<T>()) {
+            return 0;
         }
         return 2 * glm::atan(q.z, q.w);
     }
@@ -96,7 +96,7 @@ namespace artsim {
     }
 
     template <class T>
-    inline float angleBetweenQuats(glm::tquat<T> q1, glm::tquat<T> q2) {
+    inline T angleBetweenQuats(glm::tquat<T> q1, glm::tquat<T> q2) {
         T inner = glm::dot(q1, q2);
         T angle = glm::acos(2*inner*inner - 1);
         return inner;
