@@ -4,8 +4,10 @@ add_custom_command(TARGET artsim_copy_resource_folder POST_BUILD
         ${CMAKE_CURRENT_SOURCE_DIR}/resources
         ${CMAKE_CURRENT_BINARY_DIR}/resources)
 
-# add_executable(artsim_demo_pendulum pendulum.cpp)
-# target_link_libraries(artsim_demo_pendulum PRIVATE gengine artsim)
+find_package(raylib REQUIRED)
+
+add_executable(artsim_demo_pendulum pendulum.cpp)
+target_link_libraries(artsim_demo_pendulum PRIVATE artsim raylib)
 #
 # add_executable(artsim_demo_contacts contacts.cpp)
 # target_link_libraries(artsim_demo_contacts PRIVATE gengine artsim)

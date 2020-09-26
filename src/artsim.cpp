@@ -85,12 +85,14 @@ glm::mat3 Shape::inertia(float density) {
 
 Shape Shape::make_box(glm::vec3 size) {
     Shape shape;
+    shape.type = Shape::Type::Box;
     shape.box.size = size;
     return shape;
 }
 
 Shape Shape::make_sphere(float radius) {
     Shape shape;
+    shape.type = Shape::Type::Sphere;
     shape.sphere.radius = radius;
     return shape;
 }

@@ -138,7 +138,7 @@ namespace artsim {
 
     template <class T>
     inline glm::tmat3x3<T> skew_symmetric(glm::tvec3<T> w) {
-        glm::tmat3x3<T> m(0.0f);
+        glm::tmat3x3<T> m(0);
         m[1][2] = w.x;
         m[2][1] = -w.x;
         m[2][0] = w.y;
