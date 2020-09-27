@@ -444,8 +444,8 @@ namespace artsim {
     template <class T>
     void calc_transforms(const ArticulatedBody& art,
                          const T*__restrict q,
-                         OUT ttransform<T>* T_locals,
-                         OUT ttransform<T>* T_globals) {
+                         OUT ttransform<T>* T_link_locals,
+                         OUT ttransform<T>* T_link_globals) {
 
         for (uint32_t i = 0; i < art.get_num_joints(); i++) {
             int d = art.joint_dof_starts[i];
@@ -454,27 +454,27 @@ namespace artsim {
             switch (joint.type) {
                 case JointType::Revolute: {
                     tscrew<T> S = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(joint.revolute.axis, tvec3<T>(0)));
-                    T_locals[i] = ttransform<T>(link.local_link_pose) * move(S, q[d]);
+                    T_link_locals[i] = ttransform<T>(link.local_link_pose) * move(S, q[d]);
                 } break;
                 case JointType::Prismatic: {
                     tscrew<T> S = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(tvec3<T>(0), joint.prismatic.dir));
-                    T_locals[i] = ttransform<T>(link.local_link_pose) * move(S, q[d]);
+                    T_link_locals[i] = ttransform<T>(link.local_link_pose) * move(S, q[d]);
                 } break;
                 case JointType::Spherical: {
                     glm::tvec3<T> qvec = tvec3<T>(q[d], q[d+1], q[d+2]);
                     glm::tquat<T> qexp = artsim::exp(qvec);
                     ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
-                    T_locals[i] = ttransform<T>(link.local_link_pose) * inverse(T_j) * ttransform<T>(qexp) * T_j;
+                    T_link_locals[i] = ttransform<T>(link.local_link_pose) * inverse(T_j) * ttransform<T>(qexp) * T_j;
                 } break;
             }
         }
 
         for (uint32_t i : art.bfs_iteration_order) {
             if (i == 0) {
-                T_globals[i] = T_locals[i];
+                T_link_globals[i] = T_link_locals[i];
             }
             else {
-                T_globals[i] = T_globals[art.parents[i]] * T_locals[i];
+                T_link_globals[i] = T_link_globals[art.parents[i]] * T_link_locals[i];
             }
         }
     }

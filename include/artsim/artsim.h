@@ -84,22 +84,27 @@ namespace artsim {
         float restitution;
     };
 
+    struct RigidBody {
+        glm::mat3 inertia;
+        float mass;
+        Shape shape;
+        transform global_trans;
+    };
+
     struct Link {
         glm::mat3 inertia;
         float mass;
         Shape shape;
         transform local_link_pose;
         transform local_joint_pose;
+        // transform global_link_pose;
+        // transform global_joint_pose;
         uint32_t parent_idx;
         Id<Material> mat_id;
 
         static Link create(glm::mat3 inertia, float mass, Shape shape,
                            transform local_link_pose, transform local_joint_pose,
                            int parent_idx, Id<Material> mat_id);
-    };
-
-    struct RigidBody {
-        // TODO
     };
 
     struct ArticulatedBody {
@@ -137,6 +142,16 @@ namespace artsim {
         }
 
         ArticulatedBody(bool floating = false) : floating(floating) {}
+
+        /*
+        void add_joint_link_local(Joint joint, RigidBody rigid_body,
+                                  transform local_link_pose, transform local_joint_pose,
+                                  int parent_idx, Id<Material> mat_id);
+
+        void add_joint_link_global(Joint joint, RigidBody rigid_body,
+                                   transform global_link_pose, transform global_joint_pose,
+                                   int parent_idx, Id<Material> mat_id);
+                                   */
 
         void add_link_and_joint(Link link, Joint joint) {
             links.push_back(link);

@@ -34,12 +34,15 @@ int main(void)
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
-    ArticulatedBody art = examples::create_double_pendulum_ball(1.0f, 1.0f, 1.0f, 1.0f);
+    // ArticulatedBody art = examples::create_double_pendulum_ball(1.0f, 1.0f, 1.0f, 1.0f);
+    // ArticulatedBody art = examples::create_double_pendulum_link();
+    // ArticulatedBody art = examples::create_triple_pendulum_link();
+    // ArticulatedBody art = examples::create_furuta_pendulum();
+    ArticulatedBody art = examples::create_13_link_tree_revolute();
     ArticulationState state(&art);
-    state.q[0] = 0.25f * glm::pi<float>();
-    state.q[1] = 0.25f * glm::pi<float>();
-    state.qdot[0] = 0.f * glm::pi<float>();
-    state.qdot[1] = 0.f * glm::pi<float>();
+    for (int i = 0; i < state.num_dofs; i++) {
+        state.q[i] = 0.04f * (std::rand() % 10 - 5) * glm::pi<float>();
+    }
 
     float dt = 1.0f / 240.0f;
 
