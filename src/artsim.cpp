@@ -90,7 +90,7 @@ glm::mat3 Shape::inertia(float density) {
             I = 0.4f * mass(density) * glm::vec3(r*r);
         } break;
     }
-    return glm::mat3(I.x, 0, 0, 0, I.y, 0, I.z, 0, 0);
+    return glm::mat3(I.x, 0, 0, 0, I.y, 0, 0, 0, I.z);
 }
 
 Shape Shape::make_box(glm::vec3 size) {

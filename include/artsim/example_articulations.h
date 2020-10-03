@@ -36,10 +36,20 @@ struct ArticulationState {
     void simulate(float dt);
 
     void simulate(float dt, int N);
+
+    float get_joint_pos_1dof(int joint_idx);
+
+    glm::quat get_joint_pos_spherical(int joint_idx);
+
+    void set_joint_pos_1dof(int joint_idx, float qj);
+
+    void set_joint_pos_spherical(int joint_idx, glm::quat qj);
 };
 
 namespace examples {
 
+    ArticulatedBody create_single_pendulum_link(bool spherical,
+                                                float density = 1000.0f, float l = 1.0f, float d = 0.1f);
     ArticulatedBody create_double_pendulum_ball(bool spherical, float m1 = 1.0f, float m2 = 1.0f, float l1 = 1.0f, float l2 = 1.0f);
     ArticulatedBody create_double_pendulum_link(bool spherical,
                                                 float density = 1000.0f, float l1 = 1.0f, float l2 = 1.0f, float d = 0.1f);

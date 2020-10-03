@@ -268,11 +268,6 @@ namespace artsim {
                 U[0] = I_a * kin.S[0];
                 D[0][0] = dot(kin.S[0], U[0]);
                 u[0] = tau[0] - dot(kin.S[0], p_a);
-                if (has_parent) {
-                    tsmat6x6<T> UUt = symmetric_cartesian_product(U[0]);
-                    I_prime = I_a - UUt / D[0][0];
-                    p_prime = p_a + I_a * c + u[0] / D[0][0] * U[0];
-                }
             }
             else if (joint_dof == 3) {
                 mult_6x6_6x3(I_a, kin.S, OUT U);
@@ -280,7 +275,14 @@ namespace artsim {
                 u[0] = tau[0] - dot(kin.S[0], p_a);
                 u[1] = tau[1] - dot(kin.S[1], p_a);
                 u[2] = tau[2] - dot(kin.S[2], p_a);
-                if (has_parent) {
+            }
+            if (has_parent) {
+                if (joint_dof == 1) {
+                    tsmat6x6<T> UUt = symmetric_cartesian_product(U[0]);
+                    I_prime = I_a - UUt / D[0][0];
+                    p_prime = p_a + I_a * c + u[0] / D[0][0] * U[0];
+                }
+                else if (joint_dof == 3) {
                     tmat3x3<T> Dinv = inverse(D);
                     tscrew<T> U_Dinv[3];
                     mult_UVUt_6x3_3x3_3x6_sym(U, Dinv, OUT U_Dinv, OUT I_prime);
@@ -290,8 +292,6 @@ namespace artsim {
                     p_prime += U_Dinv[1] * u[1];
                     p_prime += U_Dinv[2] * u[2];
                 }
-            }
-            if (has_parent) {
                 I_a = move_frame(I_prime, kin.Tinv);
                 p_a = AdT(kin.Tinv, p_prime);
             }
@@ -386,11 +386,11 @@ namespace artsim {
         std::vector<T> tau(dof, 0);
 
         q2dot[0] = 1;
-        rne_inverse_dynamics(art, q, qdot.data(), q2dot.data(), glm::tvec3<T>(0), f_ext.data(), M);
+        rne_inverse_dynamics(art, q, qdot.data(), q2dot.data(), glm::tvec3<T>(0), f_ext.data(), OUT M);
         for (int i = 1; i < dof; i++) {
             q2dot[i-1] = 0;
             q2dot[i] = 1;
-            rne_inverse_dynamics(art, q, qdot.data(), q2dot.data(), glm::tvec3<T>(0), f_ext.data(), M + i*dof);
+            rne_inverse_dynamics(art, q, qdot.data(), q2dot.data(), glm::tvec3<T>(0), f_ext.data(), OUT M + i*dof);
         }
     }
 
@@ -420,13 +420,13 @@ namespace artsim {
         Vector b(dof);
         Vector tau_ext = Eigen::Map<const Vector>(tau, dof);
         mass_matrix(art, q, M.data());
-        std::cout << M << std::endl;
+        // std::cout << M << std::endl;
         all_forces(art, gravity, f_ext, q, qdot, OUT h.data());
         b.noalias() = tau_ext - h;
-        std::cout << b << std::endl;
+        // std::cout << b << std::endl;
         Eigen::Map<Vector> x = Eigen::Map<Vector>(q2dot, dof);
         x.noalias() = M.llt().solve(b);
-        std::cout << x << std::endl;
+        // std::cout << x << std::endl;
     }
 
     template <class T>
@@ -443,10 +443,10 @@ namespace artsim {
                     qi[0] += qdi[0]*dt;
                 } break;
                 case JointType::Spherical: {
-                    qi[0] += 0.5*dt*(q[3]*qdot[0] + q[1]*qdot[2] - q[2]*qdot[1]);
-                    qi[1] += 0.5*dt*(q[3]*qdot[1] + q[2]*qdot[0] - q[0]*qdot[2]);
-                    qi[2] += 0.5*dt*(q[3]*qdot[2] + q[0]*qdot[1] - q[1]*qdot[0]);
-                    qi[3] -= 0.5*dt*(q[0]*qdot[0] + q[1]*qdot[1] + q[2]*qdot[2]);
+                    qi[0] += 0.5*dt*(qi[3]*qdi[0] + qi[1]*qdi[2] - qi[2]*qdi[1]);
+                    qi[1] += 0.5*dt*(qi[3]*qdi[1] + qi[2]*qdi[0] - qi[0]*qdi[2]);
+                    qi[2] += 0.5*dt*(qi[3]*qdi[2] + qi[0]*qdi[1] - qi[1]*qdi[0]);
+                    qi[3] -= 0.5*dt*(qi[0]*qdi[0] + qi[1]*qdi[1] + qi[2]*qdi[2]);
                     float q_len = sqrt(qi[0]*qi[0] + qi[1]*qi[1] + qi[2]*qi[2] + qi[3]*qi[3]);
                     qi[0] /= q_len; qi[1] /= q_len; qi[2] /= q_len; qi[3] /= q_len;
                 } break;
@@ -476,9 +476,9 @@ namespace artsim {
                     T_link_locals[i] = ttransform<T>(link.local_link_pose) * move(S, q[d]);
                 } break;
                 case JointType::Spherical: {
-                    glm::tquat<T> q_j = tquat<T>(q[d], q[d+1], q[d+2], q[d+3]);
+                    glm::tquat<T> q_j = glm::make_quat<T>(q + d);
                     ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
-                    T_link_locals[i] = ttransform<T>(link.local_link_pose) * inverse(T_j) * ttransform<T>(q_j) * T_j;
+                    T_link_locals[i] = ttransform<T>(link.local_link_pose) * T_j * ttransform<T>(q_j) * inverse(T_j);
                 } break;
             }
         }

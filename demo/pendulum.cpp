@@ -45,23 +45,22 @@ int main(void)
 
     //--------------------------------------------------------------------------------------
 
-    // ArticulatedBody art = examples::create_double_pendulum_ball(1.0f, 1.0f, 1.0f, 1.0f);
+    // ArticulatedBody art = examples::create_double_pendulum_ball(false, 1.0f, 1.0f, 1.0f, 1.0f);
     // ArticulatedBody art = examples::create_double_pendulum_link(false);
     // ArticulatedBody art = examples::create_triple_pendulum_link(false);
     // ArticulatedBody art = examples::create_furuta_pendulum(false);
-    ArticulatedBody art = examples::create_double_pendulum_link(true);
+    ArticulatedBody art = examples::create_13_link_tree(true);
 
     ArticulationState state(&art);
-    // state.randomize_positions();
-    state.set_joint_pos_spherical(0, glm::angleAxis(0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
-    state.set_joint_pos_spherical(1, glm::angleAxis(-0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
+    state.randomize_positions();
+    // state.set_joint_pos_spherical(0, glm::angleAxis(0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
+    // state.set_joint_pos_spherical(1, glm::angleAxis(-0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
 
     float dt = 1.0f / 240.0f;
 
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
-
         // Update
         //----------------------------------------------------------------------------------
         auto& io = ImGui::GetIO();

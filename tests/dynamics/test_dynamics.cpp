@@ -66,7 +66,7 @@ TEST_CASE("Double pendulum") {
     real_t l1 = 1.0f;
     real_t l2 = 1.0f;
 
-    ArticulatedBody art = examples::create_double_pendulum_ball(m1, m2, l1, l2);
+    ArticulatedBody art = examples::create_double_pendulum_ball(false, m1, m2, l1, l2);
     ArticulationState state(&art);
     std::vector<real_t> q2dot_empty(state.num_vel_dofs, 0.0f);
     std::vector<real_t> q2dot_1(state.num_vel_dofs, 0.0f);
@@ -131,7 +131,7 @@ TEST_CASE("Double pendulum") {
         mass_matrix<real_t>(art, state.q.data(), OUT M.data());
         check_dp_M(M.data(), state.q[0], state.q[1]);
         rne_inverse_dynamics(art, state.q.data(), state.qdot.data(), q2dot_empty.data(),
-                             gravity, state.f_ext.data(), OUT h.data(), OUT T_global.data());
+                             gravity, state.f_ext.data(), OUT h.data());
         check_dp_b(h[0], h[1], state.q[0], state.q[1], state.qdot[0], state.qdot[1]);
 
         featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_1.data());

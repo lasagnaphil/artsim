@@ -11,6 +11,8 @@
 #include <rlgl.h>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <imgui.h>
+
 Vector3 glm_to_ray(glm::vec3 v) {
     return Vector3{v.x, v.y, v.z};
 }
@@ -35,5 +37,29 @@ void render_articulation(const artsim::ArticulationState& state) {
     }
 }
 
+struct ScrollingBuffer {
+    int MaxSize;
+    int Offset;
+    ImVector<ImVec2> Data;
+    ScrollingBuffer() {
+        MaxSize = 2000;
+        Offset  = 0;
+        Data.reserve(MaxSize);
+    }
+    void AddPoint(float x, float y) {
+        if (Data.size() < MaxSize)
+            Data.push_back(ImVec2(x,y));
+        else {
+            Data[Offset] = ImVec2(x,y);
+            Offset =  (Offset + 1) % MaxSize;
+        }
+    }
+    void Erase() {
+        if (Data.size() > 0) {
+            Data.shrink(0);
+            Offset  = 0;
+        }
+    }
+};
 
 #endif //ARTSIM_ARTICULATION_RENDER_H

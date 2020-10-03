@@ -44,12 +44,13 @@ void artsim::ArticulationState::randomize_positions() {
             qp[0] = std::uniform_real_distribution<float>(-0.2f*pi, 0.2f*pi)(engine);
         } break;
         case JointType::Spherical: {
-            glm::vec3 v = {
-                    std::uniform_real_distribution<float>(-0.2f*pi, 0.2f*pi)(engine),
-                    std::uniform_real_distribution<float>(-0.2f*pi, 0.2f*pi)(engine),
-                    std::uniform_real_distribution<float>(-0.2f*pi, 0.2f*pi)(engine),
-            };
-            glm::quat vexp = artsim::exp(v);
+            float len = std::uniform_real_distribution<float>(-0.2f*pi, 0.2f*pi)(engine);
+            glm::vec3 dir = glm::vec3(
+                std::uniform_real_distribution<float>(-1, 1)(engine),
+                std::uniform_real_distribution<float>(-1, 1)(engine),
+                std::uniform_real_distribution<float>(-1, 1)(engine)
+            );
+            glm::quat vexp = artsim::exp(len * normalize(dir));
             qp[0] = vexp[0]; qp[1] = vexp[1]; qp[2] = vexp[2]; qp[3] = vexp[3];
         } break;
         }
@@ -73,6 +74,46 @@ void artsim::ArticulationState::simulate(float dt, int N) {
         artsim::integrate_implicit_euler(*art, dt, q2dot.data(), OUT q.data(), OUT qdot.data());
     }
     calc_transforms(*art, q.data(), T_local.data(), T_global.data());
+}
+
+float artsim::ArticulationState::get_joint_pos_1dof(int joint_idx) {
+    if (art->joint_pos_dofs[joint_idx] != 1) { return 0; }
+    uint32_t jidx_start = art->joint_pos_dof_starts[joint_idx];
+    return q[jidx_start];
+}
+
+glm::quat artsim::ArticulationState::get_joint_pos_spherical(int joint_idx) {
+    if (art->joint_pos_dofs[joint_idx] != 1) { return glm::quat(1, 0, 0, 0); }
+    uint32_t jidx_start = art->joint_pos_dof_starts[joint_idx];
+    return glm::make_quat(q.data() + jidx_start);
+}
+
+void artsim::ArticulationState::set_joint_pos_1dof(int joint_idx, float qj) {
+    if (art->joint_pos_dofs[joint_idx] != 1) { return; }
+    uint32_t jidx_start = art->joint_pos_dof_starts[joint_idx];
+    q[jidx_start] = qj;
+}
+
+void artsim::ArticulationState::set_joint_pos_spherical(int joint_idx, glm::quat qj) {
+    if (art->joint_pos_dofs[joint_idx] != 4) { return; }
+    uint32_t jidx_start = art->joint_pos_dof_starts[joint_idx];
+    q[jidx_start+0] = qj[0];
+    q[jidx_start+1] = qj[1];
+    q[jidx_start+2] = qj[2];
+    q[jidx_start+3] = qj[3];
+}
+
+artsim::ArticulatedBody artsim::examples::create_single_pendulum_link(bool spherical, float density, float l, float d) {
+    ArticulatedBody art;
+    Shape box1 = Shape::make_box({d, l, d});
+    art.add_link_and_joint(
+            Link::create(box1.inertia(density), box1.mass(density), box1,
+                 transform(glm::vec3(0.0f, -l/2, 0.0f)),
+                 transform(glm::vec3(0.0f, l/2, 0.0f)),
+                 -1, Id<artsim::Material>::null()),
+            spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>()));
+    art.setup();
+    return art;
 }
 
 artsim::ArticulatedBody artsim::examples::create_double_pendulum_ball(bool spherical, float m1, float m2, float l1, float l2) {
@@ -108,8 +149,7 @@ artsim::ArticulatedBody artsim::examples::create_double_pendulum_link(bool spher
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
     art.add_link_and_joint(
-            Link::create(box2.inertia(density), box2.mass(density), box2,
-                         transform(glm::vec3(0.0f, -(l1+l2)/2, 0.0f)),
+            Link::create(box2.inertia(density), box2.mass(density), box2, transform(glm::vec3(0.0f, -(l1+l2)/2, 0.0f)),
                          transform(glm::vec3(0.0f, l2/2, 0.0f)),
                          0, {}),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
@@ -242,3 +282,4 @@ artsim::ArticulatedBody artsim::examples::create_13_link_tree(bool spherical) {
     art.setup();
     return art;
 }
+

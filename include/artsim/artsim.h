@@ -98,8 +98,6 @@ namespace artsim {
         Shape shape;
         transform local_link_pose;
         transform local_joint_pose;
-        // transform global_link_pose;
-        // transform global_joint_pose;
         uint32_t parent_idx;
         Id<Material> mat_id;
 
@@ -129,6 +127,15 @@ namespace artsim {
 
         bool build_finished = false;
 
+        ArticulatedBody(bool floating = false) : floating(floating) {}
+
+        void add_link_and_joint(Link link, Joint joint) {
+            links.push_back(link);
+            joints.push_back(joint);
+        }
+
+        void setup();
+
         uint32_t get_num_joints() const {
             return joints.size();
         }
@@ -148,25 +155,6 @@ namespace artsim {
         const uint32_t* get_children(uint32_t joint_idx) const {
             return &children_buffer[children_buffer_starts[joint_idx]];
         }
-
-        ArticulatedBody(bool floating = false) : floating(floating) {}
-
-        /*
-        void add_joint_link_local(Joint joint, RigidBody rigid_body,
-                                  transform local_link_pose, transform local_joint_pose,
-                                  int parent_idx, Id<Material> mat_id);
-
-        void add_joint_link_global(Joint joint, RigidBody rigid_body,
-                                   transform global_link_pose, transform global_joint_pose,
-                                   int parent_idx, Id<Material> mat_id);
-                                   */
-
-        void add_link_and_joint(Link link, Joint joint) {
-            links.push_back(link);
-            joints.push_back(joint);
-        }
-
-        void setup();
     };
 
     struct pair_hash {
