@@ -399,9 +399,9 @@ namespace artsim {
 
     template <class T>
     inline tsmat6x6<T> inverse(const tsmat6x6<T>& G) {
-        glm::tmat3x3<T> Iinv = mat3_cast(inverse(G.I));
+        glm::tmat3x3<T> Iinv = inverse(G.I);
         glm::tmat3x3<T> Iinv_C = Iinv * G.C;
-        glm::tmat3x3<T> D = inverse(mat3_cast(G.M) - glm::transpose(G.C) * Iinv_C);
+        glm::tmat3x3<T> D = inverse(G.M - glm::transpose(G.C) * Iinv_C);
 
         tsmat6x6<T> Ginv;
         Ginv.I = Iinv + Iinv_C * D * glm::transpose(Iinv_C);

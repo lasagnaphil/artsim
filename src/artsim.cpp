@@ -51,11 +51,18 @@ Joint Joint::spherical_free() {
     return joint;
 }
 
+Joint Joint::floating() {
+    Joint joint;
+    joint.type = JointType::Floating;
+    return joint;
+}
+
 uint32_t Joint::pos_dof() {
     switch (type) {
         case JointType::Revolute: return 1;
         case JointType::Prismatic: return 1;
         case JointType::Spherical: return 4;
+        case JointType::Floating: return 7;
         default: return 0;
     }
 }
@@ -65,6 +72,7 @@ uint32_t Joint::vel_dof() {
         case JointType::Revolute: return 1;
         case JointType::Prismatic: return 1;
         case JointType::Spherical: return 3;
+        case JointType::Floating: return 6;
         default: return 0;
     }
 }

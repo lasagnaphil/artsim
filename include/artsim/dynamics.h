@@ -59,6 +59,7 @@ namespace artsim {
                 kin.v = kin.S[0] * qdot[0] + kin.S[1] * qdot[1] + kin.S[2] * qdot[2];
                 kin.c = tscrew<T>();
             } break;
+            // do not calculate anything for free joint (value is redundant anyway)
         }
     }
 
@@ -189,21 +190,27 @@ namespace artsim {
         }
 
         for (int i : art.bfs_iteration_order) {
-            if (i != 0) {
-                data[i].T_global_inv = data[art.parents[i]].T_global_inv;
-                data[i].v = data[art.parents[i]].v;
-                data[i].a = data[art.parents[i]].a;
-            }
-            else {
+            if (i == 0) {
+                if (art.floating) {
+                    data[0].a = -tscrew<T>(tvec3<T>(0), -gravity);
+                    data[0].f = data[0].I * data[0].a - adT(data[0].v, data[0].I * data[0].v) - data[0].f_ext;
+                    continue;
+                }
                 data[i].T_global_inv = ttransform<T>();
                 data[i].v = tscrew<T>();
                 data[i].a = tscrew<T>(tvec3<T>(0), -gravity);
+            }
+            else {
+                data[i].T_global_inv = data[art.parents[i]].T_global_inv;
+                data[i].v = data[art.parents[i]].v;
+                data[i].a = data[art.parents[i]].a;
             }
             data[i].rnea_pass1();
 
         }
 
         for (int j = num_joints - 1; j >= 0; j--) {
+            if (j == 0 && art.floating) continue;
             int i = art.bfs_iteration_order[j];
             data[i].rnea_pass2();
             if (i != 0) {
@@ -211,6 +218,14 @@ namespace artsim {
             }
         }
 
+        if (art.floating) {
+            tau[0] = data[0].f.w[0];
+            tau[1] = data[0].f.w[1];
+            tau[2] = data[0].f.w[2];
+            tau[3] = data[0].f.v[0];
+            tau[4] = data[0].f.v[1];
+            tau[5] = data[0].f.v[2];
+        }
         for (int i = 0; i < num_joints; i++) {
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
@@ -340,17 +355,23 @@ namespace artsim {
         }
 
         for (int i : art.bfs_iteration_order) {
-            if (i != 0) {
-                data[i].T_global_inv = data[art.parents[i]].T_global_inv;
-                data[i].v = data[art.parents[i]].v;
-            }
-            else {
+            if (i == 0) {
+                if (art.floating) {
+                    data[0].v = make_tscrew(qdot);
+                    data[0].p_a = -adT(data[0].v, data[0].I_a * data[0].v) - data[0].f_ext;
+                    continue;
+                }
                 data[i].T_global_inv = ttransform<T>();
                 data[i].v = tscrew<T>();
+            }
+            else {
+                data[i].T_global_inv = data[art.parents[i]].T_global_inv;
+                data[i].v = data[art.parents[i]].v;
             }
             data[i].featherstone_pass1();
         }
         for (int j = num_joints - 1; j >= 0; j--) {
+            if (j == 0 && art.floating) continue;
             int i = art.bfs_iteration_order[j];
             data[i].featherstone_pass2();
             if (i != 0) {
@@ -358,16 +379,28 @@ namespace artsim {
                 data[art.parents[i]].p_a += data[i].p_a;
             }
         }
+        if (art.floating) {
+            data[0].a = -(inverse(data[0].I_a) * data[0].p_a);
+        }
         for (int i : art.bfs_iteration_order) {
-            if (i != 0) {
-                data[i].a = data[art.parents[i]].a;
+            if (i == 0) {
+                if (art.floating) continue;
+                data[i].a = tscrew<T>(tvec3<T>(0), -gravity);
             }
             else {
-                data[i].a = tscrew<T>(tvec3<T>(0), -gravity);
+                data[i].a = data[art.parents[i]].a;
             }
             data[i].featherstone_pass3();
         }
-
+        if (art.floating) {
+            data[0].a += tscrew<T>(tvec3<T>(0), -gravity);
+            q2dot[0] = data[0].a.w[0];
+            q2dot[1] = data[0].a.w[1];
+            q2dot[2] = data[0].a.w[2];
+            q2dot[3] = data[0].a.v[0];
+            q2dot[4] = data[0].a.v[1];
+            q2dot[5] = data[0].a.v[2];
+        }
         for (int i = 0; i < num_joints; i++) {
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
@@ -449,6 +482,19 @@ namespace artsim {
                     qi[3] -= 0.5*dt*(qi[0]*qdi[0] + qi[1]*qdi[1] + qi[2]*qdi[2]);
                     float q_len = sqrt(qi[0]*qi[0] + qi[1]*qi[1] + qi[2]*qi[2] + qi[3]*qi[3]);
                     qi[0] /= q_len; qi[1] /= q_len; qi[2] /= q_len; qi[3] /= q_len;
+                } break;
+                case JointType::Floating: {
+                    // TODO: is there a more accurate way to integrate SE(3)?
+                    qi[0] += dt*qdi[0];
+                    qi[1] += dt*qdi[1];
+                    qi[2] += dt*qdi[2];
+                    qi[3] += 0.5*dt*(qi[6]*qdi[0] + qi[4]*qdi[2] - qi[5]*qdi[1]);
+                    qi[4] += 0.5*dt*(qi[6]*qdi[1] + qi[5]*qdi[0] - qi[3]*qdi[2]);
+                    qi[5] += 0.5*dt*(qi[6]*qdi[2] + qi[3]*qdi[1] - qi[4]*qdi[0]);
+                    qi[6] -= 0.5*dt*(qi[3]*qdi[0] + qi[4]*qdi[1] + qi[5]*qdi[2]);
+                    float q_len = sqrt(qi[3]*qi[3] + qi[4]*qi[4] + qi[5]*qi[5] + qi[6]*qi[6]);
+                    qi[3] /= q_len; qi[4] /= q_len; qi[5] /= q_len; qi[6] /= q_len;
+
                 } break;
             }
             qi += art.joint_pos_dofs[i];

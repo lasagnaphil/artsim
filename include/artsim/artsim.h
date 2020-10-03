@@ -19,7 +19,7 @@
 
 namespace artsim {
     enum class JointType : uint8_t {
-        Revolute, Prismatic, Spherical
+        Revolute, Prismatic, Spherical, Floating
     };
 
     struct Joint {
@@ -48,6 +48,7 @@ namespace artsim {
         static Joint prismatic_free(glm::vec3 dir);
         static Joint prismatic_limited(glm::vec3 dir, float limit_min, float limit_max);
         static Joint spherical_free();
+        static Joint floating();
 
         uint32_t pos_dof();
         uint32_t vel_dof();
@@ -110,6 +111,7 @@ namespace artsim {
         std::vector<Link> links;
         std::vector<Joint> joints;
         transform root_transform = transform();
+        bool floating = false;
 
         std::vector<uint32_t> joint_pos_dofs;
         std::vector<uint32_t> joint_pos_dof_starts;
@@ -122,8 +124,6 @@ namespace artsim {
         std::vector<uint32_t> children_buffer;
         std::vector<uint32_t> children_buffer_starts;
         std::vector<uint32_t> bfs_iteration_order;
-
-        bool floating;
 
         bool build_finished = false;
 
