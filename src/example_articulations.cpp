@@ -61,16 +61,16 @@ void artsim::ArticulationState::randomize_positions() {
 }
 
 void artsim::ArticulationState::simulate(float dt) {
-    // artsim::featherstone_forward_dynamics(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
-    artsim::forward_dynamics_using_rnea(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
+    artsim::featherstone_forward_dynamics(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
+    // artsim::forward_dynamics_using_rnea(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
     artsim::integrate_implicit_euler(*art, dt, q2dot.data(), OUT q.data(), OUT qdot.data());
     calc_transforms(*art, q.data(), T_local.data(), T_global.data());
 }
 
 void artsim::ArticulationState::simulate(float dt, int N) {
     for (int i = 0; i < N; i++) {
-        // artsim::featherstone_forward_dynamics(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
-        artsim::forward_dynamics_using_rnea(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
+        artsim::featherstone_forward_dynamics(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
+        // artsim::forward_dynamics_using_rnea(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
         artsim::integrate_implicit_euler(*art, dt, q2dot.data(), OUT q.data(), OUT qdot.data());
     }
     calc_transforms(*art, q.data(), T_local.data(), T_global.data());

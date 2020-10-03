@@ -280,7 +280,7 @@ namespace artsim {
                 if (joint_dof == 1) {
                     tsmat6x6<T> UUt = symmetric_cartesian_product(U[0]);
                     I_prime = I_a - UUt / D[0][0];
-                    p_prime = p_a + I_a * c + u[0] / D[0][0] * U[0];
+                    p_prime = p_a + I_prime * c + u[0] / D[0][0] * U[0];
                 }
                 else if (joint_dof == 3) {
                     tmat3x3<T> Dinv = inverse(D);
@@ -327,13 +327,13 @@ namespace artsim {
         for (int i = 0; i < num_joints; i++) {
             uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+            int num_vel_dofs = art.joint_vel_dofs[i];
             data[i].joint_dof = art.joint_vel_dofs[i];
             data[i].has_parent = i != 0;
             jcalc(art.joints[i], art.links[i], q + cur_pos_dof, qdot + cur_vel_dof, OUT data[i].kin);
             data[i].I_a = tsmat6x6<T>(art.links[i].inertia, glm::tmat3x3<T>(0), glm::tmat3x3<T>(art.links[i].mass));
             data[i].f_ext = f_ext[i];
 
-            int num_vel_dofs = art.joint_vel_dofs[i];
             for (int j = 0; j < num_vel_dofs; j++) {
                 data[i].tau[j] = tau[cur_vel_dof + j];
             }

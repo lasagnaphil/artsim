@@ -271,7 +271,6 @@ namespace artsim {
         return tscrew<T>(G.I * V.w + G.m * glm::cross(G.c, V.v), G.m*(V.v - glm::cross(G.c, V.w)));
     }
 
-    /*
     template <class T>
     inline tspmat<T> move_frame(const tspmat<T>& G_b, ttransform<T> T_ba) {
         tspmat<T> G_a;
@@ -288,7 +287,6 @@ namespace artsim {
         G_a.m = G_b.m;
         return G_a;
     }
-     */
 
     template <class T>
     inline T quadratic_form(const tspmat<T>& G, tscrew<T> V) {

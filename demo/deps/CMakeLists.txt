@@ -16,9 +16,10 @@
 #
 # target_link_libraries(raylib PUBLIC X11 pthread dl glfw)
 
-set(PLATFORM Desktop)
-set(USE_AUDIO OFF)
-set(OPENGL_VERSION 3.3)
+set(PLATFORM Desktop CACHE STRING "" FORCE)
+set(USE_AUDIO OFF CACHE BOOL "" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(OPENGL_VERSION 3.3 CACHE STRING "" FORCE)
 
 add_subdirectory(raylib)
 

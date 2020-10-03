@@ -2,6 +2,8 @@
 // Created by Phillip Chang on 2020/09/26.
 //
 
+#include <chrono>
+
 #include <raylib.h>
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
@@ -49,10 +51,13 @@ int main(void)
     // ArticulatedBody art = examples::create_double_pendulum_link(false);
     // ArticulatedBody art = examples::create_triple_pendulum_link(false);
     // ArticulatedBody art = examples::create_furuta_pendulum(false);
-    ArticulatedBody art = examples::create_13_link_tree(true);
+    // ArticulatedBody art = examples::create_13_link_tree(true);
+    ArticulatedBody art = examples::create_13_link_tree(false);
 
     ArticulationState state(&art);
     state.randomize_positions();
+    state.set_joint_pos_1dof(0, 0.2f * 3.14f);
+    state.set_joint_pos_1dof(1, 0.3f * 3.14f);
     // state.set_joint_pos_spherical(0, glm::angleAxis(0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
     // state.set_joint_pos_spherical(1, glm::angleAxis(-0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
 
@@ -73,7 +78,11 @@ int main(void)
             state.randomize_positions();
         }
 
+        auto t1 = std::chrono::high_resolution_clock::now();
         state.simulate(dt, 4);
+        auto t2 = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+        printf("Duration: %ld microsecs\n", duration.count());
 
         //----------------------------------------------------------------------------------
         ImGui_ImplOpenGL3_NewFrame();
