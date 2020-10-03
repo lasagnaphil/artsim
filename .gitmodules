@@ -1,0 +1,9 @@
+[submodule "demo/imgui"]
+	path = demo/deps/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "demo/implot"]
+	path = demo/deps/implot
+	url = https://github.com/epezent/implot
+[submodule "demo/deps/raylib"]
+	path = demo/deps/raylib
+	url = https://github.com/raysan5/raylib

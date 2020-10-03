@@ -2,7 +2,11 @@
 // Created by Phillip Chang on 2020/09/26.
 //
 
-#include "raylib.h"
+#include <raylib.h>
+#include <imgui.h>
+#include <imgui_impl_opengl3.h>
+#include <imgui_impl_raylib.h>
+#include <implot.h>
 
 #include <artsim/artsim.h>
 #include <artsim/dynamics.h>
@@ -32,49 +36,78 @@ int main(void)
     SetCameraMode(camera, CAMERA_THIRD_PERSON);
 
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+
+    ImGui::CreateContext();
+    ImPlot::CreateContext();
+    ImGui::StyleColorsDark();
+    ImGui_ImplOpenGL3_Init();
+    ImGui_ImplRaylib_Init();
+
     //--------------------------------------------------------------------------------------
 
     // ArticulatedBody art = examples::create_double_pendulum_ball(1.0f, 1.0f, 1.0f, 1.0f);
-    // ArticulatedBody art = examples::create_double_pendulum_link();
-    // ArticulatedBody art = examples::create_triple_pendulum_link();
-    // ArticulatedBody art = examples::create_furuta_pendulum();
+    // ArticulatedBody art = examples::create_double_pendulum_link(false);
+    // ArticulatedBody art = examples::create_triple_pendulum_link(false);
+    // ArticulatedBody art = examples::create_furuta_pendulum(false);
     ArticulatedBody art = examples::create_double_pendulum_link(true);
 
     ArticulationState state(&art);
     // state.randomize_positions();
+    state.set_joint_pos_spherical(0, glm::angleAxis(0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
+    state.set_joint_pos_spherical(1, glm::angleAxis(-0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
 
     float dt = 1.0f / 240.0f;
 
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
+
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera);
+        auto& io = ImGui::GetIO();
+        if (!io.WantCaptureMouse) {
+            UpdateCamera(&camera);
+        }
+
+        if (IsKeyPressed(KEY_R)) {
+            state = ArticulationState(&art);
+            state.randomize_positions();
+        }
 
         state.simulate(dt, 4);
 
         //----------------------------------------------------------------------------------
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplRaylib_NewFrame();
+        ImGui::NewFrame();
+        ImGui_ImplRaylib_ProcessEvent();
 
         // Draw
         //----------------------------------------------------------------------------------
         BeginDrawing();
+        {
+            ClearBackground(RAYWHITE);
+            BeginMode3D(camera);
+            {
+                render_articulation(state);
+                DrawGrid(10, 1.0f);        // Draw a grid
+            }
+            EndMode3D();
 
-        ClearBackground(RAYWHITE);
-
-        BeginMode3D(camera);
-
-        render_articulation(state);
-
-        DrawGrid(10, 1.0f);        // Draw a grid
-
-        EndMode3D();
-
-        DrawFPS(10, 10);
-
+            DrawFPS(10, 10);
+            // ImGui::ShowDemoWindow();
+            // ImPlot::ShowDemoWindow();
+            ImGui::Render();
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        }
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
+
+    ImGui_ImplRaylib_Shutdown();
+    ImGui_ImplOpenGL3_Shutdown();
+    ImPlot::DestroyContext();
+    ImGui::DestroyContext();
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
