@@ -49,7 +49,8 @@ namespace artsim {
         static Joint prismatic_limited(glm::vec3 dir, float limit_min, float limit_max);
         static Joint spherical_free();
 
-        uint32_t joint_dof();
+        uint32_t pos_dof();
+        uint32_t vel_dof();
     };
 
     struct Shape {
@@ -112,15 +113,18 @@ namespace artsim {
         std::vector<Joint> joints;
         transform root_transform = transform();
 
-        std::vector<uint32_t> joint_dofs;
-        std::vector<uint32_t> joint_dof_starts;
+        std::vector<uint32_t> joint_pos_dofs;
+        std::vector<uint32_t> joint_pos_dof_starts;
+        std::vector<uint32_t> joint_vel_dofs;
+        std::vector<uint32_t> joint_vel_dof_starts;
+        uint32_t num_pos_dofs = 0;
+        uint32_t num_vel_dofs = 0;
 
         std::vector<int> parents;
         std::vector<uint32_t> children_buffer;
         std::vector<uint32_t> children_buffer_starts;
         std::vector<uint32_t> bfs_iteration_order;
 
-        uint32_t num_dofs = 0;
         bool floating;
 
         bool build_finished = false;
@@ -129,8 +133,12 @@ namespace artsim {
             return joints.size();
         }
 
-        uint32_t get_num_dofs() const {
-            return num_dofs;
+        uint32_t get_num_pos_dofs() const {
+            return num_pos_dofs;
+        };
+
+        uint32_t get_num_vel_dofs() const {
+            return num_vel_dofs;
         };
 
         uint32_t get_num_children(uint32_t joint_idx) const {

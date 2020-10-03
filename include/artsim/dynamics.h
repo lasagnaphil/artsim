@@ -7,8 +7,12 @@
 
 #include "artsim/artsim.h"
 #include "artsim/math/se3.h"
+
 #include <queue>
+#include <iostream>
+
 #include <Eigen/Dense>
+#include <glm/gtc/type_ptr.hpp>
 
 namespace artsim {
     using namespace glm;
@@ -40,18 +44,17 @@ namespace artsim {
                 kin.c = tscrew<T>();
             } break;
             case JointType::Spherical: {
-                glm::tvec3<T> qvec = tvec3<T>(q[0], q[1], q[2]);
-                glm::tquat<T> qexp_inv = artsim::exp(-qvec);
+                glm::tquat<T> q_inv = glm::inverse(glm::make_quat<T>(q));
                 ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
-                kin.Tinv = T_j * ttransform<T>(qexp_inv) * inverse(T_j) * ttransform<T>(inverse(link.local_link_pose));
+                kin.Tinv = T_j * ttransform<T>(q_inv) * inverse(T_j) * ttransform<T>(inverse(link.local_link_pose));
 
-                glm::tmat3x3<T> joint_basis_vecs = glm::mat3_cast<T>(tquat<T>(link.local_joint_pose.q));
+                glm::tmat3x3<T> joint_basis_vecs = glm::mat3_cast<T>(T_j.q);
                 kin.S[0].w = joint_basis_vecs[0];
-                kin.S[0].v = glm::cross(tvec3<T>(link.local_joint_pose.v), joint_basis_vecs[0]);
+                kin.S[0].v = glm::cross(tvec3<T>(T_j.v), joint_basis_vecs[0]);
                 kin.S[1].w = joint_basis_vecs[1];
-                kin.S[1].v = glm::cross(tvec3<T>(link.local_joint_pose.v), joint_basis_vecs[1]);
+                kin.S[1].v = glm::cross(tvec3<T>(T_j.v), joint_basis_vecs[1]);
                 kin.S[2].w = joint_basis_vecs[2];
-                kin.S[2].v = glm::cross(tvec3<T>(link.local_joint_pose.v), joint_basis_vecs[2]);
+                kin.S[2].v = glm::cross(tvec3<T>(T_j.v), joint_basis_vecs[2]);
 
                 kin.v = kin.S[0] * qdot[0] + kin.S[1] * qdot[1] + kin.S[2] * qdot[2];
                 kin.c = tscrew<T>();
@@ -165,22 +168,23 @@ namespace artsim {
                               const T*__restrict q, const T*__restrict qdot, const T*__restrict q2dot,
                               glm::tvec3<T> gravity,
                               const tscrew<T>*__restrict f_ext,
-                              OUT T*__restrict tau, OUT ttransform<T>* T_global = nullptr) {
+                              OUT T*__restrict tau) {
 
         int num_joints = art.get_num_joints();
         std::vector<RecursiveNewtonEulerData<T>> data(num_joints);
 
         for (int i = 0; i < num_joints; i++) {
-            uint32_t cur_dof = art.joint_dof_starts[i];
-            data[i].joint_dof = art.joint_dofs[i];
+            uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
+            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+            int num_vel_dofs = art.joint_vel_dofs[i];
+            data[i].joint_dof = num_vel_dofs;
             data[i].has_parent = i != 0;
-            jcalc(art.joints[i], art.links[i], q + cur_dof, qdot + cur_dof, OUT data[i].kin);
+            jcalc(art.joints[i], art.links[i], q + cur_pos_dof, qdot + cur_vel_dof, OUT data[i].kin);
             data[i].I = tspmat<T>(art.links[i].inertia, glm::vec3(0), art.links[i].mass);
             data[i].f_ext = f_ext[i];
 
-            int num_dofs = art.joint_dofs[i];
-            for (int j = 0; j < num_dofs; j++) {
-                data[i].q2dot[j] = q2dot[cur_dof + j];
+            for (int j = 0; j < num_vel_dofs; j++) {
+                data[i].q2dot[j] = q2dot[cur_vel_dof + j];
             }
         }
 
@@ -208,16 +212,10 @@ namespace artsim {
         }
 
         for (int i = 0; i < num_joints; i++) {
-            uint32_t cur_dof = art.joint_dof_starts[i];
-            int num_dofs = art.joint_dofs[i];
-            for (int j = 0; j < num_dofs; j++) {
-                tau[cur_dof + j] = data[i].tau[j];
-            }
-        }
-
-        if (T_global) {
-            for (int i = 1; i < num_joints; i++) {
-                T_global[i] = inverse(data[i].T_global_inv) * ttransform<T>(art.root_transform);
+            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+            int num_vel_dofs = art.joint_vel_dofs[i];
+            for (int j = 0; j < num_vel_dofs; j++) {
+                tau[cur_vel_dof + j] = data[i].tau[j];
             }
         }
     }
@@ -327,16 +325,17 @@ namespace artsim {
         std::vector<FeatherstoneData<T>> data(num_joints);
 
         for (int i = 0; i < num_joints; i++) {
-            uint32_t cur_dof = art.joint_dof_starts[i];
-            data[i].joint_dof = art.joint_dofs[i];
+            uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
+            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+            data[i].joint_dof = art.joint_vel_dofs[i];
             data[i].has_parent = i != 0;
-            jcalc(art.joints[i], art.links[i], q + cur_dof, qdot + cur_dof, OUT data[i].kin);
+            jcalc(art.joints[i], art.links[i], q + cur_pos_dof, qdot + cur_vel_dof, OUT data[i].kin);
             data[i].I_a = tsmat6x6<T>(art.links[i].inertia, glm::tmat3x3<T>(0), glm::tmat3x3<T>(art.links[i].mass));
             data[i].f_ext = f_ext[i];
 
-            int num_dofs = art.joint_dofs[i];
-            for (int j = 0; j < num_dofs; j++) {
-                data[i].tau[j] = tau[cur_dof + j];
+            int num_vel_dofs = art.joint_vel_dofs[i];
+            for (int j = 0; j < num_vel_dofs; j++) {
+                data[i].tau[j] = tau[cur_vel_dof + j];
             }
         }
 
@@ -370,17 +369,17 @@ namespace artsim {
         }
 
         for (int i = 0; i < num_joints; i++) {
-            uint32_t cur_dof = art.joint_dof_starts[i];
-            int num_dofs = art.joint_dofs[i];
-            for (int j = 0; j < num_dofs; j++) {
-                q2dot[cur_dof + j] = data[i].q2dot[j];
+            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+            int num_vel_dofs = art.joint_vel_dofs[i];
+            for (int j = 0; j < num_vel_dofs; j++) {
+                q2dot[cur_vel_dof + j] = data[i].q2dot[j];
             }
         }
     }
 
     template <class T>
     void mass_matrix(const ArticulatedBody& art, const T*__restrict q, OUT T* M) {
-        uint32_t dof = art.get_num_dofs();
+        uint32_t dof = art.get_num_vel_dofs();
         std::vector<T> qdot(dof, 0);
         std::vector<T> q2dot(dof, 0);
         std::vector<tscrew<T>> f_ext(art.get_num_joints(), tscrew<T>());
@@ -401,7 +400,7 @@ namespace artsim {
                     const tscrew<T>*__restrict f_ext,
                     const T*__restrict q, const T*__restrict qdot,
                     OUT T* tau) {
-        int dof = art.get_num_dofs();
+        int dof = art.get_num_vel_dofs();
         std::vector<T> q2dot(dof, 0);
         rne_inverse_dynamics(art, q, qdot, q2dot.data(), gravity, f_ext, tau);
     }
@@ -415,29 +414,45 @@ namespace artsim {
         using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
         using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
 
-        int dof = art.get_num_dofs();
+        int dof = art.get_num_vel_dofs();
         Matrix M(dof, dof);
         Vector h(dof);
         Vector b(dof);
         Vector tau_ext = Eigen::Map<const Vector>(tau, dof);
         mass_matrix(art, q, M.data());
+        std::cout << M << std::endl;
         all_forces(art, gravity, f_ext, q, qdot, OUT h.data());
         b.noalias() = tau_ext - h;
+        std::cout << b << std::endl;
         Eigen::Map<Vector> x = Eigen::Map<Vector>(q2dot, dof);
         x.noalias() = M.llt().solve(b);
+        std::cout << x << std::endl;
     }
 
     template <class T>
     void integrate_implicit_euler(const ArticulatedBody& art,
-                                  float dt, const T*__restrict q2dot,
+                                  T dt, const T*__restrict q2dot,
                                   OUT T*__restrict q, OUT T*__restrict qdot) {
-        // TODO: Support spherical joints
-        int num_dofs = art.get_num_dofs();
-        for (int i = 0; i < num_dofs; i++) {
-            qdot[i] += q2dot[i] * dt;
+        for (int d = 0; d < art.get_num_vel_dofs(); d++) {
+            qdot[d] += q2dot[d] * dt;
         }
-        for (int i = 0; i < num_dofs; i++) {
-            q[i] += qdot[i] * dt;
+        T* qi = q; T* qdi = qdot;
+        for (int i = 0; i < art.get_num_joints(); i++) {
+            switch (art.joints[i].type) {
+                case JointType::Revolute: case JointType::Prismatic: {
+                    qi[0] += qdi[0]*dt;
+                } break;
+                case JointType::Spherical: {
+                    qi[0] += 0.5*dt*(q[3]*qdot[0] + q[1]*qdot[2] - q[2]*qdot[1]);
+                    qi[1] += 0.5*dt*(q[3]*qdot[1] + q[2]*qdot[0] - q[0]*qdot[2]);
+                    qi[2] += 0.5*dt*(q[3]*qdot[2] + q[0]*qdot[1] - q[1]*qdot[0]);
+                    qi[3] -= 0.5*dt*(q[0]*qdot[0] + q[1]*qdot[1] + q[2]*qdot[2]);
+                    float q_len = sqrt(qi[0]*qi[0] + qi[1]*qi[1] + qi[2]*qi[2] + qi[3]*qi[3]);
+                    qi[0] /= q_len; qi[1] /= q_len; qi[2] /= q_len; qi[3] /= q_len;
+                } break;
+            }
+            qi += art.joint_pos_dofs[i];
+            qdi += art.joint_vel_dofs[i];
         }
     }
 
@@ -448,7 +463,7 @@ namespace artsim {
                          OUT ttransform<T>* T_link_globals) {
 
         for (uint32_t i = 0; i < art.get_num_joints(); i++) {
-            int d = art.joint_dof_starts[i];
+            int d = art.joint_pos_dof_starts[i];
             auto& joint = art.joints[i];
             auto& link = art.links[i];
             switch (joint.type) {
@@ -461,10 +476,9 @@ namespace artsim {
                     T_link_locals[i] = ttransform<T>(link.local_link_pose) * move(S, q[d]);
                 } break;
                 case JointType::Spherical: {
-                    glm::tvec3<T> qvec = tvec3<T>(q[d], q[d+1], q[d+2]);
-                    glm::tquat<T> qexp = artsim::exp(qvec);
+                    glm::tquat<T> q_j = tquat<T>(q[d], q[d+1], q[d+2], q[d+3]);
                     ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
-                    T_link_locals[i] = ttransform<T>(link.local_link_pose) * inverse(T_j) * ttransform<T>(qexp) * T_j;
+                    T_link_locals[i] = ttransform<T>(link.local_link_pose) * inverse(T_j) * ttransform<T>(q_j) * T_j;
                 } break;
             }
         }

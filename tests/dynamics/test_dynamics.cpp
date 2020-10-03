@@ -68,16 +68,16 @@ TEST_CASE("Double pendulum") {
 
     ArticulatedBody art = examples::create_double_pendulum_ball(m1, m2, l1, l2);
     ArticulationState state(&art);
-    std::vector<real_t> q2dot_empty(state.num_dofs, 0.0f);
-    std::vector<real_t> q2dot_1(state.num_dofs, 0.0f);
-    std::vector<real_t> q2dot_2(state.num_dofs, 0.0f);
+    std::vector<real_t> q2dot_empty(state.num_vel_dofs, 0.0f);
+    std::vector<real_t> q2dot_1(state.num_vel_dofs, 0.0f);
+    std::vector<real_t> q2dot_2(state.num_vel_dofs, 0.0f);
 
     real_t g = 9.81f;
     real_t dt = 1.0f / 1000.0f;
     tvec3<real_t> gravity = {0, -g, 0};
 
-    std::vector<real_t> M(state.num_dofs*state.num_dofs, 0.0f);
-    std::vector<real_t> h(state.num_dofs, 0.0f);
+    std::vector<real_t> M(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
+    std::vector<real_t> h(state.num_vel_dofs, 0.0f);
 
     state.q[0] = 0.25f * glm::pi<real_t>();
     state.q[1] = 0.25f * glm::pi<real_t>();
@@ -140,7 +140,7 @@ TEST_CASE("Double pendulum") {
         // TODO: check the Featherstone method by plugging it into the Newton eq: M(q) * q2dot + C(q, qdot) = tau.
 
         // Compare between Featherstone and RNEA results
-        for (int d = 0; d < state.num_dofs; d++) {
+        for (int d = 0; d < state.num_vel_dofs; d++) {
             INFO("Iteration " << i <<", DOF " << d);
             CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
         }

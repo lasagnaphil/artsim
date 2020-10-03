@@ -38,11 +38,10 @@ int main(void)
     // ArticulatedBody art = examples::create_double_pendulum_link();
     // ArticulatedBody art = examples::create_triple_pendulum_link();
     // ArticulatedBody art = examples::create_furuta_pendulum();
-    ArticulatedBody art = examples::create_13_link_tree_revolute();
+    ArticulatedBody art = examples::create_double_pendulum_link(true);
+
     ArticulationState state(&art);
-    for (int i = 0; i < state.num_dofs; i++) {
-        state.q[i] = 0.04f * (std::rand() % 10 - 5) * glm::pi<float>();
-    }
+    // state.randomize_positions();
 
     float dt = 1.0f / 240.0f;
 

@@ -51,7 +51,16 @@ Joint Joint::spherical_free() {
     return joint;
 }
 
-uint32_t Joint::joint_dof() {
+uint32_t Joint::pos_dof() {
+    switch (type) {
+        case JointType::Revolute: return 1;
+        case JointType::Prismatic: return 1;
+        case JointType::Spherical: return 4;
+        default: return 0;
+    }
+}
+
+uint32_t Joint::vel_dof() {
     switch (type) {
         case JointType::Revolute: return 1;
         case JointType::Prismatic: return 1;
@@ -59,6 +68,7 @@ uint32_t Joint::joint_dof() {
         default: return 0;
     }
 }
+
 
 float Shape::mass(float density) {
     switch (type) {
@@ -112,28 +122,29 @@ Link Link::create(glm::mat3 inertia, float mass, Shape shape, transform local_li
 
 void ArticulatedBody::setup() {
     int num_joints = get_num_joints();
-    joint_dofs.resize(num_joints);
-    joint_dof_starts.resize(num_joints + 1);
+    joint_pos_dofs.resize(num_joints);
+    joint_pos_dof_starts.resize(num_joints + 1);
+    joint_vel_dofs.resize(num_joints);
+    joint_vel_dof_starts.resize(num_joints + 1);
     parents.resize(num_joints);
 
     for (int i = 0; i < num_joints; i++) {
         auto& link = links[i];
         auto& joint = joints[i];
         // Find the unit screw axis of the current joint
-        switch (joint.type) {
-            case JointType::Revolute: case JointType::Prismatic: {
-                joint_dofs[i] = 1;
-            } break;
-            case JointType::Spherical:{
-                joint_dofs[i] = 3;
-            } break;
-        }
+        joint_pos_dofs[i] = joint.pos_dof();
+        joint_vel_dofs[i] = joint.vel_dof();
     }
-    joint_dof_starts[0] = 0;
+    joint_pos_dof_starts[0] = 0;
     for (int i = 1; i <= num_joints; i++) {
-        joint_dof_starts[i] = joint_dof_starts[i-1] + joint_dofs[i-1];
+        joint_pos_dof_starts[i] = joint_pos_dof_starts[i-1] + joint_pos_dofs[i-1];
     }
-    num_dofs = joint_dof_starts[num_joints];
+    num_pos_dofs = joint_pos_dof_starts[num_joints];
+    joint_vel_dof_starts[0] = 0;
+    for (int i = 1; i <= num_joints; i++) {
+        joint_vel_dof_starts[i] = joint_vel_dof_starts[i-1] + joint_vel_dofs[i-1];
+    }
+    num_vel_dofs = joint_vel_dof_starts[num_joints];
 
     for (int i = 0; i < num_joints; i++) {
         parents[i] = links[i].parent_idx;
