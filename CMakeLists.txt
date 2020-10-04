@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 # We're only using Eigen temporarily for now, we're probably going to remove it in the future
 find_package(Eigen3 REQUIRED)
 
-add_library(artsim src/artsim.cpp src/dynamics.cpp src/example_articulations.cpp)
+add_library(artsim src/artsim.cpp src/dynamics.cpp src/example_articulations.cpp include/artsim/articulation_state.h)
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(artsim PUBLIC glm Eigen3::Eigen)
 

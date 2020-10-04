@@ -17,11 +17,13 @@ Vector3 glm_to_ray(glm::vec3 v) {
     return Vector3{v.x, v.y, v.z};
 }
 
-void render_articulation(const artsim::ArticulationState& state) {
+template <class T>
+void render_articulation(const artsim::ArticulationState<T>& state) {
     for (int i = 0; i < state.num_joints; i++) {
-        glm::mat4 model_mat = artsim::mat4_cast(state.T_global[i]);
+        glm::tmat4x4<T> model_mat = artsim::mat4_cast(state.T_global[i]);
+        glm::mat4 model_mat_f = model_mat;
         rlPushMatrix();
-        rlMultMatrixf(glm::value_ptr(model_mat));
+        rlMultMatrixf(glm::value_ptr(model_mat_f));
 
         artsim::Shape shape = state.art->links[i].shape;
         switch(shape.type) {

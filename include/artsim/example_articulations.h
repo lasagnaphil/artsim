@@ -8,43 +8,10 @@
 #include <vector>
 #include <artsim/artsim.h>
 #include <artsim/dynamics.h>
+#include <chrono>
 
 namespace artsim {
 
-struct ArticulationState {
-    artsim::ArticulatedBody* art;
-
-    size_t num_pos_dofs;
-    size_t num_vel_dofs;
-    size_t num_joints;
-    std::vector<float> q;
-    std::vector<float> qdot;
-    std::vector<float> q2dot;
-    std::vector<float> tau;
-    std::vector<artsim::tscrew<float>> f_ext;
-    std::vector<artsim::ttransform<float>> T_local;
-    std::vector<artsim::ttransform<float>> T_global;
-
-    glm::vec3 gravity = {0.f, -9.81f, 0.f};
-
-    ArticulationState(artsim::ArticulatedBody* artPtr);
-
-    void reset_positions();
-
-    void randomize_positions();
-
-    void simulate(float dt);
-
-    void simulate(float dt, int N);
-
-    float get_joint_pos_1dof(int joint_idx);
-
-    glm::quat get_joint_pos_spherical(int joint_idx);
-
-    void set_joint_pos_1dof(int joint_idx, float qj);
-
-    void set_joint_pos_spherical(int joint_idx, glm::quat qj);
-};
 
 namespace examples {
 

@@ -6,103 +6,6 @@
 
 #include <random>
 
-artsim::ArticulationState::ArticulationState(artsim::ArticulatedBody *artPtr)
-        : art(artPtr),
-          num_pos_dofs(art->get_num_pos_dofs()), num_vel_dofs(art->get_num_vel_dofs()), num_joints(art->get_num_joints()),
-          q(num_pos_dofs, 0), qdot(num_vel_dofs, 0), q2dot(num_vel_dofs, 0), tau(num_vel_dofs, 0),
-          f_ext(num_joints, screw()), T_local(num_joints, transform()), T_global(num_joints, transform())
-{
-    reset_positions();
-}
-
-void artsim::ArticulationState::reset_positions() {
-    float* qp = q.data();
-    for (int i = 0; i < num_joints; i++) {
-        switch (art->joints[i].type) {
-            case JointType::Prismatic: case JointType::Revolute: {
-                qp[0] = 0;
-            } break;
-            case JointType::Spherical: {
-                qp[0] = 0; qp[1] = 0; qp[2] = 0; qp[3] = 1;
-            } break;
-        }
-        qp += art->joint_pos_dofs[i];
-    }
-
-    calc_transforms(*art, q.data(), T_local.data(), T_global.data());
-}
-
-void artsim::ArticulationState::randomize_positions() {
-    std::random_device r;
-    std::default_random_engine engine(r());
-
-    const float pi = glm::pi<float>();
-    float* qp = q.data();
-    for (int i = 0; i < num_joints; i++) {
-        switch (art->joints[i].type) {
-        case JointType::Prismatic: case JointType::Revolute: {
-            qp[0] = std::uniform_real_distribution<float>(-0.2f*pi, 0.2f*pi)(engine);
-        } break;
-        case JointType::Spherical: {
-            float len = std::uniform_real_distribution<float>(-0.2f*pi, 0.2f*pi)(engine);
-            glm::vec3 dir = glm::vec3(
-                std::uniform_real_distribution<float>(-1, 1)(engine),
-                std::uniform_real_distribution<float>(-1, 1)(engine),
-                std::uniform_real_distribution<float>(-1, 1)(engine)
-            );
-            glm::quat vexp = artsim::exp(len * normalize(dir));
-            qp[0] = vexp[0]; qp[1] = vexp[1]; qp[2] = vexp[2]; qp[3] = vexp[3];
-        } break;
-        }
-        qp += art->joint_pos_dofs[i];
-    }
-
-    calc_transforms(*art, q.data(), T_local.data(), T_global.data());
-}
-
-void artsim::ArticulationState::simulate(float dt) {
-    artsim::featherstone_forward_dynamics(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
-    // artsim::forward_dynamics_using_rnea(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
-    artsim::integrate_implicit_euler(*art, dt, q2dot.data(), OUT q.data(), OUT qdot.data());
-    calc_transforms(*art, q.data(), T_local.data(), T_global.data());
-}
-
-void artsim::ArticulationState::simulate(float dt, int N) {
-    for (int i = 0; i < N; i++) {
-        artsim::featherstone_forward_dynamics(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
-        // artsim::forward_dynamics_using_rnea(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
-        artsim::integrate_implicit_euler(*art, dt, q2dot.data(), OUT q.data(), OUT qdot.data());
-    }
-    calc_transforms(*art, q.data(), T_local.data(), T_global.data());
-}
-
-float artsim::ArticulationState::get_joint_pos_1dof(int joint_idx) {
-    if (art->joint_pos_dofs[joint_idx] != 1) { return 0; }
-    uint32_t jidx_start = art->joint_pos_dof_starts[joint_idx];
-    return q[jidx_start];
-}
-
-glm::quat artsim::ArticulationState::get_joint_pos_spherical(int joint_idx) {
-    if (art->joint_pos_dofs[joint_idx] != 1) { return glm::quat(1, 0, 0, 0); }
-    uint32_t jidx_start = art->joint_pos_dof_starts[joint_idx];
-    return glm::make_quat(q.data() + jidx_start);
-}
-
-void artsim::ArticulationState::set_joint_pos_1dof(int joint_idx, float qj) {
-    if (art->joint_pos_dofs[joint_idx] != 1) { return; }
-    uint32_t jidx_start = art->joint_pos_dof_starts[joint_idx];
-    q[jidx_start] = qj;
-}
-
-void artsim::ArticulationState::set_joint_pos_spherical(int joint_idx, glm::quat qj) {
-    if (art->joint_pos_dofs[joint_idx] != 4) { return; }
-    uint32_t jidx_start = art->joint_pos_dof_starts[joint_idx];
-    q[jidx_start+0] = qj[0];
-    q[jidx_start+1] = qj[1];
-    q[jidx_start+2] = qj[2];
-    q[jidx_start+3] = qj[3];
-}
-
 artsim::ArticulatedBody artsim::examples::create_single_pendulum_link(bool spherical, float density, float l, float d) {
     ArticulatedBody art;
     Shape box1 = Shape::make_box({d, l, d});
@@ -200,7 +103,7 @@ artsim::ArticulatedBody artsim::examples::create_furuta_pendulum(bool spherical,
                          transform(glm::vec3(l1/2, 0.0f, 0.0f)),
                          transform(glm::vec3(-l1/2, 0.0f, 0.0f)),
                          -1, {}),
-            spherical? Joint::spherical_free() : Joint::revolute_free(Ey<float>())
+            Joint::revolute_free(Ey<float>())
     );
     art.add_link_and_joint(
             Link::create(box2.inertia(density), box2.mass(density), box2,

@@ -7,13 +7,16 @@
 #include <artsim/artsim.h>
 #include <artsim/dynamics.h>
 #include <artsim/math/common.h>
+#include <artsim/articulation_state.h>
 #include <artsim/example_articulations.h>
 
 #include "utils/test_utils.h"
 
+#include <map>
+
 using namespace artsim;
 
-using real_t = float;
+using real_t = double;
 
 TEST_CASE("Helper functions for dynamics.h") {
     std::random_device random_dev;
@@ -67,7 +70,7 @@ TEST_CASE("Double pendulum") {
     real_t l2 = 1.0f;
 
     ArticulatedBody art = examples::create_double_pendulum_ball(false, m1, m2, l1, l2);
-    ArticulationState state(&art);
+    ArticulationState<real_t> state(&art);
     std::vector<real_t> q2dot_empty(state.num_vel_dofs, 0.0f);
     std::vector<real_t> q2dot_1(state.num_vel_dofs, 0.0f);
     std::vector<real_t> q2dot_2(state.num_vel_dofs, 0.0f);
@@ -76,7 +79,8 @@ TEST_CASE("Double pendulum") {
     real_t dt = 1.0f / 1000.0f;
     tvec3<real_t> gravity = {0, -g, 0};
 
-    std::vector<real_t> M(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
+    std::vector<real_t> M1(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
+    std::vector<real_t> M2(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
     std::vector<real_t> h(state.num_vel_dofs, 0.0f);
 
     state.q[0] = 0.25f * glm::pi<real_t>();
@@ -100,36 +104,12 @@ TEST_CASE("Double pendulum") {
                 +m2*g*l2*sin(q1 + q2)).epsilon(1e-4));
     };
 
-    std::vector<ttransform<real_t>> T_local(art.get_num_joints());
-    std::vector<ttransform<real_t>> T_global(art.get_num_joints());
-
-    // Performance comparison. (Featherstone currently about 2 times faster.)
-    /*
-    {
-        auto t1 = std::chrono::high_resolution_clock::now();
-        for (int i = 0; i < 1000000; i++) {
-            featherstone_forward_dynamics(art, glm::vec3(0, -g, 0), f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot_1.data());
-        }
-        auto t2 = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
-        MESSAGE("1000000 iters of featherstone forward dynamics: " << duration.count() << " ms");
-    }
-
-    {
-        auto t1 = std::chrono::high_resolution_clock::now();
-        for (int i = 0; i < 1000000; i++) {
-            forward_dynamics_using_rnea(art, glm::vec3(0, -g, 0), f_ext.data(), q.data(), qdot.data(), tau.data(), OUT
-                                        q2dot_2.data());
-        }
-        auto t2 = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
-        MESSAGE("1000000 iters of rnea forward dynamics: " << duration.count() << " ms");
-    }
-     */
-
     for (int i = 0; i < 1000; i++) {
-        mass_matrix<real_t>(art, state.q.data(), OUT M.data());
-        check_dp_M(M.data(), state.q[0], state.q[1]);
+        mass_matrix_using_rnea<real_t>(art, state.q.data(), OUT M1.data());
+        check_dp_M(M1.data(), state.q[0], state.q[1]);
+        mass_matrix(art, state.q.data(), OUT M2.data());
+        check_dp_M(M2.data(), state.q[0], state.q[1]);
+
         rne_inverse_dynamics(art, state.q.data(), state.qdot.data(), q2dot_empty.data(),
                              gravity, state.f_ext.data(), OUT h.data());
         check_dp_b(h[0], h[1], state.q[0], state.q[1], state.qdot[0], state.qdot[1]);
@@ -148,5 +128,95 @@ TEST_CASE("Double pendulum") {
         state.q2dot = q2dot_2;
 
         integrate_implicit_euler(art, dt, state.q2dot.data(), OUT state.q.data(), OUT state.qdot.data());
+    }
+}
+
+TEST_CASE("Various kinds of pendulums") {
+
+    std::map<std::string, ArticulatedBody> articulations = {
+            {"01. single link pendulum revolute", examples::create_single_pendulum_link(false)},
+            {"02. single link pendulum spherical", examples::create_single_pendulum_link(true)},
+            {"03. double ball pendulum revolute", examples::create_double_pendulum_ball(false)},
+            {"04. double link pendulum revolute", examples::create_double_pendulum_link(false)},
+            {"05. double link pendulum spherical", examples::create_double_pendulum_link(true)},
+            {"06. triple link pendulum revolute", examples::create_triple_pendulum_link(false)},
+            {"07. triple link pendulum spherical", examples::create_triple_pendulum_link(true)},
+            {"08. furuta pendulum revolute", examples::create_furuta_pendulum(false)},
+            {"09. furuta pendulum spherical", examples::create_furuta_pendulum(true)},
+            {"10. 5 link tree revolute", examples::create_5_link_tree(false)},
+            {"11. 5 link tree spherical", examples::create_5_link_tree(true)},
+            {"12. 13 link tree revolute", examples::create_13_link_tree(false)},
+            {"13. 13 link tree spherical", examples::create_13_link_tree(true)},
+    };
+
+    for (auto& [name, art] : articulations) {
+        std::string art_name = name;
+        MESSAGE("Articulation name: " << art_name);
+        ArticulationState<real_t> state(&art);
+        state.randomize_positions();
+
+        std::vector<real_t> q2dot_empty(state.num_vel_dofs, 0.0f);
+        std::vector<real_t> q2dot_1(state.num_vel_dofs, 0.0f);
+        std::vector<real_t> q2dot_2(state.num_vel_dofs, 0.0f);
+
+        real_t g = 9.81f;
+        real_t dt = 1.0f / 1000.0f;
+        tvec3<real_t> gravity = {0, -g, 0};
+
+        std::vector<real_t> M1(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
+        std::vector<real_t> M2(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
+        std::vector<real_t> h(state.num_vel_dofs, 0.0f);
+
+        // Performance comparison
+        int num_iters = 10000;
+        {
+            auto t1 = std::chrono::high_resolution_clock::now();
+            for (int i = 0; i < num_iters; i++) {
+                featherstone_forward_dynamics(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_1.data());
+            }
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+            MESSAGE(num_iters << " iters of featherstone forward dynamics: " << duration.count() << " microsecs");
+        }
+
+        {
+            auto t1 = std::chrono::high_resolution_clock::now();
+            for (int i = 0; i < num_iters; i++) {
+                forward_dynamics_using_rnea(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_2.data());
+            }
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+            MESSAGE(num_iters << " iters of rnea forward dynamics: " << duration.count() << " microsecs");
+        }
+
+        for (int i = 0; i < 1000; i++) {
+            mass_matrix<real_t>(art, state.q.data(), OUT M1.data());
+            mass_matrix_using_rnea<real_t>(art, state.q.data(), OUT M2.data());
+
+            for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
+                for (int k2 = 0; k2 < state.num_vel_dofs; k2++) {
+                    INFO("Iteration " << i << ", DOF (" << k1 << ", " << k2 << ")");
+                    CHECK(M1[k1 * state.num_vel_dofs + k2] ==
+                          doctest::Approx(M2[k1 * state.num_vel_dofs + k2]).epsilon(1e-4));
+                }
+            }
+
+            rne_inverse_dynamics(art, state.q.data(), state.qdot.data(), q2dot_empty.data(),
+                                 gravity, state.f_ext.data(), OUT h.data());
+
+            featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_1.data());
+            forward_dynamics_using_rnea(  art, gravity, state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_2.data());
+
+            // TODO: check the Featherstone method by plugging it into the Newton eq: M(q) * q2dot + C(q, qdot) = tau.
+
+            // Compare between Featherstone and RNEA results
+            for (int d = 0; d < state.num_vel_dofs; d++) {
+                CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
+            }
+
+            state.q2dot = q2dot_2;
+
+            integrate_implicit_euler(art, dt, state.q2dot.data(), OUT state.q.data(), OUT state.qdot.data());
+        }
     }
 }

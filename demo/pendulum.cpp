@@ -12,12 +12,15 @@
 
 #include <artsim/artsim.h>
 #include <artsim/dynamics.h>
+#include <artsim/articulation_state.h>
 #include <artsim/example_articulations.h>
 
 #include "articulation_render.h"
 
 using namespace artsim;
 using namespace glm;
+
+using real_t = double;
 
 int main(void)
 {
@@ -54,7 +57,7 @@ int main(void)
     // ArticulatedBody art = examples::create_13_link_tree(true);
     ArticulatedBody art = examples::create_13_link_tree(true);
 
-    ArticulationState state(&art);
+    ArticulationState<real_t> state(&art);
     state.randomize_positions();
     // state.set_joint_pos_1dof(0, 0.2f * 3.14f);
     // state.set_joint_pos_1dof(1, 0.3f * 3.14f);
@@ -74,7 +77,7 @@ int main(void)
         }
 
         if (IsKeyPressed(KEY_R)) {
-            state = ArticulationState(&art);
+            state = ArticulationState<real_t>(&art);
             state.randomize_positions();
         }
 

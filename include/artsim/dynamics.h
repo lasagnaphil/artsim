@@ -411,7 +411,7 @@ namespace artsim {
     }
 
     template <class T>
-    void mass_matrix(const ArticulatedBody& art, const T*__restrict q, OUT T* M) {
+    void mass_matrix_using_rnea(const ArticulatedBody& art, const T*__restrict q, OUT T*__restrict M) {
         uint32_t dof = art.get_num_vel_dofs();
         std::vector<T> qdot(dof, 0);
         std::vector<T> q2dot(dof, 0);
@@ -452,7 +452,7 @@ namespace artsim {
         Vector h(dof);
         Vector b(dof);
         Vector tau_ext = Eigen::Map<const Vector>(tau, dof);
-        mass_matrix(art, q, M.data());
+        mass_matrix_using_rnea(art, q, M.data());
         // std::cout << M << std::endl;
         all_forces(art, gravity, f_ext, q, qdot, OUT h.data());
         b.noalias() = tau_ext - h;
@@ -535,6 +535,101 @@ namespace artsim {
             }
             else {
                 T_link_globals[i] = T_link_globals[art.parents[i]] * T_link_locals[i];
+            }
+        }
+    }
+
+    // Mass matrix calculation using the composite-rigid-body algorithm.
+    template <class T>
+    void mass_matrix(const ArticulatedBody& art, const T*__restrict q, OUT T*__restrict M) {
+        uint32_t vdof = art.get_num_vel_dofs();
+        uint32_t num_joints = art.get_num_joints();
+        std::fill_n(M, vdof * vdof, 0);
+        std::vector<KinematicsData<T>> kin(num_joints);
+        std::vector<tsmat6x6<T>> I(num_joints);
+        for (uint32_t i : art.bfs_iteration_order) {
+            uint32_t ppos = art.joint_pos_dof_starts[i];
+            uint32_t vpos = art.joint_vel_dof_starts[i];
+            jcalc(art.joints[i], art.links[i], q + ppos, q + vpos, kin[i]);
+            I[i] = tsmat6x6<T>(art.links[i].inertia, glm::tmat3x3<T>(0), glm::tmat3x3<T>(art.links[i].mass));
+        }
+        for (int l = num_joints-1; l >= 0; l--) {
+            uint32_t i = art.bfs_iteration_order[l];
+            uint32_t vpos_i = art.joint_vel_dof_starts[i];
+            uint32_t vdof_i = art.joint_vel_dofs[i];
+            if (i != 0) {
+                I[art.parents[i]] += move_frame(I[i], kin[i].Tinv);
+            }
+            switch (vdof_i) {
+                case 1: {
+                    tscrew<T> F;
+                    F = I[i] * kin[i].S[0];
+                    M[vpos_i * vdof + vpos_i] = dot(kin[i].S[0], F);
+                    uint32_t j = i;
+                    while (j != 0) {
+                        F = AdT(kin[j].Tinv, F);
+                        j = art.parents[j];
+                        uint32_t vpos_j = art.joint_vel_dof_starts[j];
+                        uint32_t vdof_j = art.joint_vel_dofs[j];
+                        if (vdof_j == 1) {
+                            M[vpos_i * vdof + (vpos_j+0)] = M[(vpos_j+0) * vdof + vpos_i] = dot(F, kin[j].S[0]);
+                        }
+                        else if (vdof_j == 3) {
+                            M[vpos_i * vdof + (vpos_j+0)] = M[(vpos_j+0) * vdof + vpos_i] = dot(F, kin[j].S[0]);
+                            M[vpos_i * vdof + (vpos_j+1)] = M[(vpos_j+1) * vdof + vpos_i] = dot(F, kin[j].S[1]);
+                            M[vpos_i * vdof + (vpos_j+2)] = M[(vpos_j+2) * vdof + vpos_i] = dot(F, kin[j].S[2]);
+                        }
+                    }
+                } break;
+                case 3: {
+                    tscrew<T> F[3];
+                    F[0] = I[i] * kin[i].S[0];
+                    F[1] = I[i] * kin[i].S[1];
+                    F[2] = I[i] * kin[i].S[2];
+                    M[(vpos_i + 0) * vdof + vpos_i + 0] = dot(kin[i].S[0], F[0]);
+                    M[(vpos_i + 0) * vdof + vpos_i + 1] = dot(kin[i].S[0], F[1]);
+                    M[(vpos_i + 0) * vdof + vpos_i + 2] = dot(kin[i].S[0], F[2]);
+                    M[(vpos_i + 1) * vdof + vpos_i + 0] = dot(kin[i].S[1], F[0]);
+                    M[(vpos_i + 1) * vdof + vpos_i + 1] = dot(kin[i].S[1], F[1]);
+                    M[(vpos_i + 1) * vdof + vpos_i + 2] = dot(kin[i].S[1], F[2]);
+                    M[(vpos_i + 2) * vdof + vpos_i + 0] = dot(kin[i].S[2], F[0]);
+                    M[(vpos_i + 2) * vdof + vpos_i + 1] = dot(kin[i].S[2], F[1]);
+                    M[(vpos_i + 2) * vdof + vpos_i + 2] = dot(kin[i].S[2], F[2]);
+                    uint32_t j = i;
+                    while (j != 0) {
+                        F[0] = AdT(kin[j].Tinv, F[0]);
+                        F[1] = AdT(kin[j].Tinv, F[1]);
+                        F[2] = AdT(kin[j].Tinv, F[2]);
+                        j = art.parents[j];
+                        uint32_t vpos_j = art.joint_vel_dof_starts[j];
+                        uint32_t vdof_j = art.joint_vel_dofs[j];
+                        if (vdof_j == 1) {
+#define CRBA_MACRO(k1) \
+                            M[(vpos_i+k1)*vdof + vpos_j] = M[(vpos_j)*vdof + vpos_i+k1] = dot(F[k1], kin[j].S[0])
+                            CRBA_MACRO(0);
+                            CRBA_MACRO(1);
+                            CRBA_MACRO(2);
+#undef CRBA_MACRO
+                        }
+                        else if (vdof_j == 3) {
+#define CRBA_MACRO(k1, k2) \
+                            M[(vpos_i+k1)*vdof + vpos_j+k2] = M[(vpos_j+k2)*vdof + vpos_i+k1] = dot(F[k1], kin[j].S[k2])
+                            CRBA_MACRO(0, 0);
+                            CRBA_MACRO(1, 0);
+                            CRBA_MACRO(2, 0);
+                            CRBA_MACRO(0, 1);
+                            CRBA_MACRO(1, 1);
+                            CRBA_MACRO(2, 1);
+                            CRBA_MACRO(0, 2);
+                            CRBA_MACRO(1, 2);
+                            CRBA_MACRO(2, 2);
+#undef CRBA_MACRO
+                        }
+
+
+                    }
+                } break;
+                default: break;
             }
         }
     }
