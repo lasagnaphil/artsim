@@ -85,8 +85,8 @@ TEST_CASE("Double pendulum") {
 
     state.q[0] = 0.25f * glm::pi<real_t>();
     state.q[1] = 0.25f * glm::pi<real_t>();
-    state.qdot[0] = 0.0f;
-    state.qdot[1] = 0.0f;
+    state.u[0] = 0.0f;
+    state.u[1] = 0.0f;
 
     auto check_dp_M = [m1, m2, l1, l2](real_t* M, real_t theta1, real_t theta2) {
         CHECK(M[0] == doctest::Approx((m1+m2)*l1*l1 + m2*l2*l2 + 2*m2*l1*l2*cos(theta2)).epsilon(1e-6));
@@ -110,12 +110,12 @@ TEST_CASE("Double pendulum") {
         mass_matrix(art, state.q.data(), OUT M2.data());
         check_dp_M(M2.data(), state.q[0], state.q[1]);
 
-        rne_inverse_dynamics(art, state.q.data(), state.qdot.data(), q2dot_empty.data(),
+        rne_inverse_dynamics(art, state.q.data(), state.u.data(), q2dot_empty.data(),
                              gravity, state.f_ext.data(), OUT h.data());
-        check_dp_b(h[0], h[1], state.q[0], state.q[1], state.qdot[0], state.qdot[1]);
+        check_dp_b(h[0], h[1], state.q[0], state.q[1], state.u[0], state.u[1]);
 
-        featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_1.data());
-        forward_dynamics_using_rnea(  art, gravity, state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_2.data());
+        featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
+        forward_dynamics_using_rnea(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
 
         // TODO: check the Featherstone method by plugging it into the Newton eq: M(q) * q2dot + C(q, qdot) = tau.
 
@@ -125,9 +125,9 @@ TEST_CASE("Double pendulum") {
             CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
         }
 
-        state.q2dot = q2dot_2;
+        state.udot = q2dot_2;
 
-        integrate_implicit_euler(art, dt, state.q2dot.data(), OUT state.q.data(), OUT state.qdot.data());
+        integrate_implicit_euler(art, dt, state.udot.data(), OUT state.q.data(), OUT state.u.data());
     }
 }
 
@@ -172,7 +172,7 @@ TEST_CASE("Various kinds of pendulums") {
         {
             auto t1 = std::chrono::high_resolution_clock::now();
             for (int i = 0; i < num_iters; i++) {
-                featherstone_forward_dynamics(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_1.data());
+                featherstone_forward_dynamics(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
             }
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
@@ -182,7 +182,7 @@ TEST_CASE("Various kinds of pendulums") {
         {
             auto t1 = std::chrono::high_resolution_clock::now();
             for (int i = 0; i < num_iters; i++) {
-                forward_dynamics_using_rnea(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_2.data());
+                forward_dynamics_using_rnea(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
             }
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
@@ -201,11 +201,11 @@ TEST_CASE("Various kinds of pendulums") {
                 }
             }
 
-            rne_inverse_dynamics(art, state.q.data(), state.qdot.data(), q2dot_empty.data(),
+            rne_inverse_dynamics(art, state.q.data(), state.u.data(), q2dot_empty.data(),
                                  gravity, state.f_ext.data(), OUT h.data());
 
-            featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_1.data());
-            forward_dynamics_using_rnea(  art, gravity, state.f_ext.data(), state.q.data(), state.qdot.data(), state.tau.data(), OUT q2dot_2.data());
+            featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
+            forward_dynamics_using_rnea(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
 
             // TODO: check the Featherstone method by plugging it into the Newton eq: M(q) * q2dot + C(q, qdot) = tau.
 
@@ -214,9 +214,9 @@ TEST_CASE("Various kinds of pendulums") {
                 CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
             }
 
-            state.q2dot = q2dot_2;
+            state.udot = q2dot_2;
 
-            integrate_implicit_euler(art, dt, state.q2dot.data(), OUT state.q.data(), OUT state.qdot.data());
+            integrate_implicit_euler(art, dt, state.udot.data(), OUT state.q.data(), OUT state.u.data());
         }
     }
 }

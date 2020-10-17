@@ -27,20 +27,20 @@ namespace artsim {
 
     template <class T>
     void jcalc(const Joint& joint, const Link& link,
-               const T*__restrict q, const T*__restrict qdot, OUT KinematicsData<T>& kin) {
+               const T*__restrict q, const T*__restrict u, OUT KinematicsData<T>& kin) {
         switch (joint.type) {
             case JointType::Revolute: {
                 tscrew<T> S = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(joint.revolute.axis, tvec3<T>(0)));
                 kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_link_pose));
                 kin.S[0] = S;
-                kin.v = S * qdot[0];
+                kin.v = S * u[0];
                 kin.c = tscrew<T>();
             } break;
             case JointType::Prismatic: {
                 tscrew<T> S = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(tvec3<T>(0), joint.prismatic.dir));
                 kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_link_pose));
                 kin.S[0] = S;
-                kin.v = S * qdot[0];
+                kin.v = S * u[0];
                 kin.c = tscrew<T>();
             } break;
             case JointType::Spherical: {
@@ -56,7 +56,7 @@ namespace artsim {
                 kin.S[2].w = joint_basis_vecs[2];
                 kin.S[2].v = glm::cross(tvec3<T>(T_j.v), joint_basis_vecs[2]);
 
-                kin.v = kin.S[0] * qdot[0] + kin.S[1] * qdot[1] + kin.S[2] * qdot[2];
+                kin.v = kin.S[0] * u[0] + kin.S[1] * u[1] + kin.S[2] * u[2];
                 kin.c = tscrew<T>();
             } break;
             // do not calculate anything for free joint (value is redundant anyway)
@@ -166,7 +166,7 @@ namespace artsim {
 
     template <class T>
     void rne_inverse_dynamics(const ArticulatedBody& art,
-                              const T*__restrict q, const T*__restrict qdot, const T*__restrict q2dot,
+                              const T*__restrict q, const T*__restrict u, const T*__restrict q2dot,
                               glm::tvec3<T> gravity,
                               const tscrew<T>*__restrict f_ext,
                               OUT T*__restrict tau) {
@@ -180,12 +180,12 @@ namespace artsim {
             int num_vel_dofs = art.joint_vel_dofs[i];
             data[i].joint_dof = num_vel_dofs;
             data[i].has_parent = i != 0;
-            jcalc(art.joints[i], art.links[i], q + cur_pos_dof, qdot + cur_vel_dof, OUT data[i].kin);
+            jcalc(art.joints[i], art.links[i], q + cur_pos_dof, u + cur_vel_dof, OUT data[i].kin);
             data[i].I = tspmat<T>(art.links[i].inertia, glm::vec3(0), art.links[i].mass);
             data[i].f_ext = f_ext[i];
 
             for (int j = 0; j < num_vel_dofs; j++) {
-                data[i].q2dot[j] = q2dot[cur_vel_dof + j];
+                data[i].udot[j] = q2dot[cur_vel_dof + j];
             }
         }
 
@@ -333,7 +333,7 @@ namespace artsim {
     void featherstone_forward_dynamics(const ArticulatedBody& art,
                                        glm::tvec3<T> gravity,
                                        const tscrew<T>*__restrict f_ext,
-                                       const T*__restrict q, const T*__restrict qdot, const T*__restrict tau,
+                                       const T*__restrict q, const T*__restrict u, const T*__restrict tau,
                                        OUT T*__restrict q2dot) {
 
         int num_joints = art.get_num_joints();
@@ -345,7 +345,7 @@ namespace artsim {
             int num_vel_dofs = art.joint_vel_dofs[i];
             data[i].joint_dof = art.joint_vel_dofs[i];
             data[i].has_parent = i != 0;
-            jcalc(art.joints[i], art.links[i], q + cur_pos_dof, qdot + cur_vel_dof, OUT data[i].kin);
+            jcalc(art.joints[i], art.links[i], q + cur_pos_dof, u + cur_vel_dof, OUT data[i].kin);
             data[i].I_a = tsmat6x6<T>(art.links[i].inertia, glm::tmat3x3<T>(0), glm::tmat3x3<T>(art.links[i].mass));
             data[i].f_ext = f_ext[i];
 
@@ -357,7 +357,7 @@ namespace artsim {
         for (int i : art.bfs_iteration_order) {
             if (i == 0) {
                 if (art.floating) {
-                    data[0].v = make_tscrew(qdot);
+                    data[0].v = make_tscrew(u);
                     data[0].p_a = -adT(data[0].v, data[0].I_a * data[0].v) - data[0].f_ext;
                     continue;
                 }
@@ -405,25 +405,63 @@ namespace artsim {
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
             for (int j = 0; j < num_vel_dofs; j++) {
-                q2dot[cur_vel_dof + j] = data[i].q2dot[j];
+                q2dot[cur_vel_dof + j] = data[i].udot[j];
             }
         }
     }
 
     template <class T>
+    void solve_collision(const ArticulatedBody& art,
+                         const MaterialDB& material_db,
+                         glm::tvec3<T> gravity, T dt,
+                         const T*__restrict q, const T*__restrict u, const T*__restrict q2dot_orig, const T* tau,
+                         const ContactPoint* contact_points, uint32_t num_contact_points,
+                         OUT glm::tvec3<T>*__restrict out_lambda, OUT T*__restrict out_contact_forces) {
+
+        using namespace Eigen;
+
+        int num_vel_dofs = art.get_num_vel_dofs();
+        int num_joints = art.get_num_joints();
+
+        VectorXf u_bar(num_vel_dofs);
+        for (int i = 0; i < num_vel_dofs; i++) {
+            u_bar[i] = u[i] + q2dot_orig[i] * dt;
+        }
+
+        Matrix<T, Dynamic, Dynamic, RowMajor> A(3 * num_contact_points, num_vel_dofs);
+
+        std::vector<KinematicsData<T>> kin(num_joints);
+        for (int i = 0; i < num_joints; i++) {
+
+        }
+
+
+    }
+
+    template <class T>
+    void euler_step_with_collision(const ArticulatedBody& art,
+                                   const MaterialDB& material_db,
+                                   glm::tvec3<T> gravity, T dt,
+                                   const T*__restrict tau,
+                                   const ContactPoint* contact_points, uint32_t num_contact_points,
+                                   OUT T*__restrict q, OUT T*__restrict u, OUT glm::tvec3<T>* lambda) {
+
+    }
+
+    template <class T>
     void mass_matrix_using_rnea(const ArticulatedBody& art, const T*__restrict q, OUT T*__restrict M) {
         uint32_t dof = art.get_num_vel_dofs();
-        std::vector<T> qdot(dof, 0);
+        std::vector<T> u(dof, 0);
         std::vector<T> q2dot(dof, 0);
         std::vector<tscrew<T>> f_ext(art.get_num_joints(), tscrew<T>());
         std::vector<T> tau(dof, 0);
 
         q2dot[0] = 1;
-        rne_inverse_dynamics(art, q, qdot.data(), q2dot.data(), glm::tvec3<T>(0), f_ext.data(), OUT M);
+        rne_inverse_dynamics(art, q, u.data(), q2dot.data(), glm::tvec3<T>(0), f_ext.data(), OUT M);
         for (int i = 1; i < dof; i++) {
             q2dot[i-1] = 0;
             q2dot[i] = 1;
-            rne_inverse_dynamics(art, q, qdot.data(), q2dot.data(), glm::tvec3<T>(0), f_ext.data(), OUT M + i*dof);
+            rne_inverse_dynamics(art, q, u.data(), q2dot.data(), glm::tvec3<T>(0), f_ext.data(), OUT M + i*dof);
         }
     }
 
@@ -431,18 +469,18 @@ namespace artsim {
     void all_forces(const ArticulatedBody& art,
                     glm::tvec3<T> gravity,
                     const tscrew<T>*__restrict f_ext,
-                    const T*__restrict q, const T*__restrict qdot,
+                    const T*__restrict q, const T*__restrict u,
                     OUT T* tau) {
         int dof = art.get_num_vel_dofs();
         std::vector<T> q2dot(dof, 0);
-        rne_inverse_dynamics(art, q, qdot, q2dot.data(), gravity, f_ext, tau);
+        rne_inverse_dynamics(art, q, u, q2dot.data(), gravity, f_ext, tau);
     }
 
     template <class T>
     void forward_dynamics_using_rnea(const ArticulatedBody& art,
                                      glm::tvec3<T> gravity,
                                      const tscrew<T>*__restrict f_ext,
-                                     const T*__restrict q, const T*__restrict qdot, const T*__restrict tau,
+                                     const T*__restrict q, const T*__restrict u, const T*__restrict tau,
                                      OUT T*__restrict q2dot) {
         using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
         using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
@@ -454,7 +492,7 @@ namespace artsim {
         Vector tau_ext = Eigen::Map<const Vector>(tau, dof);
         mass_matrix_using_rnea(art, q, M.data());
         // std::cout << M << std::endl;
-        all_forces(art, gravity, f_ext, q, qdot, OUT h.data());
+        all_forces(art, gravity, f_ext, q, u, OUT h.data());
         b.noalias() = tau_ext - h;
         // std::cout << b << std::endl;
         Eigen::Map<Vector> x = Eigen::Map<Vector>(q2dot, dof);
@@ -465,11 +503,11 @@ namespace artsim {
     template <class T>
     void integrate_implicit_euler(const ArticulatedBody& art,
                                   T dt, const T*__restrict q2dot,
-                                  OUT T*__restrict q, OUT T*__restrict qdot) {
+                                  OUT T*__restrict q, OUT T*__restrict u) {
         for (int d = 0; d < art.get_num_vel_dofs(); d++) {
-            qdot[d] += q2dot[d] * dt;
+            u[d] += q2dot[d] * dt;
         }
-        T* qi = q; T* qdi = qdot;
+        T* qi = q; T* qdi = u;
         for (int i = 0; i < art.get_num_joints(); i++) {
             switch (art.joints[i].type) {
                 case JointType::Revolute: case JointType::Prismatic: {

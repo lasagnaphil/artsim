@@ -20,8 +20,8 @@ struct ArticulationState {
     size_t num_vel_dofs;
     size_t num_joints;
     std::vector<T> q;
-    std::vector<T> qdot;
-    std::vector<T> q2dot;
+    std::vector<T> u;
+    std::vector<T> udot;
     std::vector<T> tau;
     std::vector<artsim::tscrew<T>> f_ext;
     std::vector<artsim::ttransform<T>> T_local;
@@ -32,7 +32,7 @@ struct ArticulationState {
     ArticulationState(artsim::ArticulatedBody *artPtr)
             : art(artPtr),
               num_pos_dofs(art->get_num_pos_dofs()), num_vel_dofs(art->get_num_vel_dofs()), num_joints(art->get_num_joints()),
-              q(num_pos_dofs, 0), qdot(num_vel_dofs, 0), q2dot(num_vel_dofs, 0), tau(num_vel_dofs, 0),
+              q(num_pos_dofs, 0), u(num_vel_dofs, 0), udot(num_vel_dofs, 0), tau(num_vel_dofs, 0),
               f_ext(num_joints, tscrew<T>()), T_local(num_joints, ttransform<T>()), T_global(num_joints, ttransform<T>())
     {
         reset_positions();
@@ -84,17 +84,17 @@ struct ArticulationState {
     }
 
     void simulate(T dt) {
-        artsim::featherstone_forward_dynamics(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
+        artsim::featherstone_forward_dynamics(*art, gravity, f_ext.data(), q.data(), u.data(), tau.data(), OUT udot.data());
         // artsim::forward_dynamics_using_rnea(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
-        artsim::integrate_implicit_euler(*art, dt, q2dot.data(), OUT q.data(), OUT qdot.data());
+        artsim::integrate_implicit_euler(*art, dt, udot.data(), OUT q.data(), OUT u.data());
         calc_transforms(*art, q.data(), T_local.data(), T_global.data());
     }
 
     void simulate(T dt, int N) {
         for (int i = 0; i < N; i++) {
-            artsim::featherstone_forward_dynamics(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
+            artsim::featherstone_forward_dynamics(*art, gravity, f_ext.data(), q.data(), u.data(), tau.data(), OUT udot.data());
             // artsim::forward_dynamics_using_rnea(*art, gravity, f_ext.data(), q.data(), qdot.data(), tau.data(), OUT q2dot.data());
-            artsim::integrate_implicit_euler(*art, dt, q2dot.data(), OUT q.data(), OUT qdot.data());
+            artsim::integrate_implicit_euler(*art, dt, udot.data(), OUT q.data(), OUT u.data());
         }
         calc_transforms(*art, q.data(), T_local.data(), T_global.data());
     }
