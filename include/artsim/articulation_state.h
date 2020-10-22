@@ -31,7 +31,7 @@ struct ArticulationState {
 
     glm::tvec3<T> gravity = {0, -9.81, 0};
 
-    bool enable_collision_with_ground = true;
+    bool enable_collision_with_ground = false;
     std::vector<uint32_t> ground_col_enabled_links;
     std::vector<ContactPoint> contact_points;
     std::vector<tvec3<T>> contact_normals;

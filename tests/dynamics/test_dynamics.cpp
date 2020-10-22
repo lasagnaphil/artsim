@@ -70,7 +70,8 @@ TEST_CASE("Double pendulum") {
     real_t l2 = 1.0f;
 
     ArticulatedBody art = examples::create_double_pendulum_ball(false, m1, m2, l1, l2);
-    ArticulationState<real_t> state(&art);
+    MaterialDB material_db;
+    ArticulationState<real_t> state(&art, &material_db);
     std::vector<real_t> q2dot_empty(state.num_vel_dofs, 0.0f);
     std::vector<real_t> q2dot_1(state.num_vel_dofs, 0.0f);
     std::vector<real_t> q2dot_2(state.num_vel_dofs, 0.0f);
@@ -147,12 +148,14 @@ TEST_CASE("Various kinds of pendulums") {
             {"11. 5 link tree spherical", examples::create_5_link_tree(true)},
             {"12. 13 link tree revolute", examples::create_13_link_tree(false)},
             {"13. 13 link tree spherical", examples::create_13_link_tree(true)},
+            {"14. free link", examples::create_free_link()},
     };
 
+    MaterialDB material_db;
     for (auto& [name, art] : articulations) {
         std::string art_name = name;
         MESSAGE("Articulation name: " << art_name);
-        ArticulationState<real_t> state(&art);
+        ArticulationState<real_t> state(&art, &material_db);
         state.randomize_positions();
 
         std::vector<real_t> q2dot_empty(state.num_vel_dofs, 0.0f);

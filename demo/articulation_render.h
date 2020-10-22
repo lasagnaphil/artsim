@@ -40,6 +40,15 @@ void render_articulation(const artsim::ArticulationState<T>& state) {
 
         rlPopMatrix();
     }
+    for (int c = 0; c < state.contact_points.size(); c++) {
+        glm::tvec3<T> normal = state.contact_normals[c];
+        const artsim::ContactPoint& cpoint = state.contact_points[c];
+
+        glm::tvec3<T> contact_Ey = glm::normalize(glm::cross(normal, artsim::Ez<T>()));
+        glm::tmat3x3<T> contact_mat(artsim::Ez<T>(), contact_Ey, normal);
+
+        DrawLine3D(glm_to_ray(cpoint.pos), glm_to_ray(cpoint.pos + 0.1f * glm::vec3(contact_mat * normal)), GREEN);
+    }
 }
 
 struct ScrollingBuffer {

@@ -63,6 +63,7 @@ int main(void)
     MaterialDB material_db;
 
     ArticulationState<real_t> state(&art, &material_db);
+    state.enable_collision_with_ground = true;
     state.randomize_positions();
     // state.set_joint_pos_1dof(0, 0.2f * 3.14f);
     // state.set_joint_pos_1dof(1, 0.3f * 3.14f);

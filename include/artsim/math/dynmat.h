@@ -29,6 +29,10 @@ struct dynmat_view {
         return ptr[i*row_stride + j];
     }
 
+    dynmat_view<T> slice(uint32_t row_start, uint32_t row_n, uint32_t col_start, uint32_t col_n) {
+        return dynmat_view<T>(ptr + row_start*row_stride + col_start, row_n, col_n, row_stride, col_stride);
+    }
+
     void clear_zero() {
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {

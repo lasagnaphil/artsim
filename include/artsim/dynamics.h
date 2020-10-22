@@ -611,7 +611,7 @@ namespace artsim {
          */
 
         Eigen::Matrix<T, Dynamic, Dynamic> M(num_vel_dofs, num_vel_dofs);
-        mass_matrix_using_rnea(art, q, OUT M.data());
+        mass_matrix(art, q, OUT M.data());
         Eigen::Matrix<T, Dynamic, Dynamic> M_inv = M.inverse();
         for (int k = 0; k < num_contact_points; k++) {
             Eigen::Matrix<T, Dynamic, 3> Minv_Jck_T = M_inv * Jc.middleRows(3*k, 3).transpose();
@@ -748,7 +748,7 @@ namespace artsim {
         Vector h(dof);
         Vector b(dof);
         Vector tau_ext = Eigen::Map<const Vector>(tau, dof);
-        mass_matrix_using_rnea(art, q, M.data());
+        mass_matrix(art, q, M.data());
         // std::cout << M << std::endl;
         all_forces(art, gravity, f_ext, q, u, OUT h.data());
         b.noalias() = tau_ext - h;
@@ -840,30 +840,40 @@ namespace artsim {
         }
     }
 
+    template <class T>
+    Eigen::Matrix<T, 3, 3> glm_to_eigen(glm::tmat3x3<T>& M) {
+        return Eigen::Map<Eigen::Matrix<T, 3, 3>>(glm::value_ptr<T>(M), 3, 3).transpose();
+    }
+
     // Mass matrix calculation using the composite-rigid-body algorithm.
     template <class T>
     void mass_matrix(const ArticulatedBody& art, const T*__restrict q, OUT T*__restrict M) {
+        using namespace Eigen;
+        uint32_t vdof = art.get_num_vel_dofs();
+        uint32_t num_joints = art.get_num_joints();
+        Eigen::Map<Eigen::Matrix<T, Dynamic, Dynamic>> H(M, vdof, vdof);
+        H.setZero();
+
+        std::vector<KinematicsData<T>> kin(num_joints);
+        std::vector<tsmat6x6<T>> I(num_joints);
+
         if (art.floating) {
-            // TODO
-            uint32_t vdof = art.get_num_vel_dofs();
-            uint32_t num_joints = art.get_num_joints();
-            std::fill_n(M, vdof * vdof, 0);
-            std::vector<KinematicsData<T>> kin(num_joints);
-            std::vector<tsmat6x6<T>> I(num_joints);
             std::vector<ttransform<T>> T_flink(num_joints);
             for (uint32_t i : art.bfs_iteration_order) {
                 uint32_t ppos = art.joint_pos_dof_starts[i];
                 uint32_t vpos = art.joint_vel_dof_starts[i];
                 jcalc(art.joints[i], art.links[i], q + ppos, q + vpos, kin[i]);
                 I[i] = tsmat6x6<T>(art.links[i].inertia, glm::tmat3x3<T>(0), glm::tmat3x3<T>(art.links[i].mass));
-                if (art.floating) {
-                    if (i == 0) T_flink[i] = ttransform<T>();
-                    else {
-                        T_flink[i] = kin[i].Tinv * T_flink[art.parents[i]];
-                    }
-                }
+
+                if (i == 0) T_flink[i] = ttransform<T>();
+                else T_flink[i] = kin[i].Tinv * T_flink[art.parents[i]];
             }
-            std::vector<tscrew<T>> F(vdof);
+
+            H.template block<3,3>(0, 0) = glm_to_eigen<T>(I[0].I);
+            H.template block<3,3>(3, 0) = glm_to_eigen<T>(I[0].C);
+            H.template block<3,3>(0, 3) = glm_to_eigen<T>(I[0].C).transpose();
+            H.template block<3,3>(3, 3) = glm_to_eigen<T>(I[0].M);
+
             for (int l = num_joints-1; l >= 0; l--) {
                 uint32_t i = art.bfs_iteration_order[l];
                 if (i == 0 && art.joints[i].type == JointType::Floating) break;
@@ -875,49 +885,56 @@ namespace artsim {
                 }
                 switch (vdof_i) {
                     case 1: {
-                        F[vpos_i] = I[i] * kin[i].S[0];
-                        M[vpos_i * vdof + vpos_i] = dot(kin[i].S[0], F[vpos_i]);
+                        tscrew<T> Fi = I[i] * kin[i].S[0];
+                        H(vpos_i, vpos_i) = dot(kin[i].S[0], Fi);
                         uint32_t j = i;
                         while (j != 0) {
-                            F[vpos_i] = AdT(kin[j].Tinv, F[vpos_i]);
+                            Fi = AdT(kin[j].Tinv, Fi);
                             j = art.parents[j];
                             uint32_t vpos_j = art.joint_vel_dof_starts[j];
                             uint32_t vdof_j = art.joint_vel_dofs[j];
                             if (vdof_j == 1) {
-                                M[vpos_i * vdof + (vpos_j+0)] = M[(vpos_j+0) * vdof + vpos_i] = dot(F[vpos_i], kin[j].S[0]);
+                                H(vpos_i, vpos_j+0) = H(vpos_j+0, vpos_i) = dot(Fi, kin[j].S[0]);
                             }
                             else if (vdof_j == 3) {
-                                M[vpos_i * vdof + (vpos_j+0)] = M[(vpos_j+0) * vdof + vpos_i] = dot(F[vpos_i], kin[j].S[0]);
-                                M[vpos_i * vdof + (vpos_j+1)] = M[(vpos_j+1) * vdof + vpos_i] = dot(F[vpos_i], kin[j].S[1]);
-                                M[vpos_i * vdof + (vpos_j+2)] = M[(vpos_j+2) * vdof + vpos_i] = dot(F[vpos_i], kin[j].S[2]);
+                                H(vpos_i, vpos_j+0) = H(vpos_j+0, vpos_i) = dot(Fi, kin[j].S[0]);
+                                H(vpos_i, vpos_j+1) = H(vpos_j+1, vpos_i) = dot(Fi, kin[j].S[1]);
+                                H(vpos_i, vpos_j+2) = H(vpos_j+2, vpos_i) = dot(Fi, kin[j].S[2]);
                             }
-                            F[vpos_i] = AdT(T_flink[i], F[vpos_i]);
                         }
+                        Fi = AdT(T_flink[i], Fi);
+                        H(0, vpos_i) = Fi.w[0];
+                        H(1, vpos_i) = Fi.w[1];
+                        H(2, vpos_i) = Fi.w[2];
+                        H(3, vpos_i) = Fi.v[0];
+                        H(4, vpos_i) = Fi.v[1];
+                        H(5, vpos_i) = Fi.v[2];
                     } break;
                     case 3: {
-                        F[vpos_i + 0] = I[i] * kin[i].S[0];
-                        F[vpos_i + 1] = I[i] * kin[i].S[1];
-                        F[vpos_i + 2] = I[i] * kin[i].S[2];
-                        M[(vpos_i + 0) * vdof + vpos_i + 0] = dot(kin[i].S[0], F[vpos_i + 0]);
-                        M[(vpos_i + 0) * vdof + vpos_i + 1] = dot(kin[i].S[0], F[vpos_i + 1]);
-                        M[(vpos_i + 0) * vdof + vpos_i + 2] = dot(kin[i].S[0], F[vpos_i + 2]);
-                        M[(vpos_i + 1) * vdof + vpos_i + 0] = dot(kin[i].S[1], F[vpos_i + 0]);
-                        M[(vpos_i + 1) * vdof + vpos_i + 1] = dot(kin[i].S[1], F[vpos_i + 1]);
-                        M[(vpos_i + 1) * vdof + vpos_i + 2] = dot(kin[i].S[1], F[vpos_i + 2]);
-                        M[(vpos_i + 2) * vdof + vpos_i + 0] = dot(kin[i].S[2], F[vpos_i + 0]);
-                        M[(vpos_i + 2) * vdof + vpos_i + 1] = dot(kin[i].S[2], F[vpos_i + 1]);
-                        M[(vpos_i + 2) * vdof + vpos_i + 2] = dot(kin[i].S[2], F[vpos_i + 2]);
+                        tscrew<T> Fi[3];
+                        Fi[0] = I[i] * kin[i].S[0];
+                        Fi[1] = I[i] * kin[i].S[1];
+                        Fi[2] = I[i] * kin[i].S[2];
+                        H(vpos_i + 0, vpos_i + 0) = dot(kin[i].S[0], Fi[0]);
+                        H(vpos_i + 0, vpos_i + 1) = dot(kin[i].S[0], Fi[1]);
+                        H(vpos_i + 0, vpos_i + 2) = dot(kin[i].S[0], Fi[2]);
+                        H(vpos_i + 1, vpos_i + 0) = dot(kin[i].S[1], Fi[0]);
+                        H(vpos_i + 1, vpos_i + 1) = dot(kin[i].S[1], Fi[1]);
+                        H(vpos_i + 1, vpos_i + 2) = dot(kin[i].S[1], Fi[2]);
+                        H(vpos_i + 2, vpos_i + 0) = dot(kin[i].S[2], Fi[0]);
+                        H(vpos_i + 2, vpos_i + 1) = dot(kin[i].S[2], Fi[1]);
+                        H(vpos_i + 2, vpos_i + 2) = dot(kin[i].S[2], Fi[2]);
                         uint32_t j = i;
                         while (j != 0) {
-                            F[vpos_i + 0] = AdT(kin[j].Tinv, F[vpos_i + 0]);
-                            F[vpos_i + 1] = AdT(kin[j].Tinv, F[vpos_i + 1]);
-                            F[vpos_i + 2] = AdT(kin[j].Tinv, F[vpos_i + 2]);
+                            Fi[0] = AdT(kin[j].Tinv, Fi[0]);
+                            Fi[1] = AdT(kin[j].Tinv, Fi[1]);
+                            Fi[2] = AdT(kin[j].Tinv, Fi[2]);
                             j = art.parents[j];
                             uint32_t vpos_j = art.joint_vel_dof_starts[j];
                             uint32_t vdof_j = art.joint_vel_dofs[j];
                             if (vdof_j == 1) {
 #define CRBA_MACRO(k1) \
-                            M[(vpos_i+k1)*vdof + vpos_j] = M[(vpos_j)*vdof + vpos_i+k1] = dot(F[k1], kin[j].S[0])
+                            H(vpos_i+k1, vpos_j) = H(vpos_j, vpos_i+k1) = dot(Fi[k1], kin[j].S[0])
                                 CRBA_MACRO(0);
                                 CRBA_MACRO(1);
                                 CRBA_MACRO(2);
@@ -925,7 +942,7 @@ namespace artsim {
                             }
                             else if (vdof_j == 3) {
 #define CRBA_MACRO(k1, k2) \
-                            M[(vpos_i+k1)*vdof + vpos_j+k2] = M[(vpos_j+k2)*vdof + vpos_i+k1] = dot(F[k1], kin[j].S[k2])
+                            H(vpos_i+k1, vpos_j+k2) = H(vpos_j+k2, vpos_i+k1) = dot(Fi[k1], kin[j].S[k2])
                                 CRBA_MACRO(0, 0);
                                 CRBA_MACRO(1, 0);
                                 CRBA_MACRO(2, 0);
@@ -938,20 +955,22 @@ namespace artsim {
 #undef CRBA_MACRO
                             }
                         }
-                        F[vpos_i + 0] = AdT(T_flink[i], F[vpos_i + 0]);
-                        F[vpos_i + 1] = AdT(T_flink[i], F[vpos_i + 1]);
-                        F[vpos_i + 2] = AdT(T_flink[i], F[vpos_i + 2]);
+                        for (int k = 0; k < 3; k++) {
+                            Fi[k] = AdT(T_flink[i], Fi[k]);
+                            H(0, vpos_i + k) = Fi[k].w[0];
+                            H(1, vpos_i + k) = Fi[k].w[1];
+                            H(2, vpos_i + k) = Fi[k].w[2];
+                            H(3, vpos_i + k) = Fi[k].v[0];
+                            H(4, vpos_i + k) = Fi[k].v[1];
+                            H(5, vpos_i + k) = Fi[k].v[2];
+                        }
                     } break;
                     default: break;
                 }
             }
+            H.bottomLeftCorner(vdof-6, 6) = H.topRightCorner(6, vdof-6).transpose();
         }
         else {
-            uint32_t vdof = art.get_num_vel_dofs();
-            uint32_t num_joints = art.get_num_joints();
-            std::fill_n(M, vdof * vdof, 0);
-            std::vector<KinematicsData<T>> kin(num_joints);
-            std::vector<tsmat6x6<T>> I(num_joints);
             for (uint32_t i : art.bfs_iteration_order) {
                 uint32_t ppos = art.joint_pos_dof_starts[i];
                 uint32_t vpos = art.joint_vel_dof_starts[i];
@@ -977,12 +996,12 @@ namespace artsim {
                             uint32_t vpos_j = art.joint_vel_dof_starts[j];
                             uint32_t vdof_j = art.joint_vel_dofs[j];
                             if (vdof_j == 1) {
-                                M[vpos_i * vdof + (vpos_j+0)] = M[(vpos_j+0) * vdof + vpos_i] = dot(F, kin[j].S[0]);
+                                H(vpos_i, vpos_j+0) = H(vpos_j+0, vpos_i) = dot(F, kin[j].S[0]);
                             }
                             else if (vdof_j == 3) {
-                                M[vpos_i * vdof + (vpos_j+0)] = M[(vpos_j+0) * vdof + vpos_i] = dot(F, kin[j].S[0]);
-                                M[vpos_i * vdof + (vpos_j+1)] = M[(vpos_j+1) * vdof + vpos_i] = dot(F, kin[j].S[1]);
-                                M[vpos_i * vdof + (vpos_j+2)] = M[(vpos_j+2) * vdof + vpos_i] = dot(F, kin[j].S[2]);
+                                H(vpos_i, vpos_j+0) = H(vpos_j+0, vpos_i) = dot(F, kin[j].S[0]);
+                                H(vpos_i, vpos_j+1) = H(vpos_j+1, vpos_i) = dot(F, kin[j].S[1]);
+                                H(vpos_i, vpos_j+2) = H(vpos_j+2, vpos_i) = dot(F, kin[j].S[2]);
                             }
                         }
                     } break;
@@ -991,15 +1010,15 @@ namespace artsim {
                         F[0] = I[i] * kin[i].S[0];
                         F[1] = I[i] * kin[i].S[1];
                         F[2] = I[i] * kin[i].S[2];
-                        M[(vpos_i + 0) * vdof + vpos_i + 0] = dot(kin[i].S[0], F[0]);
-                        M[(vpos_i + 0) * vdof + vpos_i + 1] = dot(kin[i].S[0], F[1]);
-                        M[(vpos_i + 0) * vdof + vpos_i + 2] = dot(kin[i].S[0], F[2]);
-                        M[(vpos_i + 1) * vdof + vpos_i + 0] = dot(kin[i].S[1], F[0]);
-                        M[(vpos_i + 1) * vdof + vpos_i + 1] = dot(kin[i].S[1], F[1]);
-                        M[(vpos_i + 1) * vdof + vpos_i + 2] = dot(kin[i].S[1], F[2]);
-                        M[(vpos_i + 2) * vdof + vpos_i + 0] = dot(kin[i].S[2], F[0]);
-                        M[(vpos_i + 2) * vdof + vpos_i + 1] = dot(kin[i].S[2], F[1]);
-                        M[(vpos_i + 2) * vdof + vpos_i + 2] = dot(kin[i].S[2], F[2]);
+                        H(vpos_i + 0, vpos_i + 0) = dot(kin[i].S[0], F[0]);
+                        H(vpos_i + 0, vpos_i + 1) = dot(kin[i].S[0], F[1]);
+                        H(vpos_i + 0, vpos_i + 2) = dot(kin[i].S[0], F[2]);
+                        H(vpos_i + 1, vpos_i + 0) = dot(kin[i].S[1], F[0]);
+                        H(vpos_i + 1, vpos_i + 1) = dot(kin[i].S[1], F[1]);
+                        H(vpos_i + 1, vpos_i + 2) = dot(kin[i].S[1], F[2]);
+                        H(vpos_i + 2, vpos_i + 0) = dot(kin[i].S[2], F[0]);
+                        H(vpos_i + 2, vpos_i + 1) = dot(kin[i].S[2], F[1]);
+                        H(vpos_i + 2, vpos_i + 2) = dot(kin[i].S[2], F[2]);
                         uint32_t j = i;
                         while (j != 0) {
                             F[0] = AdT(kin[j].Tinv, F[0]);
@@ -1010,7 +1029,7 @@ namespace artsim {
                             uint32_t vdof_j = art.joint_vel_dofs[j];
                             if (vdof_j == 1) {
 #define CRBA_MACRO(k1) \
-                            M[(vpos_i+k1)*vdof + vpos_j] = M[(vpos_j)*vdof + vpos_i+k1] = dot(F[k1], kin[j].S[0])
+                            H(vpos_i+k1, vpos_j) = H(vpos_j, vpos_i+k1) = dot(F[k1], kin[j].S[0])
                                 CRBA_MACRO(0);
                                 CRBA_MACRO(1);
                                 CRBA_MACRO(2);
@@ -1018,7 +1037,7 @@ namespace artsim {
                             }
                             else if (vdof_j == 3) {
 #define CRBA_MACRO(k1, k2) \
-                            M[(vpos_i+k1)*vdof + vpos_j+k2] = M[(vpos_j+k2)*vdof + vpos_i+k1] = dot(F[k1], kin[j].S[k2])
+                            H(vpos_i+k1, vpos_j+k2) = H(vpos_j+k2, vpos_i+k1) = dot(F[k1], kin[j].S[k2])
                                 CRBA_MACRO(0, 0);
                                 CRBA_MACRO(1, 0);
                                 CRBA_MACRO(2, 0);
