@@ -186,3 +186,20 @@ artsim::ArticulatedBody artsim::examples::create_13_link_tree(bool spherical) {
     return art;
 }
 
+artsim::ArticulatedBody artsim::examples::create_free_link() {
+    float density = 1000.0f;
+    Shape box = Shape::make_box({0.1f, 1.0f, 0.1f});
+
+    ArticulatedBody art;
+
+    art.add_link_and_joint(
+            Link::create(box.inertia(density), box.mass(density), box,
+                         transform(),
+                         transform(),
+                         -1, {}),
+            Joint::floating());
+
+    art.setup();
+    return art;
+}
+

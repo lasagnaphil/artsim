@@ -101,6 +101,11 @@ glm::mat3 Shape::inertia(float density) {
     return glm::mat3(I.x, 0, 0, 0, I.y, 0, 0, 0, I.z);
 }
 
+Shape Shape::make_ground() {
+    Shape shape;
+    shape.type = Shape::Type::Ground;
+    return shape;
+}
 Shape Shape::make_box(glm::vec3 size) {
     Shape shape;
     shape.type = Shape::Type::Box;

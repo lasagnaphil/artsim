@@ -29,10 +29,13 @@ void render_articulation(const artsim::ArticulationState<T>& state) {
         switch(shape.type) {
             case artsim::Shape::Type::Sphere: {
                 DrawSphere(Vector3Zero(), shape.sphere.radius, RED);
+                DrawSphereWires(Vector3Zero(), shape.box.size.x, shape.box.size.y, shape.box.size.z, GRAY);
             } break;
             case artsim::Shape::Type::Box: {
                 DrawCube(Vector3Zero(), shape.box.size.x, shape.box.size.y, shape.box.size.z, RED);
+                DrawCubeWires(Vector3Zero(), shape.box.size.x, shape.box.size.y, shape.box.size.z, GRAY);
             } break;
+            default: {}
         }
 
         rlPopMatrix();

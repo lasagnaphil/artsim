@@ -17,6 +17,10 @@
 
 #include "articulation_render.h"
 
+inline Vector3 glm_to_raylib(glm::vec3 v) {
+    return (Vector3){v.x, v.y, v.z};
+}
+
 using namespace artsim;
 using namespace glm;
 
@@ -33,7 +37,7 @@ int main(void)
 
     // Define the camera to look into our 3d world
     Camera camera = { 0 };
-    camera.position = (Vector3){ 0.0f, 10.0f, 10.0f };
+    camera.position = (Vector3){ 0.0f, 5.0f, 5.0f };
     camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
     camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
@@ -55,9 +59,10 @@ int main(void)
     // ArticulatedBody art = examples::create_triple_pendulum_link(false);
     // ArticulatedBody art = examples::create_furuta_pendulum(false);
     // ArticulatedBody art = examples::create_13_link_tree(true);
-    ArticulatedBody art = examples::create_13_link_tree(true);
+    ArticulatedBody art = examples::create_free_link();
+    MaterialDB material_db;
 
-    ArticulationState<real_t> state(&art);
+    ArticulationState<real_t> state(&art, &material_db);
     state.randomize_positions();
     // state.set_joint_pos_1dof(0, 0.2f * 3.14f);
     // state.set_joint_pos_1dof(1, 0.3f * 3.14f);
@@ -71,13 +76,15 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
+        ttransform<double> rootT = state.get_root_transform();
         auto& io = ImGui::GetIO();
         if (!io.WantCaptureMouse) {
             UpdateCamera(&camera);
         }
+        // SetCameraMode(camera, CAMERA_THIRD_PERSON);
 
         if (IsKeyPressed(KEY_R)) {
-            state = ArticulationState<real_t>(&art);
+            state = ArticulationState<real_t>(&art, &material_db);
             state.randomize_positions();
         }
 

@@ -6,12 +6,11 @@ add_custom_command(TARGET artsim_copy_resource_folder POST_BUILD
 
 add_subdirectory(deps)
 
-add_executable(artsim_demo_pendulum
-        deps/imgui_impl_raylib.cpp
-        pendulum.cpp)
-
+add_executable(artsim_demo_pendulum pendulum.cpp)
 target_link_libraries(artsim_demo_pendulum PRIVATE artsim raylib imgui)
 
+add_executable(artsim_demo_contacts contacts.cpp)
+target_link_libraries(artsim_demo_contacts PRIVATE artsim raylib imgui)
 #
 # add_executable(artsim_demo_contacts contacts.cpp)
 # target_link_libraries(artsim_demo_contacts PRIVATE gengine artsim)

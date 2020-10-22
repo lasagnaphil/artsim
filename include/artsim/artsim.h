@@ -12,10 +12,12 @@
 #include <artsim/math/se3.h>
 
 #include <cstdint>
+#include <cstdio>
 #include <vector>
 #include <unordered_map>
 
 #define OUT
+#define INOUT
 
 namespace artsim {
     enum class JointType : uint8_t {
@@ -56,11 +58,13 @@ namespace artsim {
 
     struct Shape {
         enum class Type {
-            Box, Sphere
+            Ground, Box, Sphere
         };
         Type type;
 
         union {
+            struct {
+            } ground;
             struct {
                 glm::vec3 size;
             } box;
@@ -69,6 +73,7 @@ namespace artsim {
             } sphere;
         };
 
+        static Shape make_ground();
         static Shape make_box(glm::vec3 size);
         static Shape make_sphere(float radius);
 
@@ -130,6 +135,14 @@ namespace artsim {
         ArticulatedBody(bool floating = false) : floating(floating) {}
 
         void add_link_and_joint(Link link, Joint joint) {
+            if (joint.type == JointType::Floating) {
+                if (!links.empty() || !joints.empty()) {
+                    fprintf(stderr, "Error in ArticulatedBody::add_link_and_joint: "
+                                    "Free joint can only be added at the root!\n");
+                    return;
+                }
+                floating = true;
+            }
             links.push_back(link);
             joints.push_back(joint);
         }
@@ -166,17 +179,12 @@ namespace artsim {
         }
     };
 
-    struct World {
-        Arena<RigidBody> rigid_bodies;
-        Arena<ArticulatedBody> articulated_bodies;
-
-        Arena<Material> materials;
-        std::unordered_map<std::pair<Id<Material>, Id<Material>>, MaterialPair, pair_hash> material_pairs;
-
-        World() {}
-
 #define METHOD_GET_ID(TYPE, NAME, MEMBER) TYPE* get_##NAME(Id<TYPE> id) { return MEMBER.get(id); }
 #define METHOD_REMOVE_ID(TYPE, NAME, MEMBER) void remove_##NAME(Id<TYPE> id) { MEMBER.release(id); }
+
+    struct MaterialDB {
+        Arena<Material> materials;
+        std::unordered_map<std::pair<Id<Material>, Id<Material>>, MaterialPair, pair_hash> material_pairs;
 
         Id<Material> add_material(float default_friction = 1.0f,
                                   float default_restitution = 0.0f) {
@@ -197,6 +205,14 @@ namespace artsim {
         void remove_material_pair(Id<Material> mat1_id, Id<Material> mat2_id) {
             material_pairs.erase(std::make_pair(mat1_id, mat2_id));
         }
+
+    };
+
+    struct World {
+        Arena<RigidBody> rigid_bodies;
+        Arena<ArticulatedBody> articulated_bodies;
+
+        World() {}
 
         Id<ArticulatedBody> add_articulated_body(bool floating = false) {
             auto id = articulated_bodies.make();
@@ -224,17 +240,37 @@ namespace artsim {
 
     };
 
+    struct RigidBodyOrLink {
+        bool is_link: 1;
+        uint32_t index : 31;
+        uint32_t generation;
+        uint32_t link_idx;
+
+        RigidBodyOrLink() = default;
+        static RigidBodyOrLink from_articulation_link(Id<ArticulatedBody> id, uint32_t link_idx) {
+            return RigidBodyOrLink { true, id.index, id.generation, link_idx };
+        }
+        static RigidBodyOrLink from_rigid_body(Id<RigidBody> id) {
+            return RigidBodyOrLink { false, id.index, id.generation, 0 };
+        }
+        std::pair<Id<ArticulatedBody>, uint32_t> get_articulation_link() const {
+            return {Id<ArticulatedBody>{index, generation}, link_idx};
+        }
+        Id<RigidBody> get_rigid_body_id() const { return Id<RigidBody>{index, generation}; }
+    };
+
     struct ContactPoint {
-        artsim::transform trans; // z-axis of the contact frame is the normal
+        glm::vec3 pos;
+        glm::vec3 normal;
         float depth;
-        Id<Link> link1_id;
-        Id<Link> link2_id;
+        RigidBodyOrLink body1_id;
+        RigidBodyOrLink body2_id;
 
         ContactPoint() = default;
-        ContactPoint(glm::vec3 pos, glm::vec3 normal, glm::vec3 tangent,
-                float depth, Id<Link> link1_id, Id<Link> link2_id)
-              : trans(pos, glm::quat_cast(glm::mat3(tangent, glm::cross(normal, tangent), normal))),
-                depth(depth), link1_id(link1_id), link2_id(link2_id) {}
+        ContactPoint(glm::vec3 pos, glm::vec3 normal,
+                     float depth, RigidBodyOrLink body1_id, RigidBodyOrLink body2_id)
+              : pos(pos), normal(normal),
+                depth(depth), body1_id(body1_id), body2_id(body2_id) {}
     };
 }
 
