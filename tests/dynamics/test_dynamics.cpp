@@ -192,7 +192,7 @@ TEST_CASE("Various kinds of pendulums") {
             MESSAGE(num_iters << " iters of rnea forward dynamics: " << duration.count() << " microsecs");
         }
 
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 100; i++) {
             mass_matrix<real_t>(art, state.q.data(), OUT M1.data());
             mass_matrix_using_rnea<real_t>(art, state.q.data(), OUT M2.data());
 

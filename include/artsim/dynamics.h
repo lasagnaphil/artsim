@@ -143,6 +143,7 @@ namespace artsim {
     template <class T>
     struct RecursiveNewtonEulerData {
         // IN
+        bool is_floating_art;
         uint32_t joint_dof;
         bool has_parent;
         KinematicsData<T> kin;
@@ -164,8 +165,10 @@ namespace artsim {
             if (has_parent) T_global_inv = T_global_inv * kin.Tinv;
             v = Ad(kin.Tinv, v) + kin.v;
             a = Ad(kin.Tinv, a) + ad(v, kin.v) + kin.c;
-            for (int i = 0; i < joint_dof; i++) {
-                a += kin.S[i] * udot[i];
+            if (!is_floating_art) {
+                for (int i = 0; i < joint_dof; i++) {
+                    a += kin.S[i] * udot[i];
+                }
             }
             f = I * a - adT(v, I * v) - AdT(T_global_inv, f_ext);
         }
@@ -194,13 +197,19 @@ namespace artsim {
             uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
+            data[i].is_floating_art = art.floating;
             data[i].joint_dof = num_vel_dofs;
             data[i].has_parent = i != 0;
             jcalc(art.joints[i], art.links[i], q + cur_pos_dof, u + cur_vel_dof, OUT data[i].kin);
             data[i].I = tspmat<T>(art.links[i].inertia, glm::vec3(0), art.links[i].mass);
             if (f_ext) data[i].f_ext = f_ext[i];
 
-            if (art.joints[i].type != JointType::Floating) {
+            if (art.floating && i == 0) {
+                data[0].v = make_tscrew<T>(q);
+                data[0].a = tscrew<T>(tvec3<T>(0), -gravity);
+                data[0].f = data[0].I * data[0].a - adT(data[0].v, data[0].I * data[0].v) - data[0].f_ext;
+            }
+            else {
                 for (int j = 0; j < num_vel_dofs; j++) {
                     data[i].udot[j] = udot[cur_vel_dof + j];
                 }
@@ -209,11 +218,7 @@ namespace artsim {
 
         for (int i : art.bfs_iteration_order) {
             if (i == 0) {
-                if (art.floating) {
-                    data[0].a = -tscrew<T>(tvec3<T>(0), -gravity);
-                    data[0].f = data[0].I * data[0].a - adT(data[0].v, data[0].I * data[0].v) - data[0].f_ext;
-                    continue;
-                }
+                if (art.floating) continue;
                 data[i].T_global_inv = ttransform<T>();
                 data[i].v = tscrew<T>();
                 data[i].a = tscrew<T>(tvec3<T>(0), -gravity);
@@ -224,7 +229,6 @@ namespace artsim {
                 data[i].a = data[art.parents[i]].a;
             }
             data[i].rnea_pass1();
-
         }
 
         for (int j = num_joints - 1; j >= 0; j--) {
@@ -500,6 +504,20 @@ namespace artsim {
         return lambda_b;
     }
 
+    static glm::vec3 contact_projection_solver(glm::vec3 lambda, const mat3& Minv, glm::vec3 c, float mu) {
+        const float alpha = 0.1f;
+        float r_z = alpha / Minv[2][2];
+        float r_t = alpha / max(Minv[0][0], Minv[1][1]);
+        vec3 v = c + Minv*lambda;
+        float lambda_z = max(0.0f, lambda.z - r_z*v.z);
+        vec2 lambda_t = vec2(lambda.x - r_t*v.x, lambda.y - r_t*v.y);
+        float lambda_t_len = length(lambda_t);
+        if (lambda_t_len > mu*lambda_z) {
+            lambda_t = mu*lambda_z*normalize(lambda_t);
+        }
+        return vec3(lambda_t.x, lambda_t.y, lambda_z);
+    }
+
     template <class T>
     void generate_contact_jacobian_with_ground(const ArticulatedBody& art,
                                                uint32_t contact_link_idx,
@@ -627,10 +645,20 @@ namespace artsim {
         const T beta = 0.1;
         const T slop = 1e-4;
 
+// #define SOLVER_BISECTION
+#define SOLVER_PGS
+#ifdef SOLVER_BISECTION
+        T alpha = 1.0;
+        const T alpha_min = 0.7;
+        const T gamma = 0.99;
+        const T mu = 1.0;
+#endif
+#ifdef SOLVER_PGS
         T alpha = 0.6;
         const T alpha_min = 0.6;
         const T gamma = 1.0;
         const T mu = 1.0;
+#endif
 
         for (int i = 0; i < num_contact_points; i++) {
             c[i] = make_vec3<T>(tau_star.data() + 3*i) - beta/dt*glm::max<T>(contact_points[i].depth - slop, 0) * Ez<T>();
@@ -657,8 +685,12 @@ namespace artsim {
                         lambda[i] = alpha * lambda_v0 + (1 - alpha) * lambda[i];
                     }
                     else {
+#ifdef SOLVER_BISECTION
                         tvec3<T> lambda_star = contact_bisection_solver(M_inv_ii, c[i], mu);
-                        // vec3 lambda_star = contact_projection_solver(lambda[i], M_inv_ii, c[i], mu);
+#endif
+#ifdef SOLVER_PGS
+                        tvec3<T> lambda_star = contact_projection_solver(lambda[i], M_inv_ii, c[i], mu);
+#endif
                         lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
                     }
                 }
@@ -748,7 +780,7 @@ namespace artsim {
         Vector h(dof);
         Vector b(dof);
         Vector tau_ext = Eigen::Map<const Vector>(tau, dof);
-        mass_matrix(art, q, M.data());
+        mass_matrix_using_rnea(art, q, M.data());
         // std::cout << M << std::endl;
         all_forces(art, gravity, f_ext, q, u, OUT h.data());
         b.noalias() = tau_ext - h;
@@ -1073,7 +1105,8 @@ namespace artsim {
         int num_joints = art.get_num_joints();
 
         std::vector<T> udot_bar(num_vel_dofs);
-        featherstone_forward_dynamics(art, gravity, f_ext, q, u, tau, OUT udot_bar.data());
+        // featherstone_forward_dynamics(art, gravity, f_ext, q, u, tau, OUT udot_bar.data());
+        forward_dynamics_using_rnea(art, gravity, f_ext, q, u, tau, OUT udot_bar.data());
 
         if (num_contact_points == 0) {
             integrate_implicit_euler(art, dt, udot_bar.data(), INOUT q, INOUT u);
@@ -1086,7 +1119,8 @@ namespace artsim {
                             f_ext, tau,
                             contact_points, num_contact_points,
                             OUT lambda, OUT tau_contact.data());
-            featherstone_forward_dynamics(art, gravity, f_ext, q, u, tau, OUT udot);
+            // featherstone_forward_dynamics(art, gravity, f_ext, q, u, tau, OUT udot);
+            forward_dynamics_using_rnea(art, gravity, f_ext, q, u, tau, OUT udot);
 
             integrate_implicit_euler(art, dt, udot, INOUT q, INOUT u);
         }
