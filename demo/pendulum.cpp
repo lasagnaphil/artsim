@@ -86,6 +86,7 @@ int main(void)
 
         if (IsKeyPressed(KEY_R)) {
             state = ArticulationState<real_t>(&art, &material_db);
+            state.enable_collision_with_ground = true;
             state.randomize_positions();
         }
 

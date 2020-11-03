@@ -153,73 +153,75 @@ TEST_CASE("Various kinds of pendulums") {
 
     MaterialDB material_db;
     for (auto& [name, art] : articulations) {
-        std::string art_name = name;
-        MESSAGE("Articulation name: " << art_name);
-        ArticulationState<real_t> state(&art, &material_db);
-        state.randomize_positions();
+        SUBCASE(name.c_str()) {
+            std::string art_name = name;
+            MESSAGE("Articulation name: " << art_name);
+            ArticulationState<real_t> state(&art, &material_db);
+            state.randomize_positions();
 
-        std::vector<real_t> q2dot_empty(state.num_vel_dofs, 0.0f);
-        std::vector<real_t> q2dot_1(state.num_vel_dofs, 0.0f);
-        std::vector<real_t> q2dot_2(state.num_vel_dofs, 0.0f);
+            std::vector<real_t> q2dot_empty(state.num_vel_dofs, 0.0f);
+            std::vector<real_t> q2dot_1(state.num_vel_dofs, 0.0f);
+            std::vector<real_t> q2dot_2(state.num_vel_dofs, 0.0f);
 
-        real_t g = 9.81f;
-        real_t dt = 1.0f / 1000.0f;
-        tvec3<real_t> gravity = {0, -g, 0};
+            real_t g = 9.81f;
+            real_t dt = 1.0f / 1000.0f;
+            tvec3<real_t> gravity = {0, -g, 0};
 
-        std::vector<real_t> M1(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
-        std::vector<real_t> M2(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
-        std::vector<real_t> h(state.num_vel_dofs, 0.0f);
+            std::vector<real_t> M1(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
+            std::vector<real_t> M2(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
+            std::vector<real_t> h(state.num_vel_dofs, 0.0f);
 
-        // Performance comparison
-        int num_iters = 10000;
-        {
-            auto t1 = std::chrono::high_resolution_clock::now();
-            for (int i = 0; i < num_iters; i++) {
-                featherstone_forward_dynamics(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
-            }
-            auto t2 = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-            MESSAGE(num_iters << " iters of featherstone forward dynamics: " << duration.count() << " microsecs");
-        }
-
-        {
-            auto t1 = std::chrono::high_resolution_clock::now();
-            for (int i = 0; i < num_iters; i++) {
-                forward_dynamics_using_rnea(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
-            }
-            auto t2 = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-            MESSAGE(num_iters << " iters of rnea forward dynamics: " << duration.count() << " microsecs");
-        }
-
-        for (int i = 0; i < 100; i++) {
-            mass_matrix<real_t>(art, state.q.data(), OUT M1.data());
-            mass_matrix_using_rnea<real_t>(art, state.q.data(), OUT M2.data());
-
-            for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
-                for (int k2 = 0; k2 < state.num_vel_dofs; k2++) {
-                    INFO("Iteration " << i << ", DOF (" << k1 << ", " << k2 << ")");
-                    CHECK(M1[k1 * state.num_vel_dofs + k2] ==
-                          doctest::Approx(M2[k1 * state.num_vel_dofs + k2]).epsilon(1e-4));
+            // Performance comparison
+            int num_iters = 10000;
+            {
+                auto t1 = std::chrono::high_resolution_clock::now();
+                for (int i = 0; i < num_iters; i++) {
+                    featherstone_forward_dynamics(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
                 }
+                auto t2 = std::chrono::high_resolution_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+                MESSAGE(num_iters << " iters of featherstone forward dynamics: " << duration.count() << " microsecs");
             }
 
-            rne_inverse_dynamics(art, state.q.data(), state.u.data(), q2dot_empty.data(),
-                                 gravity, state.f_ext.data(), OUT h.data());
-
-            featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
-            forward_dynamics_using_rnea(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
-
-            // TODO: check the Featherstone method by plugging it into the Newton eq: M(q) * q2dot + C(q, qdot) = tau.
-
-            // Compare between Featherstone and RNEA results
-            for (int d = 0; d < state.num_vel_dofs; d++) {
-                CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
+            {
+                auto t1 = std::chrono::high_resolution_clock::now();
+                for (int i = 0; i < num_iters; i++) {
+                    forward_dynamics_using_rnea(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
+                }
+                auto t2 = std::chrono::high_resolution_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+                MESSAGE(num_iters << " iters of rnea forward dynamics: " << duration.count() << " microsecs");
             }
 
-            state.udot = q2dot_2;
+            for (int i = 0; i < 100; i++) {
+                mass_matrix<real_t>(art, state.q.data(), OUT M1.data());
+                mass_matrix_using_rnea<real_t>(art, state.q.data(), OUT M2.data());
 
-            integrate_implicit_euler(art, dt, state.udot.data(), OUT state.q.data(), OUT state.u.data());
+                for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
+                    for (int k2 = 0; k2 < state.num_vel_dofs; k2++) {
+                        INFO("Iteration " << i << ", DOF (" << k1 << ", " << k2 << ")");
+                        CHECK(M1[k1 * state.num_vel_dofs + k2] ==
+                              doctest::Approx(M2[k1 * state.num_vel_dofs + k2]).epsilon(1e-4));
+                    }
+                }
+
+                rne_inverse_dynamics(art, state.q.data(), state.u.data(), q2dot_empty.data(),
+                                     gravity, state.f_ext.data(), OUT h.data());
+
+                featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
+                forward_dynamics_using_rnea(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
+
+                // TODO: check the Featherstone method by plugging it into the Newton eq: M(q) * q2dot + C(q, qdot) = tau.
+
+                // Compare between Featherstone and RNEA results
+                for (int d = 0; d < state.num_vel_dofs; d++) {
+                    CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
+                }
+
+                state.udot = q2dot_2;
+
+                integrate_implicit_euler(art, dt, state.udot.data(), OUT state.q.data(), OUT state.u.data());
+            }
         }
     }
 }

@@ -113,7 +113,6 @@ struct ArticulationState {
 
     void simulate(T dt) {
         if (enable_collision_with_ground) {
-            contact_points.clear();
             contact_points.resize(ground_col_enabled_links.size());
             uint32_t contact_points_size;
             artsim::contact_points_between_art_links_and_ground(
