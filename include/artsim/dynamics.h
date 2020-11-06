@@ -204,12 +204,7 @@ namespace artsim {
             data[i].I = tspmat<T>(art.links[i].inertia, glm::vec3(0), art.links[i].mass);
             if (f_ext) data[i].f_ext = f_ext[i];
 
-            if (art.floating && i == 0) {
-                data[0].v = make_tscrew<T>(q);
-                data[0].a = tscrew<T>(tvec3<T>(0), -gravity);
-                data[0].f = data[0].I * data[0].a - adT(data[0].v, data[0].I * data[0].v) - data[0].f_ext;
-            }
-            else {
+            if (!art.floating || i != 0) {
                 for (int j = 0; j < num_vel_dofs; j++) {
                     data[i].udot[j] = udot[cur_vel_dof + j];
                 }
@@ -218,10 +213,19 @@ namespace artsim {
 
         for (int i : art.bfs_iteration_order) {
             if (i == 0) {
-                if (art.floating) continue;
-                data[i].T_global_inv = ttransform<T>();
-                data[i].v = tscrew<T>();
-                data[i].a = tscrew<T>(tvec3<T>(0), -gravity);
+                if (art.floating) {
+                    data[0].v = tscrew<T>();
+                    data[0].a = tscrew<T>(tvec3<T>(0), -gravity);
+                    data[0].f = data[0].I * data[0].a - adT(data[0].v, data[0].I * data[0].v) - data[0].f_ext;
+                    data[0].T_global_inv.v = glm::make_vec3<T>(q);
+                    data[0].T_global_inv.q = glm::make_quat<T>(q + 3);
+                    continue;
+                }
+                else {
+                    data[0].v = tscrew<T>();
+                    data[0].a = tscrew<T>(tvec3<T>(0), -gravity);
+                    data[0].T_global_inv = ttransform<T>();
+                }
             }
             else {
                 data[i].T_global_inv = data[art.parents[i]].T_global_inv;
@@ -231,8 +235,8 @@ namespace artsim {
             data[i].rnea_pass1();
         }
 
-        for (int j = num_joints - 1; j >= 0; j--) {
-            if (j == 0 && art.floating) continue;
+        int j_limit = art.floating? 1 : 0;
+        for (int j = num_joints - 1; j >= j_limit; j--) {
             int i = art.bfs_iteration_order[j];
             data[i].rnea_pass2();
             if (i != 0) {

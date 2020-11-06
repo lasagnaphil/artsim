@@ -148,7 +148,6 @@ TEST_CASE("Various kinds of pendulums") {
             {"11. 5 link tree spherical", examples::create_5_link_tree(true)},
             {"12. 13 link tree revolute", examples::create_13_link_tree(false)},
             {"13. 13 link tree spherical", examples::create_13_link_tree(true)},
-            {"14. free link", examples::create_free_link()},
     };
 
     MaterialDB material_db;
@@ -197,6 +196,16 @@ TEST_CASE("Various kinds of pendulums") {
                 mass_matrix<real_t>(art, state.q.data(), OUT M1.data());
                 mass_matrix_using_rnea<real_t>(art, state.q.data(), OUT M2.data());
 
+                /*
+                Eigen::Map<Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic>> M1_eigen(
+                        M1.data(), state.num_vel_dofs, state.num_vel_dofs);
+                Eigen::Map<Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic>> M2_eigen(
+                        M2.data(), state.num_vel_dofs, state.num_vel_dofs);
+
+                std::cout << M1_eigen << std::endl;
+                std::cout << M2_eigen << std::endl;
+                 */
+
                 for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
                     for (int k2 = 0; k2 < state.num_vel_dofs; k2++) {
                         INFO("Iteration " << i << ", DOF (" << k1 << ", " << k2 << ")");
@@ -218,7 +227,67 @@ TEST_CASE("Various kinds of pendulums") {
                     CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
                 }
 
-                state.udot = q2dot_2;
+                state.udot = q2dot_1;
+
+                integrate_implicit_euler(art, dt, state.udot.data(), OUT state.q.data(), OUT state.u.data());
+            }
+        }
+    }
+}
+
+TEST_CASE("Free links") {
+    std::map<std::string, ArticulatedBody> articulations = {
+            {"01. free link", examples::create_free_link()},
+    };
+
+    MaterialDB material_db;
+    for (auto& [name, art] : articulations) {
+        SUBCASE(name.c_str()) {
+            std::string art_name = name;
+                    MESSAGE("Articulation name: " << art_name);
+            ArticulationState<real_t> state(&art, &material_db);
+            state.randomize_positions();
+
+            std::vector<real_t> q2dot_empty(state.num_vel_dofs, 0.0f);
+            std::vector<real_t> q2dot(state.num_vel_dofs, 0.0f);
+
+            real_t g = 9.81f;
+            real_t dt = 1.0f / 1000.0f;
+            tvec3<real_t> gravity = {0, -g, 0};
+
+            std::vector<real_t> M(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
+            std::vector<real_t> h(state.num_vel_dofs, 0.0f);
+
+            // Performance comparison
+            int num_iters = 10000;
+            {
+                auto t1 = std::chrono::high_resolution_clock::now();
+                for (int i = 0; i < num_iters; i++) {
+                    featherstone_forward_dynamics(art, glm::tvec3<real_t>(0, -g, 0), state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot.data());
+                }
+                auto t2 = std::chrono::high_resolution_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+                        MESSAGE(num_iters << " iters of featherstone forward dynamics: " << duration.count() << " microsecs");
+            }
+
+            for (int i = 0; i < 100; i++) {
+                mass_matrix<real_t>(art, state.q.data(), OUT M.data());
+
+                /*
+                Eigen::Map<Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic>> M1_eigen(
+                        M1.data(), state.num_vel_dofs, state.num_vel_dofs);
+                Eigen::Map<Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic>> M2_eigen(
+                        M2.data(), state.num_vel_dofs, state.num_vel_dofs);
+
+                std::cout << M1_eigen << std::endl;
+                std::cout << M2_eigen << std::endl;
+                 */
+
+                featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot.data());
+
+                // TODO: check the Featherstone method by plugging it into the Newton eq: M(q) * q2dot + C(q, qdot) = tau.
+
+                state.udot = q2dot;
 
                 integrate_implicit_euler(art, dt, state.udot.data(), OUT state.q.data(), OUT state.u.data());
             }
