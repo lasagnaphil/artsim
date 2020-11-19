@@ -41,13 +41,12 @@ void render_articulation(const artsim::ArticulationState<T>& state) {
         rlPopMatrix();
     }
     for (int c = 0; c < state.contact_points.size(); c++) {
-        glm::tvec3<T> normal = state.contact_normals[c];
+        glm::vec3 normal = glm::vec3(state.contact_normals[c]);
         const artsim::ContactPoint& cpoint = state.contact_points[c];
 
-        glm::tvec3<T> contact_Ey = glm::normalize(glm::cross(normal, artsim::Ez<T>()));
-        glm::tmat3x3<T> contact_mat(artsim::Ez<T>(), contact_Ey, normal);
-
-        DrawLine3D(glm_to_ray(cpoint.pos), glm_to_ray(cpoint.pos + 0.1f * glm::vec3(contact_mat * normal)), GREEN);
+        DrawLine3D(glm_to_ray(glm::vec3(cpoint.T_global.v)),
+                   glm_to_ray(glm::vec3(cpoint.T_global.v + 1.0f * (cpoint.T_global.q * normal))),
+                   GREEN);
     }
 }
 

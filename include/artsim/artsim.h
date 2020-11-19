@@ -115,7 +115,7 @@ namespace artsim {
     struct ArticulatedBody {
         std::vector<Link> links;
         std::vector<Joint> joints;
-        transform root_transform = transform();
+
         bool floating = false;
 
         std::vector<uint32_t> joint_pos_dofs;
@@ -260,17 +260,26 @@ namespace artsim {
     };
 
     struct ContactPoint {
-        glm::vec3 pos;
-        glm::vec3 normal;
+        transform T_global;
         float depth;
         RigidBodyOrLink body1_id;
         RigidBodyOrLink body2_id;
 
         ContactPoint() = default;
-        ContactPoint(glm::vec3 pos, glm::vec3 normal,
+        ContactPoint(glm::vec3 pos, glm::vec3 normal, glm::vec3 tangent,
                      float depth, RigidBodyOrLink body1_id, RigidBodyOrLink body2_id)
-              : pos(pos), normal(normal),
+              : T_global(pos, glm::quat_cast(glm::mat3(tangent, glm::cross(normal, tangent), normal))),
                 depth(depth), body1_id(body1_id), body2_id(body2_id) {}
+    };
+
+    struct Frame {
+        RigidBodyOrLink body;
+        artsim::transform T_local;
+
+        static Frame from_articulation(Id<ArticulatedBody> id, uint32_t link_idx,
+                                       const artsim::transform& T_local) {
+            return {RigidBodyOrLink::from_articulation_link(id, link_idx), T_local};
+        }
     };
 }
 

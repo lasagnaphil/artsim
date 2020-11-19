@@ -73,7 +73,7 @@ void contact_points_between_art_links_and_ground(
                     }
                     cpos_avg /= cpos.size();
                     contact_points[contact_points_count++] = ContactPoint(
-                            glm::vec3(cpos_avg.x, 0, cpos_avg.z), Ey<float>(), -cpos_avg.y,
+                            glm::vec3(cpos_avg.x, 0, cpos_avg.z), Ey<T>(), Ez<T>(), -cpos_avg.y,
                             RigidBodyOrLink::from_articulation_link(art_id, i),
                             RigidBodyOrLink::from_rigid_body(Id<RigidBody>::null()));
                 }
@@ -83,7 +83,7 @@ void contact_points_between_art_links_and_ground(
                 float d = p.y - art.links[i].shape.sphere.radius;
                 if (d <= 0.0f) {
                     contact_points[contact_points_count++] = ContactPoint(
-                            glm::vec3(p.x, 0, p.z), Ey<T>(), -d,
+                            glm::vec3(p.x, 0, p.z), Ey<T>(), Ez<T>(), -d,
                             RigidBodyOrLink::from_articulation_link(art_id, i),
                             RigidBodyOrLink::from_rigid_body(Id<RigidBody>::null()));
                 }
