@@ -79,8 +79,8 @@ namespace artsim {
                const T*__restrict q, const T*__restrict u, OUT KinematicsData<T>& kin) {
         switch (joint.type) {
             case JointType::Floating: {
-                ttransform<T> T_root = ttransform(make_vec3(q), make_quat(q+3));
-                kin.Tinv = inverse(T_root);
+                kin.Tinv = ttransform<T>();
+                // ttransform<T> T_root = ttransform(make_vec3(q), make_quat(q+3));
                 // Skip calculation of S, v, c for floating joints
             } break;
             case JointType::Revolute: {
@@ -447,8 +447,7 @@ namespace artsim {
         for (int i : art.bfs_iteration_order) {
             if (i == 0) {
                 if (art.floating) {
-                    ttransform<T> T_root = ttransform<T>(make_vec3(q), make_quat(q+3));
-                    data[0].T_global_inv = inverse(T_root);
+                    data[0].T_global_inv = ttransform<T>();
                     data[0].v = make_tscrew(u);
                     data[0].p_a = -adT(data[0].v, data[0].I_a * data[0].v) - data[0].f_ext - make_tscrew(tau);
                     continue;
@@ -492,7 +491,8 @@ namespace artsim {
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
             if (art.joints[i].type == JointType::Floating) {
-                data[i].a += Ad(inverse(data[0].kin.Tinv), tscrew<T>(tvec3<T>(0), gravity));
+                ttransform<T> T_root = ttransform(make_vec3(q), make_quat(q+3));
+                data[i].a += Ad(inverse(T_root), tscrew<T>(tvec3<T>(0), gravity));
                 udot[0] = data[0].a.w[0];
                 udot[1] = data[0].a.w[1];
                 udot[2] = data[0].a.w[2];
@@ -665,11 +665,11 @@ namespace artsim {
         std::vector<tvec3<T>> c(num_contact_points);
         std::vector<tvec3<T>> lambda(num_contact_points, tvec3<T>(0));
 
-        const T beta = 0.1;
+        const T beta = 0.05;
         const T slop = 1e-4;
 
-// #define SOLVER_BISECTION
-#define SOLVER_PGS
+#define SOLVER_BISECTION
+// #define SOLVER_PGS
 #ifdef SOLVER_BISECTION
         T alpha = 1.0;
         const T alpha_min = 0.7;
@@ -836,19 +836,19 @@ namespace artsim {
                 } break;
                 case JointType::Floating: {
                     // TODO: is there a more accurate way to integrate SE(3)?
-                    tscrew<T> V_b = make_tscrew(qdi);
-                    ttransform<T> T_ab = inverse(ttransform<T>(make_vec3(qi), make_quat(qi+3)));
-                    // TODO: This is probably wrong
-                    tscrew<T> V_a = Ad(T_ab, V_b);
-                    qi[0] += dt * V_a.v[0];
-                    qi[1] += dt * V_a.v[1];
-                    qi[2] += dt * V_a.v[2];
-                    qi[3] += 0.5*dt*(qi[6] * V_a.w[0] + qi[4] * V_a.w[2] - qi[5] * V_a.w[1]); // x
-                    qi[4] += 0.5*dt*(qi[6] * V_a.w[1] + qi[5] * V_a.w[0] - qi[3] * V_a.w[2]); // y
-                    qi[5] += 0.5*dt*(qi[6] * V_a.w[2] + qi[3] * V_a.w[1] - qi[4] * V_a.w[0]); // z
-                    qi[6] -= 0.5*dt*(qi[3] * V_a.w[0] + qi[4] * V_a.w[1] + qi[5] * V_a.w[2]); // w
+                    glm::tvec3<T> p_dot = make_quat(qi+3) * make_vec3(qdi+3);
+                    qi[0] += dt*p_dot[0];
+                    qi[1] += dt*p_dot[1];
+                    qi[2] += dt*p_dot[2];
+                    qi[3] += 0.5*dt*(qi[6]*qdi[0] + qi[4]*qdi[2] - qi[5]*qdi[1]);
+                    qi[4] += 0.5*dt*(qi[6]*qdi[1] + qi[5]*qdi[0] - qi[3]*qdi[2]);
+                    qi[5] += 0.5*dt*(qi[6]*qdi[2] + qi[3]*qdi[1] - qi[4]*qdi[0]);
+                    qi[6] -= 0.5*dt*(qi[3]*qdi[0] + qi[4]*qdi[1] + qi[5]*qdi[2]);
                     float q_len = sqrt(qi[3]*qi[3] + qi[4]*qi[4] + qi[5]*qi[5] + qi[6]*qi[6]);
                     qi[3] /= q_len; qi[4] /= q_len; qi[5] /= q_len; qi[6] /= q_len;
+                    // T_ba.q = exp(0.5*dt*V_b.w) * T_ba.q;
+                    // qi[0] = T_ba.v[0]; qi[1] = T_ba.v[1]; qi[2] = T_ba.v[2];
+                    // qi[3] = T_ba.q[0]; qi[4] = T_ba.q[1]; qi[5] = T_ba.q[2]; qi[6] = T_ba.q[3];
 
                 } break;
             }

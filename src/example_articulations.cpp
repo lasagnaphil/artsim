@@ -186,7 +186,7 @@ artsim::ArticulatedBody artsim::examples::create_13_link_tree(bool spherical) {
     return art;
 }
 
-artsim::ArticulatedBody artsim::examples::create_free_link() {
+artsim::ArticulatedBody artsim::examples::create_free_link(int num_links, bool spherical) {
     float density = 1000.0f;
     Shape box = Shape::make_box({0.1f, 1.0f, 0.1f});
 
@@ -198,6 +198,14 @@ artsim::ArticulatedBody artsim::examples::create_free_link() {
                          transform(),
                          -1, {}),
             Joint::floating());
+
+    for (int i = 1; i < num_links; i++) {
+        art.add_link_and_joint(
+                Link::create(box.inertia(density), box.mass(density), box,
+                             transform(glm::vec3(0.0f, -1.0f, 0.0f)),
+                             transform(glm::vec3(0.0f, 0.5f, 0.0f)),
+                             i-1, {}), spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>()));
+    }
 
     art.setup();
     return art;

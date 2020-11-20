@@ -43,6 +43,7 @@ int main(void)
     camera.fovy = 45.0f;
     camera.type = CAMERA_PERSPECTIVE;
     SetCameraMode(camera, CAMERA_THIRD_PERSON);
+    // SetCameraMode(camera, CAMERA_PERSPECTIVE);
 
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
 
@@ -59,12 +60,15 @@ int main(void)
     // ArticulatedBody art = examples::create_triple_pendulum_link(false);
     // ArticulatedBody art = examples::create_furuta_pendulum(false);
     // ArticulatedBody art = examples::create_13_link_tree(true);
-    ArticulatedBody art = examples::create_free_link();
+    ArticulatedBody art = examples::create_free_link(1, false);
     MaterialDB material_db;
 
     ArticulationState<real_t> state(&art, &material_db);
     state.enable_collision_with_ground = true;
     state.randomize_positions();
+    auto T_root = state.get_root_transform();
+    T_root.v.y += 2.0;
+    state.set_root_transform(T_root);
     // state.set_joint_pos_1dof(0, 0.2f * 3.14f);
     // state.set_joint_pos_1dof(1, 0.3f * 3.14f);
     // state.set_joint_pos_spherical(0, glm::angleAxis(0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));

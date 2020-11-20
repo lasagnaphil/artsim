@@ -25,7 +25,7 @@ namespace examples {
     ArticulatedBody create_furuta_pendulum(bool spherical, float density = 1000.0f, float l1 = 1.0f, float l2 = 1.0f, float d = 0.1f);
     ArticulatedBody create_5_link_tree(bool spherical = false);
     ArticulatedBody create_13_link_tree(bool spherical = false);
-    ArticulatedBody create_free_link();
+    ArticulatedBody create_free_link(int num_links, bool spherical = false);
 }
 
 }
