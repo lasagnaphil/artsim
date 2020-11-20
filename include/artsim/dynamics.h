@@ -274,9 +274,9 @@ namespace artsim {
             if (i == 0) {
                 if (art.floating) {
                     ttransform<T> T_root = ttransform<T>(make_vec3(q), make_quat(q+3));
-                    data[0].T_global_inv = inverse(T_root);
+                    data[0].T_global_inv = ttransform<T>();
                     data[0].v = make_tscrew(u);
-                    data[0].a = Ad(T_root, tscrew<T>(tvec3<T>(0), -gravity));
+                    data[0].a = Ad(inverse(T_root), tscrew<T>(tvec3<T>(0), -gravity));
                     data[0].f = data[0].I * data[0].a - adT(data[0].v, data[0].I * data[0].v) - data[0].f_ext;
                     continue;
                 }
@@ -634,10 +634,10 @@ namespace artsim {
 
         dynmat<tmat3x3<T>> M_contact_inv(num_contact_points, num_contact_points);
 
-        /*
         Eigen::Matrix<T, Dynamic, Dynamic> Minv_Jc_T(num_vel_dofs, 3*num_contact_points);
+        std::vector<T> zero_vec(num_vel_dofs, 0);
         for (int c = 0; c < 3*num_contact_points; c++) {
-            featherstone_forward_dynamics(art, gravity, f_ext, q, u, Jc.data() + c*num_vel_dofs,
+            featherstone_forward_dynamics(art, glm::tvec3<T>(0), f_ext, q, zero_vec.data(), Jc.data() + c*num_vel_dofs,
                                           OUT Minv_Jc_T.data() + c*num_vel_dofs);
         }
 
@@ -646,11 +646,11 @@ namespace artsim {
             for (int i = 0; i < num_contact_points; i++) {
                 Eigen::Matrix<T, 3, Dynamic> Jci = Jc.middleRows(3*i, 3);
                 Eigen::Matrix<T, 3, 3> M_contact_inv_eigen = Jci * Minv_Jck_T;
-                M_contact_inv(i, k) = glm::make_mat3(M_contact_inv_eigen.transpose().data());
+                M_contact_inv(i, k) = glm::make_mat3(M_contact_inv_eigen.data());
             }
         }
-         */
 
+        /*
         Eigen::Matrix<T, Dynamic, Dynamic> M(num_vel_dofs, num_vel_dofs);
         mass_matrix(art, q, OUT M.data());
         Eigen::Matrix<T, Dynamic, Dynamic> M_inv = M.inverse();
@@ -661,11 +661,12 @@ namespace artsim {
                 M_contact_inv(i, k) = glm::make_mat3(M_inv_ik.data());
             }
         }
+         */
 
         std::vector<tvec3<T>> c(num_contact_points);
         std::vector<tvec3<T>> lambda(num_contact_points, tvec3<T>(0));
 
-        const T beta = 0.05;
+        const T beta = 0.01;
         const T slop = 1e-4;
 
 #define SOLVER_BISECTION
@@ -687,7 +688,7 @@ namespace artsim {
             c[i] = make_vec3<T>(tau_star.data() + 3*i) - beta/dt*glm::max<T>(contact_points[i].depth - slop, 0) * Ez<T>();
         }
 
-        const int max_iters = 64;
+        const int max_iters = 16;
 
         T lambda_norm2;
         std::vector<tvec3<T>> lambda_old(num_contact_points);
@@ -831,7 +832,7 @@ namespace artsim {
                     qi[1] += 0.5*dt*(qi[3]*qdi[1] + qi[2]*qdi[0] - qi[0]*qdi[2]);
                     qi[2] += 0.5*dt*(qi[3]*qdi[2] + qi[0]*qdi[1] - qi[1]*qdi[0]);
                     qi[3] -= 0.5*dt*(qi[0]*qdi[0] + qi[1]*qdi[1] + qi[2]*qdi[2]);
-                    float q_len = sqrt(qi[0]*qi[0] + qi[1]*qi[1] + qi[2]*qi[2] + qi[3]*qi[3]);
+                    T q_len = glm::sqrt(qi[0]*qi[0] + qi[1]*qi[1] + qi[2]*qi[2] + qi[3]*qi[3]);
                     qi[0] /= q_len; qi[1] /= q_len; qi[2] /= q_len; qi[3] /= q_len;
                 } break;
                 case JointType::Floating: {
@@ -844,7 +845,7 @@ namespace artsim {
                     qi[4] += 0.5*dt*(qi[6]*qdi[1] + qi[5]*qdi[0] - qi[3]*qdi[2]);
                     qi[5] += 0.5*dt*(qi[6]*qdi[2] + qi[3]*qdi[1] - qi[4]*qdi[0]);
                     qi[6] -= 0.5*dt*(qi[3]*qdi[0] + qi[4]*qdi[1] + qi[5]*qdi[2]);
-                    float q_len = sqrt(qi[3]*qi[3] + qi[4]*qi[4] + qi[5]*qi[5] + qi[6]*qi[6]);
+                    T q_len = glm::sqrt(qi[3]*qi[3] + qi[4]*qi[4] + qi[5]*qi[5] + qi[6]*qi[6]);
                     qi[3] /= q_len; qi[4] /= q_len; qi[5] /= q_len; qi[6] /= q_len;
                     // T_ba.q = exp(0.5*dt*V_b.w) * T_ba.q;
                     // qi[0] = T_ba.v[0]; qi[1] = T_ba.v[1]; qi[2] = T_ba.v[2];

@@ -60,7 +60,7 @@ int main(void)
     // ArticulatedBody art = examples::create_triple_pendulum_link(false);
     // ArticulatedBody art = examples::create_furuta_pendulum(false);
     // ArticulatedBody art = examples::create_13_link_tree(true);
-    ArticulatedBody art = examples::create_free_link(1, false);
+    ArticulatedBody art = examples::create_free_link(1, true);
     MaterialDB material_db;
 
     ArticulationState<real_t> state(&art, &material_db);
