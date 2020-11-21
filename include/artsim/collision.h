@@ -12,16 +12,14 @@
 namespace artsim {
 
 template <class T>
-void contact_points_between_art_links_and_ground(
+std::vector<ContactPoint> contact_points_between_art_links_and_ground(
         const ArticulatedBody &art,
         const Id<ArticulatedBody> art_id,
         const uint32_t* link_indices, uint32_t link_indices_count,
-        const ttransform<T>* link_global_trans,
-        OUT ContactPoint* contact_points,
-        OUT uint32_t& contact_points_count) {
+        const ttransform<T>* link_global_trans) {
 
+    std::vector<ContactPoint> contact_points;
     std::vector<glm::tvec3<T>> cpos;
-    contact_points_count = 0;
 
     const float epsilon = 1e-7f;
     for (uint32_t li = 0; li < link_indices_count; li++) {
@@ -72,7 +70,7 @@ void contact_points_between_art_links_and_ground(
                         cpos_avg += pos;
                     }
                     cpos_avg /= cpos.size();
-                    contact_points[contact_points_count++] = ContactPoint(
+                    contact_points.emplace_back(
                             glm::vec3(cpos_avg.x, 0, cpos_avg.z), Ey<T>(), Ez<T>(), -cpos_avg.y,
                             RigidBodyOrLink::from_articulation_link(art_id, i),
                             RigidBodyOrLink::from_rigid_body(Id<RigidBody>::null()));
@@ -82,7 +80,7 @@ void contact_points_between_art_links_and_ground(
                 glm::vec3 p = link_global_trans[i].v;
                 float d = p.y - art.links[i].shape.sphere.radius;
                 if (d <= 0.0f) {
-                    contact_points[contact_points_count++] = ContactPoint(
+                    contact_points.emplace_back(
                             glm::vec3(p.x, 0, p.z), Ey<T>(), Ez<T>(), -d,
                             RigidBodyOrLink::from_articulation_link(art_id, i),
                             RigidBodyOrLink::from_rigid_body(Id<RigidBody>::null()));
@@ -90,6 +88,8 @@ void contact_points_between_art_links_and_ground(
             } break;
         }
     }
+
+    return contact_points;
 }
 
 }

@@ -60,11 +60,11 @@ int main(void)
     // ArticulatedBody art = examples::create_triple_pendulum_link(false);
     // ArticulatedBody art = examples::create_furuta_pendulum(false);
     // ArticulatedBody art = examples::create_13_link_tree(true);
-    ArticulatedBody art = examples::create_free_link(1, true);
+    ArticulatedBody art = examples::create_free_link(2, true);
     MaterialDB material_db;
 
     ArticulationState<real_t> state(&art, &material_db);
-    state.enable_collision_with_ground = true;
+    state.enable_collision_with_ground = art.floating;
     state.randomize_positions();
     auto T_root = state.get_root_transform();
     T_root.v.y += 2.0;
@@ -76,12 +76,14 @@ int main(void)
 
     float dt = 1.0f / 240.0f;
 
+    bool run_simulation = true;
+
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        ttransform<double> rootT = state.get_root_transform();
+        ttransform<real_t> rootT = state.get_root_transform();
         auto& io = ImGui::GetIO();
         if (!io.WantCaptureMouse) {
             UpdateCamera(&camera);
@@ -93,12 +95,17 @@ int main(void)
             state.enable_collision_with_ground = true;
             state.randomize_positions();
         }
+        if (IsKeyPressed(KEY_SPACE)) {
+            run_simulation = !run_simulation;
+        }
 
-        auto t1 = std::chrono::high_resolution_clock::now();
-        state.simulate(dt, 4);
-        auto t2 = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-        printf("Duration: %ld microsecs\n", duration.count());
+        if (run_simulation) {
+            auto t1 = std::chrono::high_resolution_clock::now();
+            state.simulate(dt, 4);
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+            printf("Duration: %ld microsecs\n", duration.count());
+        }
 
         //----------------------------------------------------------------------------------
         ImGui_ImplOpenGL3_NewFrame();

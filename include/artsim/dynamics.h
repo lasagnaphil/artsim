@@ -30,7 +30,7 @@ namespace artsim {
 
     template <class T>
     void calc_S(const ArticulatedBody& art,
-                const T*__restrict q, const T*__restrict u, OUT tscrew<T>* S) {
+                const T*__restrict q, OUT tscrew<T>* S) {
         for (int i = 0; i < art.get_num_joints(); i++) {
             const Joint& joint = art.joints[i];
             const Link& link = art.links[i];
@@ -38,7 +38,6 @@ namespace artsim {
             uint32_t vel_dof = art.joint_vel_dofs[i];
             switch (joint.type) {
                 case JointType::Floating: {
-                    ttransform<T> T_root = ttransform(make_vec3(q), make_quat(q+3));
                     S[vel_start + 0] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0, 0, 0));
                     S[vel_start + 1] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0, 0, 0));
                     S[vel_start + 2] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0, 0, 0));
@@ -80,7 +79,6 @@ namespace artsim {
         switch (joint.type) {
             case JointType::Floating: {
                 kin.Tinv = ttransform<T>();
-                // ttransform<T> T_root = ttransform(make_vec3(q), make_quat(q+3));
                 // Skip calculation of S, v, c for floating joints
             } break;
             case JointType::Revolute: {
@@ -118,7 +116,9 @@ namespace artsim {
 
     template <class T>
     void calculate_jacobian_for_local_frame(const ArticulatedBody& art,
-                                      uint32_t link_idx, const artsim::ttransform<T>& T_local,
+                                      uint32_t link_idx,
+                                      const artsim::ttransform<T>& T_contact,
+                                      const artsim::ttransform<T>*__restrict T_link_global,
                                       const tscrew<T>*__restrict S,
                                       OUT tscrew<T>* J_local) {
         int num_vel_dofs = art.get_num_vel_dofs();
@@ -127,12 +127,14 @@ namespace artsim {
         std::fill_n(J_local, num_vel_dofs, tscrew<T>());
 
         int i = link_idx;
+
         do {
             uint32_t vel_starts = art.joint_vel_dof_starts[i];
             uint32_t vel_dof = art.joint_vel_dofs[i];
 
+            auto T_rel = T_link_global[i] / T_contact;
             for (int j = vel_starts; j < vel_starts + vel_dof; j++) {
-                J_local[j] = Ad(inverse(T_local), S[j]);
+                J_local[j] = Ad(T_rel, S[j]);
             }
             i = art.parents[i];
         } while (i != -1);
@@ -437,7 +439,7 @@ namespace artsim {
             data[i].I_a = tsmat6x6<T>(art.links[i].inertia, glm::tmat3x3<T>(0), glm::tmat3x3<T>(art.links[i].mass));
             if (f_ext) data[i].f_ext = f_ext[i];
 
-            if (art.joints[i].type != JointType::Floating) {
+            if (!(i == 0 && art.floating)) {
                 for (int j = 0; j < num_vel_dofs; j++) {
                     data[i].tau[j] = tau[cur_vel_dof + j];
                 }
@@ -463,8 +465,8 @@ namespace artsim {
             }
             data[i].featherstone_pass1();
         }
-        for (int j = num_joints - 1; j >= 0; j--) {
-            if (j == 0 && art.floating) continue;
+        int j_limit = art.floating? 1 : 0;
+        for (int j = num_joints - 1; j >= j_limit; j--) {
             int i = art.bfs_iteration_order[j];
             data[i].featherstone_pass2();
             if (i != 0) {
@@ -490,7 +492,7 @@ namespace artsim {
         for (int i = 0; i < num_joints; i++) {
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
-            if (art.joints[i].type == JointType::Floating) {
+            if (i == 0 && art.floating) {
                 ttransform<T> T_root = ttransform(make_vec3(q), make_quat(q+3));
                 data[i].a += Ad(inverse(T_root), tscrew<T>(tvec3<T>(0), gravity));
                 udot[0] = data[0].a.w[0];
@@ -605,9 +607,10 @@ namespace artsim {
         }
 
         Eigen::Matrix<T, Dynamic, Dynamic, RowMajor> Jc(3 * num_contact_points, num_vel_dofs);
+        Jc.setZero();
 
         std::vector<tscrew<T>> S(num_vel_dofs);
-        calc_S(art, q, u, OUT S.data());
+        calc_S(art, q, OUT S.data());
 
         std::vector<ttransform<T>> T_local(num_joints);
         std::vector<ttransform<T>> T_global(num_joints);
@@ -619,8 +622,9 @@ namespace artsim {
             if (contact_point.body1_id.is_link && !contact_point.body2_id.is_link) {
                 if (contact_point.body2_id.index == 0) {
                     uint32_t link_idx = contact_point.body1_id.link_idx;
-                    ttransform<T> T_contact_local = ttransform<T>(contact_point.T_global) / T_global[link_idx];
-                    calculate_jacobian_for_local_frame(art, link_idx, T_contact_local, S.data(), OUT J_local.data());
+                    calculate_jacobian_for_local_frame(art, link_idx,
+                                                       ttransform<T>(contact_point.T_global), T_global.data(), S.data(),
+                                                       OUT J_local.data());
                     for (int i = 0; i < num_vel_dofs; i++) {
                         Jc(3*c + 0, i) = J_local[i].v[0];
                         Jc(3*c + 1, i) = J_local[i].v[1];
@@ -666,11 +670,10 @@ namespace artsim {
         std::vector<tvec3<T>> c(num_contact_points);
         std::vector<tvec3<T>> lambda(num_contact_points, tvec3<T>(0));
 
-        const T beta = 0.01;
-        const T slop = 1e-4;
+        const T beta = 0.05;
 
-#define SOLVER_BISECTION
-// #define SOLVER_PGS
+// #define SOLVER_BISECTION
+#define SOLVER_PGS
 #ifdef SOLVER_BISECTION
         T alpha = 1.0;
         const T alpha_min = 0.7;
@@ -685,7 +688,7 @@ namespace artsim {
 #endif
 
         for (int i = 0; i < num_contact_points; i++) {
-            c[i] = make_vec3<T>(tau_star.data() + 3*i) - beta/dt*glm::max<T>(contact_points[i].depth - slop, 0) * Ez<T>();
+            c[i] = make_vec3<T>(tau_star.data() + 3*i) - beta/dt*glm::max<T>(contact_points[i].depth, 0) * Ez<T>();
         }
 
         const int max_iters = 16;
@@ -694,7 +697,7 @@ namespace artsim {
         std::vector<tvec3<T>> lambda_old(num_contact_points);
         int iter;
         for (iter = 0; iter < max_iters; iter++) {
-            std::copy(lambda.begin(), lambda.begin() + num_contact_points, lambda_old.begin());
+            std::copy(lambda.begin(), lambda.end(), lambda_old.begin());
 
             for (int i = 0; i < num_contact_points; i++) {
                 const auto& contact_point = contact_points[i];
@@ -847,10 +850,6 @@ namespace artsim {
                     qi[6] -= 0.5*dt*(qi[3]*qdi[0] + qi[4]*qdi[1] + qi[5]*qdi[2]);
                     T q_len = glm::sqrt(qi[3]*qi[3] + qi[4]*qi[4] + qi[5]*qi[5] + qi[6]*qi[6]);
                     qi[3] /= q_len; qi[4] /= q_len; qi[5] /= q_len; qi[6] /= q_len;
-                    // T_ba.q = exp(0.5*dt*V_b.w) * T_ba.q;
-                    // qi[0] = T_ba.v[0]; qi[1] = T_ba.v[1]; qi[2] = T_ba.v[2];
-                    // qi[3] = T_ba.q[0]; qi[4] = T_ba.q[1]; qi[5] = T_ba.q[2]; qi[6] = T_ba.q[3];
-
                 } break;
             }
             qi += art.joint_pos_dofs[i];
@@ -996,11 +995,11 @@ M(vpos_##idx1+k1, vpos_##idx2+k2) = M(vpos_##idx2+k2, vpos_##idx1+k1) = dot(Fi[k
                     CRBA_Ft_S(i, i, 0, 0);
                     CRBA_Ft_S(i, i, 0, 1);
                     CRBA_Ft_S(i, i, 0, 2);
-                    CRBA_Ft_S(i, i, 1, 0);
+                    // CRBA_Ft_S(i, i, 1, 0);
                     CRBA_Ft_S(i, i, 1, 1);
                     CRBA_Ft_S(i, i, 1, 2);
-                    CRBA_Ft_S(i, i, 2, 0);
-                    CRBA_Ft_S(i, i, 2, 1);
+                    // CRBA_Ft_S(i, i, 2, 0);
+                    // CRBA_Ft_S(i, i, 2, 1);
                     CRBA_Ft_S(i, i, 2, 2);
                     uint32_t j = i;
                     while (j != 0) {

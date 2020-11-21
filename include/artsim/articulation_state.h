@@ -113,15 +113,10 @@ struct ArticulationState {
 
     void simulate(T dt) {
         if (enable_collision_with_ground) {
-            contact_points.resize(ground_col_enabled_links.size());
-            uint32_t contact_points_size;
-            artsim::contact_points_between_art_links_and_ground(
+            contact_points = artsim::contact_points_between_art_links_and_ground(
                     *art, Id<ArticulatedBody>::null(),
-                    ground_col_enabled_links.data(), ground_col_enabled_links.size(), T_global.data(),
-                    OUT contact_points.data(),
-                    contact_points_size);
-            contact_points.resize(contact_points_size);
-            contact_normals.resize(contact_points_size);
+                    ground_col_enabled_links.data(), ground_col_enabled_links.size(), T_global.data());
+            contact_normals.resize(contact_points.size());
         }
         artsim::euler_step_with_collision(*art, *material_db, gravity, dt, f_ext.data(), tau.data(),
                                           contact_points.data(), contact_points.size(),
