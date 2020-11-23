@@ -20,7 +20,7 @@ Vector3 glm_to_ray(glm::vec3 v) {
 template <class T>
 void render_articulation(const artsim::ArticulationState<T>& state) {
     for (int i = 0; i < state.num_joints; i++) {
-        glm::tmat4x4<T> model_mat = artsim::mat4_cast(state.T_global[i]);
+        glm::tmat4x4<T> model_mat = artsim::mat4_cast(state.T_link_global[i]);
         glm::mat4 model_mat_f = model_mat;
         rlPushMatrix();
         rlMultMatrixf(glm::value_ptr(model_mat_f));
@@ -37,6 +37,15 @@ void render_articulation(const artsim::ArticulationState<T>& state) {
             } break;
             default: {}
         }
+
+        rlPopMatrix();
+
+        model_mat = artsim::mat4_cast(state.T_joint_global[i]);
+        model_mat_f = model_mat;
+        rlPushMatrix();
+        rlMultMatrixf(glm::value_ptr(model_mat_f));
+
+        DrawSphere(Vector3Zero(), 0.1f, GREEN);
 
         rlPopMatrix();
     }

@@ -67,14 +67,14 @@ int main(void)
     state.enable_collision_with_ground = art.floating;
     state.randomize_positions();
     auto T_root = state.get_root_transform();
-    T_root.v.y += 2.0;
+    T_root.v.y += 3.0;
     state.set_root_transform(T_root);
     // state.set_joint_pos_1dof(0, 0.2f * 3.14f);
     // state.set_joint_pos_1dof(1, 0.3f * 3.14f);
     // state.set_joint_pos_spherical(0, glm::angleAxis(0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
     // state.set_joint_pos_spherical(1, glm::angleAxis(-0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
 
-    float dt = 1.0f / 240.0f;
+    float dt = 1.0f / 600.0f;
 
     bool run_simulation = true;
 
@@ -101,7 +101,7 @@ int main(void)
 
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
-            state.simulate(dt, 4);
+            state.simulate(dt, 10);
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             printf("Duration: %ld microsecs\n", duration.count());

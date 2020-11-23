@@ -26,8 +26,10 @@ struct ArticulationState {
     std::vector<T> udot;
     std::vector<T> tau;
     std::vector<artsim::tscrew<T>> f_ext;
-    std::vector<artsim::ttransform<T>> T_local;
-    std::vector<artsim::ttransform<T>> T_global;
+    std::vector<artsim::ttransform<T>> T_link_local;
+    std::vector<artsim::ttransform<T>> T_link_global;
+    std::vector<artsim::ttransform<T>> T_joint_local;
+    std::vector<artsim::ttransform<T>> T_joint_global;
 
     glm::tvec3<T> gravity = {0, -9.81, 0};
 
@@ -40,7 +42,9 @@ struct ArticulationState {
             : art(artPtr), material_db(material_db),
               num_pos_dofs(art->get_num_pos_dofs()), num_vel_dofs(art->get_num_vel_dofs()), num_joints(art->get_num_joints()),
               q(num_pos_dofs, 0), u(num_vel_dofs, 0), udot(num_vel_dofs, 0), tau(num_vel_dofs, 0),
-              f_ext(num_joints, tscrew<T>()), T_local(num_joints, ttransform<T>()), T_global(num_joints, ttransform<T>())
+              f_ext(num_joints, tscrew<T>()),
+              T_link_local(num_joints, ttransform<T>()), T_link_global(num_joints, ttransform<T>()),
+              T_joint_local(num_joints, ttransform<T>()), T_joint_global(num_joints, ttransform<T>())
     {
         reset_positions();
         for (uint32_t i = 0; i < num_joints; i++) {
@@ -66,7 +70,9 @@ struct ArticulationState {
             qp += art->joint_pos_dofs[i];
         }
 
-        calc_transforms(*art, q.data(), T_local.data(), T_global.data());
+        calc_transforms(*art, q.data(),
+                        OUT T_link_local.data(), OUT T_link_global.data(),
+                        OUT T_joint_local.data(), OUT T_joint_global.data());
     }
 
     void randomize_positions() {
@@ -108,14 +114,16 @@ struct ArticulationState {
             qp += art->joint_pos_dofs[i];
         }
 
-        calc_transforms(*art, q.data(), T_local.data(), T_global.data());
+        calc_transforms(*art, q.data(),
+                        OUT T_link_local.data(), OUT T_link_global.data(),
+                        OUT T_joint_local.data(), OUT T_joint_global.data());
     }
 
     void simulate(T dt) {
         if (enable_collision_with_ground) {
             contact_points = artsim::contact_points_between_art_links_and_ground(
                     *art, Id<ArticulatedBody>::null(),
-                    ground_col_enabled_links.data(), ground_col_enabled_links.size(), T_global.data());
+                    ground_col_enabled_links.data(), ground_col_enabled_links.size(), T_link_global.data());
             contact_normals.resize(contact_points.size());
         }
         artsim::euler_step_with_collision(*art, *material_db, gravity, dt, f_ext.data(), tau.data(),
@@ -123,7 +131,9 @@ struct ArticulationState {
                                           INOUT q.data(), INOUT u.data(),
                                           OUT udot.data(), OUT contact_normals.data());
 
-        calc_transforms(*art, q.data(), T_local.data(), T_global.data());
+        calc_transforms(*art, q.data(),
+                        OUT T_link_local.data(), OUT T_link_global.data(),
+                        OUT T_joint_local.data(), OUT T_joint_global.data());
     }
 
     void simulate(T dt, int N) {
