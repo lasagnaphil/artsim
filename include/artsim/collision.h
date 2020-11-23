@@ -19,10 +19,10 @@ std::vector<ContactPoint> contact_points_between_art_links_and_ground(
         const ttransform<T>* link_global_trans) {
 
     std::vector<ContactPoint> contact_points;
-    std::vector<glm::tvec3<T>> cpos;
 
     const float epsilon = 1e-7f;
     for (uint32_t li = 0; li < link_indices_count; li++) {
+        std::vector<glm::tvec3<T>> cpos;
         uint32_t i = link_indices[li];
         switch (art.links[i].shape.type) {
             case artsim::Shape::Type::Box: {

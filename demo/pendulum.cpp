@@ -67,7 +67,7 @@ int main(void)
     state.enable_collision_with_ground = art.floating;
     state.randomize_positions();
     auto T_root = state.get_root_transform();
-    T_root.v.y += 3.0;
+    T_root.v.y += 2.0;
     state.set_root_transform(T_root);
     // state.set_joint_pos_1dof(0, 0.2f * 3.14f);
     // state.set_joint_pos_1dof(1, 0.3f * 3.14f);
@@ -94,6 +94,9 @@ int main(void)
             state = ArticulationState<real_t>(&art, &material_db);
             state.enable_collision_with_ground = true;
             state.randomize_positions();
+            auto T_root = state.get_root_transform();
+            T_root.v.y += 2.0;
+            state.set_root_transform(T_root);
         }
         if (IsKeyPressed(KEY_SPACE)) {
             run_simulation = !run_simulation;

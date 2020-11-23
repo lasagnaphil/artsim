@@ -40,12 +40,15 @@ void render_articulation(const artsim::ArticulationState<T>& state) {
 
         rlPopMatrix();
 
-        model_mat = artsim::mat4_cast(state.T_joint_global[i]);
-        model_mat_f = model_mat;
         rlPushMatrix();
-        rlMultMatrixf(glm::value_ptr(model_mat_f));
 
-        DrawSphere(Vector3Zero(), 0.1f, GREEN);
+        if (!(state.art->floating && i == 0)) {
+            model_mat = artsim::mat4_cast(state.T_joint_global[i]);
+            model_mat_f = model_mat;
+            rlMultMatrixf(glm::value_ptr(model_mat_f));
+
+            DrawSphere(Vector3Zero(), 0.1f, GREEN);
+        }
 
         rlPopMatrix();
     }

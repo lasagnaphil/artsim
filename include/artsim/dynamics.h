@@ -694,7 +694,7 @@ namespace artsim {
             c[i] = make_vec3<T>(tau_star.data() + 3*i) - beta/dt*glm::max<T>(contact_points[i].depth - slop, 0) * Ez<T>();
         }
 
-        const int max_iters = 16;
+        const int max_iters = 64;
 
         T lambda_norm2;
         std::vector<tvec3<T>> lambda_old(num_contact_points);
