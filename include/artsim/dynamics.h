@@ -625,7 +625,7 @@ namespace artsim {
                 if (contact_point.body2_id.index == 0) {
                     uint32_t link_idx = contact_point.body1_id.link_idx;
                     calculate_jacobian_for_local_frame(art, link_idx,
-                                                       ttransform<T>(contact_point.T_global), T_joint_global.data(), S.data(),
+                                                       ttransform<T>(contact_point.T_global), T_link_global.data(), S.data(),
                                                        OUT J_local.data());
                     for (int i = 0; i < num_vel_dofs; i++) {
                         Jc(3*c + 0, i) = J_local[i].v[0];

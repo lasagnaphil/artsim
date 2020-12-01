@@ -60,14 +60,14 @@ int main(void)
     // ArticulatedBody art = examples::create_triple_pendulum_link(false);
     // ArticulatedBody art = examples::create_furuta_pendulum(false);
     // ArticulatedBody art = examples::create_13_link_tree(true);
-    ArticulatedBody art = examples::create_free_link(2, true);
+    ArticulatedBody art = examples::create_free_link(3, true);
     MaterialDB material_db;
 
     ArticulationState<real_t> state(&art, &material_db);
     state.enable_collision_with_ground = art.floating;
     state.randomize_positions();
     auto T_root = state.get_root_transform();
-    T_root.v.y += 2.0;
+    T_root.v.y += 3.0;
     state.set_root_transform(T_root);
     // state.set_joint_pos_1dof(0, 0.2f * 3.14f);
     // state.set_joint_pos_1dof(1, 0.3f * 3.14f);
@@ -95,7 +95,7 @@ int main(void)
             state.enable_collision_with_ground = true;
             state.randomize_positions();
             auto T_root = state.get_root_transform();
-            T_root.v.y += 2.0;
+            T_root.v.y += 3.0;
             state.set_root_transform(T_root);
         }
         if (IsKeyPressed(KEY_SPACE)) {
