@@ -53,13 +53,12 @@ namespace artsim {
                 } break;
                 case JointType::Spherical: {
                     ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
-                    glm::tmat3x3<T> joint_basis_vecs = glm::mat3_cast<T>(T_j.q);
-                    S[vel_start + 0].w = joint_basis_vecs[0];
-                    S[vel_start + 0].v = glm::cross(tvec3<T>(T_j.v), joint_basis_vecs[0]);
-                    S[vel_start + 1].w = joint_basis_vecs[1];
-                    S[vel_start + 1].v = glm::cross(tvec3<T>(T_j.v), joint_basis_vecs[1]);
-                    S[vel_start + 2].w = joint_basis_vecs[2];
-                    S[vel_start + 2].v = glm::cross(tvec3<T>(T_j.v), joint_basis_vecs[2]);
+                    S[vel_start + 0].w = T_j.R[0];
+                    S[vel_start + 0].v = glm::cross(tvec3<T>(T_j.v), T_j.R[0]);
+                    S[vel_start + 1].w = T_j.R[1];
+                    S[vel_start + 1].v = glm::cross(tvec3<T>(T_j.v), T_j.R[1]);
+                    S[vel_start + 2].w = T_j.R[2];
+                    S[vel_start + 2].v = glm::cross(tvec3<T>(T_j.v), T_j.R[2]);
                 } break;
             }
         }
@@ -100,13 +99,12 @@ namespace artsim {
                 ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
                 kin.Tinv = T_j * ttransform<T>(q_inv) * inverse(T_j) * ttransform<T>(inverse(link.local_link_pose));
 
-                glm::tmat3x3<T> joint_basis_vecs = glm::mat3_cast<T>(T_j.q);
-                kin.S[0].w = joint_basis_vecs[0];
-                kin.S[0].v = glm::cross(tvec3<T>(T_j.v), joint_basis_vecs[0]);
-                kin.S[1].w = joint_basis_vecs[1];
-                kin.S[1].v = glm::cross(tvec3<T>(T_j.v), joint_basis_vecs[1]);
-                kin.S[2].w = joint_basis_vecs[2];
-                kin.S[2].v = glm::cross(tvec3<T>(T_j.v), joint_basis_vecs[2]);
+                kin.S[0].w = T_j.R[0];
+                kin.S[0].v = glm::cross(tvec3<T>(T_j.v), T_j.R[0]);
+                kin.S[1].w = T_j.R[1];
+                kin.S[1].v = glm::cross(tvec3<T>(T_j.v), T_j.R[1]);
+                kin.S[2].w = T_j.R[2];
+                kin.S[2].v = glm::cross(tvec3<T>(T_j.v), T_j.R[2]);
 
                 kin.v = kin.S[0] * u[0] + kin.S[1] * u[1] + kin.S[2] * u[2];
                 kin.c = tscrew<T>();
@@ -275,7 +273,7 @@ namespace artsim {
         for (int i : art.bfs_iteration_order) {
             if (i == 0) {
                 if (art.floating) {
-                    ttransform<T> T_root = ttransform<T>(make_vec3(q), make_quat(q+3));
+                    ttransform<T> T_root = ttransform<T>(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
                     data[0].T_global_inv = ttransform<T>();
                     data[0].v = make_tscrew(u);
                     data[0].a = Ad(inverse(T_root), tscrew<T>(tvec3<T>(0), -gravity));
@@ -337,7 +335,7 @@ namespace artsim {
         tvec3<T> tau;          // dof
 
         // PARENT
-        // ttransform<T> T_parent_global_inv;  // set before pass 1
+        // tmat_transform<T> T_parent_global_inv;  // set before pass 1
         // tscrew<T> v_parent;                 // set before pass 1
         // tsmat6x6<T> I_a_parent;             // set after pass 2
         // tscrew<T> p_a_parent;               // set after pass 2
@@ -493,7 +491,7 @@ namespace artsim {
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
             if (i == 0 && art.floating) {
-                ttransform<T> T_root = ttransform(make_vec3(q), make_quat(q+3));
+                ttransform<T> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
                 data[i].a += Ad(inverse(T_root), tscrew<T>(tvec3<T>(0), gravity));
                 udot[0] = data[0].a.w[0];
                 udot[1] = data[0].a.w[1];
@@ -886,13 +884,13 @@ namespace artsim {
                 case JointType::Spherical: {
                     glm::tquat<T> q_j = glm::make_quat<T>(q + d);
                     ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
-                    T_joint_locals[i] = T_j * ttransform<T>(q_j) * inverse(T_j);
+                    T_joint_locals[i] = T_j * ttransform<T>(glm::mat3_cast(q_j)) * inverse(T_j);
                     T_link_locals[i] = ttransform<T>(link.local_link_pose) * T_joint_locals[i];
                 } break;
                 case JointType::Floating: {
                     glm::tvec3<T> v_j = glm::make_vec3<T>(q + d);
                     glm::tquat<T> q_j = glm::make_quat<T>(q + d + 3);
-                    T_joint_locals[i] = T_link_locals[i] = ttransform<T>(v_j, q_j);
+                    T_joint_locals[i] = T_link_locals[i] = ttransform<T>(v_j, glm::mat3_cast(q_j));
                 }
             }
         }

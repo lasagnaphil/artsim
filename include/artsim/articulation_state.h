@@ -126,6 +126,7 @@ struct ArticulationState {
                     ground_col_enabled_links.data(), ground_col_enabled_links.size(), T_link_global.data());
             contact_normals.resize(contact_points.size());
         }
+
         artsim::euler_step_with_collision(*art, *material_db, gravity, dt, f_ext.data(), tau.data(),
                                           contact_points.data(), contact_points.size(),
                                           INOUT q.data(), INOUT u.data(),
@@ -156,7 +157,7 @@ struct ArticulationState {
 
     ttransform<T> get_root_transform() const {
         if (!art->floating) return {};
-        return {glm::make_vec3(q.data()), glm::make_quat(q.data() + 3)};
+        return {glm::make_vec3(q.data()), glm::mat3_cast(glm::make_quat(q.data() + 3))};
     }
 
     void set_joint_pos_1dof(int joint_idx, T qj) {
@@ -176,13 +177,14 @@ struct ArticulationState {
 
     void set_root_transform(const ttransform<T>& rootT) {
         if (art->floating) {
+            glm::quat rot = glm::quat_cast(rootT.R);
             q[0] = rootT.v[0];
             q[1] = rootT.v[1];
             q[2] = rootT.v[2];
-            q[3] = rootT.q[0];
-            q[4] = rootT.q[1];
-            q[5] = rootT.q[2];
-            q[6] = rootT.q[3];
+            q[3] = rot[0];
+            q[4] = rot[1];
+            q[5] = rot[2];
+            q[6] = rot[3];
         }
     }
 };

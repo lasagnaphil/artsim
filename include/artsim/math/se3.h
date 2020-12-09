@@ -18,45 +18,56 @@ namespace artsim {
     template <class T>
     struct ttransform {
         glm::tvec3<T> v;
-        glm::tquat<T> q;
+        glm::tmat3x3<T> R;
 
-        ttransform() : v(0), q(1, 0, 0, 0) {}
-        explicit ttransform(glm::tvec3<T> v) : v(v), q(1, 0, 0, 0) {}
-        explicit ttransform(glm::tquat<T> q) : v(0), q(q) {}
-        ttransform(glm::tvec3<T> v, glm::tquat<T> q) : v(v), q(q) {}
+        ttransform() : v(0), R(1, 0, 0, 0, 1, 0, 0, 0, 1) {}
+        explicit ttransform(glm::tvec3<T> v) : v(v), R(1, 0, 0, 0, 1, 0, 0, 0, 1) {}
+        explicit ttransform(glm::tquat<T> q) : v(0), R(glm::mat3_cast(q)) {}
+        explicit ttransform(glm::tmat3x3<T> R) : v(0), R(R) {}
+        ttransform(glm::tvec3<T> v, glm::tmat3x3<T> R) : v(v), R(R) {}
 
         template <class U>
-        explicit operator ttransform<U>() const { return ttransform<U>(v, q); }
+        explicit operator ttransform<U>() const { return ttransform<U>(v, R); }
     };
 
     template <class T>
     inline typename glm::tmat4x4<T> mat4_cast(const ttransform<T> &t) {
-        return glm::translate(t.v) * mat4_cast(t.q);
+        glm::tmat4x4<T> m;
+        m[0] = glm::tvec4<T>(t.R[0], 0);
+        m[1] = glm::tvec4<T>(t.R[1], 0);
+        m[2] = glm::tvec4<T>(t.R[2], 0);
+        m[3] = glm::tvec4<T>(t.v, 1);
+        return m;
     }
 
     template <class T>
     inline ttransform<T> operator*(const ttransform<T> &t1, const ttransform<T> &t2) {
-        return {t1.q * t2.v + t1.v, t1.q * t2.q};
+        return {t1.R * t2.v + t1.v, t1.R * t2.R};
     }
 
     template <class T>
-    inline ttransform<T> operator*(glm::tquat<T> q, const ttransform<T>& t) {
-        return {q * t.v, q * t.q};
+    inline ttransform<T> operator*(glm::quat q, const ttransform<T>& t) {
+        return {glm::mat3_cast(q) * t.R, glm::mat3_cast(q) * t.R};
+    }
+
+    template <class T>
+    inline ttransform<T> operator*(glm::tmat3x3<T> R, const ttransform<T>& t) {
+        return {R * t.R, R * t.R};
     }
 
     template <class T>
     inline ttransform<T> operator*(glm::tvec3<T> v, const ttransform<T>& t) {
-        return {t.v + v, t.q};
+        return {t.v + v, t.R};
     }
 
     template <class T>
     inline ttransform<T> operator/(const ttransform<T> &t1, const ttransform<T> &t2) {
-        return {conjugate(t2.q) * (t1.v - t2.v), conjugate(t2.q) * t1.q};
+        return {glm::transpose(t2.R) * (t1.v - t2.v), glm::transpose(t2.R) * t1.R};
     }
 
     template <class T>
     inline ttransform<T> inverse(const ttransform<T>& t) {
-        return ttransform<T>(conjugate(t.q) * (-t.v), conjugate(t.q));
+        return ttransform<T>(glm::transpose(t.R) * (-t.v), glm::transpose(t.R));
     }
 
     template <class T>
@@ -154,55 +165,20 @@ namespace artsim {
         glm::tvec3<T> w_cross_v = glm::cross(V.w, V.v);
         glm::tvec3<T> p = V.v * theta + (1 - glm::cos(theta)) * w_cross_v +
                       (theta - glm::sin(theta)) * glm::cross(V.w, w_cross_v);
-        glm::tquat<T> q = artsim::exp(V.w * theta);
+        glm::tmat3x3<T> R = artsim::exp_mat(V.w * theta);
 
-        return ttransform<T>(p, q);
-    }
-
-    template <class T>
-    inline ttransform<T> exp(const tscrew<T>& V) {
-        T V_len = length(V);
-        if (V_len < glm::epsilon<T>()) {
-            return ttransform<T>();
-        }
-        tscrew<T> V_hat = V / V_len;
-        return tscrew_move(V_hat, V_len);
-    }
-
-    template <class T>
-    inline tscrew<T> log(const ttransform<T>& t) {
-        tscrew<T> V;
-        V.w = log(t.q);
-        T theta = glm::length(V.w);
-        if (theta <= glm::epsilon<T>()) {
-            V.w = glm::tvec3<T>(0);
-            V.v = t.v;
-        }
-        else {
-            T delta;
-            if (theta < 1e-4f) {
-                delta = 12.0f;
-            }
-            else {
-                T alpha = sin(theta) / theta;
-                T beta = (1 - cos(theta)) / (theta*theta);
-                delta = (1 - alpha/(2*beta)) / (theta*theta);
-            }
-            glm::tvec3<T> w_cross_v = glm::cross(V.w, t.v);
-            V.v = t.v - 0.5f * w_cross_v + delta*glm::cross(V.w, w_cross_v);
-        }
-        return V;
+        return ttransform<T>(p, R);
     }
 
     template <class T>
     inline tscrew<T> Ad(ttransform<T> t, tscrew<T> V) {
-        glm::tvec3<T> w = t.q * V.w;
-        return tscrew<T>(w, glm::cross(t.v, w) + t.q * V.v);
+        glm::tvec3<T> w = t.R * V.w;
+        return tscrew<T>(w, glm::cross(t.v, w) + t.R * V.v);
     }
 
     template <class T>
     inline tscrew<T> AdT(ttransform<T> t, tscrew<T> V) {
-        return tscrew<T>(glm::conjugate(t.q) * (V.w + glm::cross(V.v, t.v)), glm::conjugate(t.q) * V.v);
+        return tscrew<T>(glm::transpose(t.R) * (V.w + glm::cross(V.v, t.v)), glm::transpose(t.R) * V.v);
     }
 
     template <class T>
@@ -219,6 +195,11 @@ namespace artsim {
     inline glm::tmat3x3<T> move_frame(glm::tmat3x3<T> I_b, glm::tquat<T> q_ba) {
         glm::tmat3x3<T> R = glm::mat3_cast(q_ba);
         return glm::transpose(R) * I_b * R;
+    }
+
+    template <class T>
+    inline glm::tmat3x3<T> move_frame(glm::tmat3x3<T> I_b, glm::tmat3x3<T> R_ba) {
+        return glm::transpose(R_ba) * I_b * R_ba;
     }
 
     template <class T>
@@ -274,9 +255,9 @@ namespace artsim {
     template <class T>
     inline tspmat<T> move_frame(const tspmat<T>& G_b, ttransform<T> T_ba) {
         tspmat<T> G_a;
-        glm::tvec3<T> c = glm::conjugate(T_ba.q) * G_b.c;
-        glm::tvec3<T> cp = glm::conjugate(T_ba.q) * (G_b.c - T_ba.v);
-        G_a.I = move_frame(G_b.I, T_ba.q);
+        glm::tvec3<T> c = glm::transpose(T_ba.R) * G_b.c;
+        glm::tvec3<T> cp = glm::transpose(T_ba.R) * (G_b.c - T_ba.v);
+        G_a.I = move_frame(G_b.I, T_ba.R);
         G_a.I.xx += G_b.m*(-c.y*c.y - c.z*c.z + cp.y*cp.y + cp.z*cp.z);
         G_a.I.yy += G_b.m*(-c.z*c.z - c.x*c.x + cp.z*cp.z + cp.x*cp.x);
         G_a.I.zz += G_b.m*(-c.x*c.x - c.y*c.y + cp.x*cp.x + cp.y*cp.y);
@@ -383,12 +364,11 @@ namespace artsim {
     inline tsmat6x6<T> move_frame(const tsmat6x6<T>& G_b, const ttransform<T>& T_ba) {
         tsmat6x6<T> G_a;
         glm::tmat3x3<T> P = skew_symmetric(T_ba.v);
-        glm::tmat3x3<T> R = glm::mat3_cast(T_ba.q);
         glm::tmat3x3<T> PM = P * G_b.M;
         glm::tmat3x3<T> CP = G_b.C * P;
-        G_a.I = move_frame(G_b.I + CP + glm::transpose(CP) - PM*P, T_ba.q);
-        G_a.C = move_frame(G_b.C - PM, T_ba.q);
-        G_a.M = move_frame(G_b.M, T_ba.q);
+        G_a.I = move_frame(G_b.I + CP + glm::transpose(CP) - PM*P, T_ba.R);
+        G_a.C = move_frame(G_b.C - PM, T_ba.R);
+        G_a.M = move_frame(G_b.M, T_ba.R);
         return G_a;
     }
 

@@ -32,35 +32,35 @@ std::vector<ContactPoint> contact_points_between_art_links_and_ground(
                     // early bailout for boxes that definitely doesn't collide with ground
                     break;
                 }
-                p = link_global_trans[i].v + link_global_trans[i].q * glm::tvec3<T>(-ext.x, -ext.y, -ext.z);
+                p = link_global_trans[i].v + link_global_trans[i].R * glm::tvec3<T>(-ext.x, -ext.y, -ext.z);
                 if (p.y <= epsilon) {
                     cpos.push_back(p);
                 }
-                p = link_global_trans[i].v + link_global_trans[i].q * glm::tvec3<T>(-ext.x, -ext.y,  ext.z);
+                p = link_global_trans[i].v + link_global_trans[i].R * glm::tvec3<T>(-ext.x, -ext.y,  ext.z);
                 if (p.y <= epsilon) {
                     cpos.push_back(p);
                 }
-                p = link_global_trans[i].v + link_global_trans[i].q * glm::tvec3<T>(-ext.x,  ext.y, -ext.z);
+                p = link_global_trans[i].v + link_global_trans[i].R * glm::tvec3<T>(-ext.x,  ext.y, -ext.z);
                 if (p.y <= epsilon) {
                     cpos.push_back(p);
                 }
-                p = link_global_trans[i].v + link_global_trans[i].q * glm::tvec3<T>(-ext.x,  ext.y,  ext.z);
+                p = link_global_trans[i].v + link_global_trans[i].R * glm::tvec3<T>(-ext.x,  ext.y,  ext.z);
                 if (p.y <= epsilon) {
                     cpos.push_back(p);
                 }
-                p = link_global_trans[i].v + link_global_trans[i].q * glm::tvec3<T>( ext.x, -ext.y, -ext.z);
+                p = link_global_trans[i].v + link_global_trans[i].R * glm::tvec3<T>( ext.x, -ext.y, -ext.z);
                 if (p.y <= epsilon) {
                     cpos.push_back(p);
                 }
-                p = link_global_trans[i].v + link_global_trans[i].q * glm::tvec3<T>( ext.x, -ext.y,  ext.z);
+                p = link_global_trans[i].v + link_global_trans[i].R * glm::tvec3<T>( ext.x, -ext.y,  ext.z);
                 if (p.y <= epsilon) {
                     cpos.push_back(p);
                 }
-                p = link_global_trans[i].v + link_global_trans[i].q * glm::tvec3<T>( ext.x,  ext.y, -ext.z);
+                p = link_global_trans[i].v + link_global_trans[i].R * glm::tvec3<T>( ext.x,  ext.y, -ext.z);
                 if (p.y <= epsilon) {
                     cpos.push_back(p);
                 }
-                p = link_global_trans[i].v + link_global_trans[i].q * glm::tvec3<T>( ext.x,  ext.y,  ext.z);
+                p = link_global_trans[i].v + link_global_trans[i].R * glm::tvec3<T>( ext.x,  ext.y,  ext.z);
                 if (p.y <= epsilon) {
                     cpos.push_back(p);
                 }

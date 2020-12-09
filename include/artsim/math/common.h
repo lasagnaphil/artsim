@@ -152,6 +152,30 @@ namespace artsim {
     inline glm::tvec3<T> skew_symmetric_cast(glm::tmat3x3<T> m) {
         return glm::tvec3<T>(m[1][2], m[2][0], m[0][1]);
     }
+
+    // TODO: optimize this
+    template <class T>
+    inline glm::tmat3x3<T> exp_mat(glm::tvec3<T> v) {
+        T theta = glm::length(v);
+        glm::tmat3x3<T> R = glm::identity<glm::tmat3x3<T>>();
+        if (theta <= glm::epsilon<T>()) {
+            return R;
+        }
+        glm::tvec3<T> u = v / theta;
+        glm::tmat3x3<T> K = skew_symmetric(u);
+        R += sin(theta) * K;
+        R += cos(theta) * K * K;
+        return R;
+    }
+
+    template <class T>
+    inline glm::tvec3<T> log_mat(const glm::tmat3x3<T> &R) {
+        T theta = glm::acos((R[0][0] + R[1][1] + R[2][2] - 1) / 2);
+        if (theta <= glm::epsilon<T>()) {
+            return glm::tvec3<T>(0);
+        }
+        return glm::vec3(R[1][2] - R[2][1], R[2][0] - R[0][2], R[0][1] - R[1][0]) / (2*glm::sin(theta));
+    }
 }
 
 

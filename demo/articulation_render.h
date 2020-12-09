@@ -57,7 +57,7 @@ void render_articulation(const artsim::ArticulationState<T>& state) {
         const artsim::ContactPoint& cpoint = state.contact_points[c];
 
         DrawLine3D(glm_to_ray(glm::vec3(cpoint.T_global.v)),
-                   glm_to_ray(glm::vec3(cpoint.T_global.v + 1.0f * (cpoint.T_global.q * normal))),
+                   glm_to_ray(glm::vec3(cpoint.T_global.v + 1.0f * (cpoint.T_global.R * normal))),
                    GREEN);
     }
 }

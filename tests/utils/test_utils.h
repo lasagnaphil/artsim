@@ -58,7 +58,7 @@ void get_random(std::default_random_engine& engine, glm::tquat<Real>& q) {
 template <class Real>
 void get_random(std::default_random_engine& engine, artsim::ttransform<Real>& T) {
     get_random<glm::tvec3<Real>, Real>(engine, T.v);
-    get_random<glm::tquat<Real>, Real>(engine, T.q);
+    get_random<glm::tmat3x3<Real>, Real>(engine, T.R);
 }
 
 template <class T, class U>
@@ -73,13 +73,12 @@ void populate_random(std::default_random_engine& engine, T* obj) {
 template <class T, class U>
 void populate_random(std::default_random_engine& engine, artsim::ttransform<T>* obj) {
     size_t size = sizeof(T) / sizeof(U);
-    U* ptr = reinterpret_cast<U*>(obj);
+    glm::tquat<T> q;
     for (int i = 0; i < size; i++) {
-        ptr[i] = std::uniform_real_distribution<U>(-1, 1)(engine);
+        q[i] = std::uniform_real_distribution<U>(-1, 1)(engine);
     }
-    obj->q = glm::normalize(obj->q);
+    obj->R = glm::mat3_cast(q);
 }
-
 
 template <class T, int R, int C>
 Eigen::Matrix<T, R, C> to_eigen(const glm::mat<C, R, T>& M) {
@@ -128,13 +127,11 @@ Eigen::Matrix<T, 6, 6> to_eigen(const artsim::tsmat6x6<T>& A) {
 template <class T>
 Eigen::Matrix<T, 6, 6> to_eigen_adj_matrix(const artsim::ttransform<T>& t) {
     Eigen::Matrix<T, 6, 6> M;
-    auto R = glm::mat3_cast(t.q);
     auto P = artsim::skew_symmetric(t.v);
-    M.template block<3, 3>(0, 0) = to_eigen(R);
+    M.template block<3, 3>(0, 0) = to_eigen(t.R);
     M.template block<3, 3>(0, 3) = Eigen::Matrix<T, 3, 3>::Zero();
-    M.template block<3, 3>(3, 0) = to_eigen(P*R);
-    M.template block<3, 3>(3, 3) = to_eigen(R);
+    M.template block<3, 3>(3, 0) = to_eigen(P*t.R);
+    M.template block<3, 3>(3, 3) = to_eigen(t.R);
     return M;
 }
-
 #endif //ARTSIM_TEST_UTILS_H

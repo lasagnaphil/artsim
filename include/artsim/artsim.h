@@ -268,7 +268,7 @@ namespace artsim {
         ContactPoint() = default;
         ContactPoint(glm::vec3 pos, glm::vec3 normal, glm::vec3 tangent,
                      float depth, RigidBodyOrLink body1_id, RigidBodyOrLink body2_id)
-              : T_global(pos, glm::quat_cast(glm::mat3(tangent, glm::cross(normal, tangent), normal))),
+              : T_global(pos, glm::mat3(tangent, glm::cross(normal, tangent), normal)),
                 depth(depth), body1_id(body1_id), body2_id(body2_id) {}
     };
 
