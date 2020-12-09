@@ -11,15 +11,10 @@
 #include <implot.h>
 
 #include <artsim/artsim.h>
-#include <artsim/dynamics.h>
 #include <artsim/articulation_state.h>
 #include <artsim/example_articulations.h>
 
 #include "articulation_render.h"
-
-inline Vector3 glm_to_raylib(glm::vec3 v) {
-    return (Vector3){v.x, v.y, v.z};
-}
 
 using namespace artsim;
 using namespace glm;
@@ -59,20 +54,12 @@ int main(void)
     // ArticulatedBody art = examples::create_double_pendulum_link(false);
     // ArticulatedBody art = examples::create_triple_pendulum_link(false);
     // ArticulatedBody art = examples::create_furuta_pendulum(false);
-    // ArticulatedBody art = examples::create_13_link_tree(true);
-    ArticulatedBody art = examples::create_free_link(3, true);
+    ArticulatedBody art = examples::create_13_link_tree(true);
     MaterialDB material_db;
 
     ArticulationState<real_t> state(&art, &material_db);
     state.enable_collision_with_ground = art.floating;
     state.randomize_positions();
-    auto T_root = state.get_root_transform();
-    T_root.v.y += 3.0;
-    state.set_root_transform(T_root);
-    // state.set_joint_pos_1dof(0, 0.2f * 3.14f);
-    // state.set_joint_pos_1dof(1, 0.3f * 3.14f);
-    // state.set_joint_pos_spherical(0, glm::angleAxis(0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
-    // state.set_joint_pos_spherical(1, glm::angleAxis(-0.1f * glm::pi<float>(), glm::normalize(glm::vec3(1, 0, 1))));
 
     float dt = 1.0f / 600.0f;
 
@@ -94,9 +81,6 @@ int main(void)
             state = ArticulationState<real_t>(&art, &material_db);
             state.enable_collision_with_ground = true;
             state.randomize_positions();
-            auto T_root = state.get_root_transform();
-            T_root.v.y += 3.0;
-            state.set_root_transform(T_root);
         }
         if (IsKeyPressed(KEY_SPACE)) {
             run_simulation = !run_simulation;
