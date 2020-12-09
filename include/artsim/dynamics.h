@@ -582,6 +582,67 @@ namespace artsim {
     }
 
     template <class T>
+    static glm::tvec3<T> contact_ncp_solver(const tsmat3x3<T>& Minv, tvec3<T> c, T mu, T r) {
+        // Initial value for lambda
+        tvec3<T> lambda = -(inverse(Minv) * c);
+
+        // Damping parameter for Newton method
+        const T alpha = T(0.75);
+
+        // Newton-Raphson method with NCP formulation
+        T ncp_error;
+        T w;
+        for (int i = 0; i < 8; i++) {
+            tvec3<T> v = c + Minv*lambda;
+
+            // Calculate Jacobian of the current system
+            tsmat3x3<T> J;
+            {
+                T a = glm::sqrt(v.x*v.x + v.y*v.y);
+                T b = r*(mu*lambda.z - glm::sqrt(lambda.x*lambda.x + lambda.y*lambda.y));
+                T d = glm::sqrt(a*a + b*b);
+                w = (d - b) / (a + r*mu*lambda.z - d);
+
+                J.xx = Minv.xx + w;
+                J.xy = Minv.xy;
+                J.yy = Minv.yy + w;
+            }
+            {
+                T d = glm::sqrt(v.z*v.z + r*r*lambda.z*lambda.z);
+                T dphi_dvn = T(1) - v.z/d;
+
+                J.zx = dphi_dvn * Minv.zx;
+                J.yz = dphi_dvn * Minv.yz;
+                J.zz = r*(T(1) - r*lambda.z/d) + dphi_dvn * Minv.zz;
+            }
+
+            // NCP functions
+            tvec3<T> phi;
+            phi.x = v.x + w * lambda.x;
+            phi.y = v.y + w * lambda.y;
+            phi.z = glm::sqrt(v.z*v.z + lambda.z*lambda.z) - v.z - lambda.z;
+
+            // Newton step
+            lambda -= alpha * (inverse(J) * phi);
+
+            phi.x = v.x + w * lambda.x;
+            phi.y = v.y + w * lambda.y;
+            phi.z = glm::sqrt(v.z*v.z + lambda.z*lambda.z) - v.z - lambda.z;
+            ncp_error = glm::length(phi);
+            output_log("NCP error: %d\n", ncp_error);
+        }
+
+        if (ncp_error <= T(1e-6)) {
+            output_log("NCP Newton success!\n");
+        }
+        else {
+            output_log("NCP Newton fail!\n");
+        }
+
+        return lambda;
+    }
+
+    template <class T>
     void solve_collision(const ArticulatedBody& art,
                          const MaterialDB& material_db,
                          glm::tvec3<T> gravity, T dt,
@@ -676,7 +737,8 @@ namespace artsim {
         const T slop = 1e-4;
 
 // #define SOLVER_BISECTION
-#define SOLVER_PGS
+// #define SOLVER_PGS
+#define SOLVER_NCP
 #ifdef SOLVER_BISECTION
         T alpha = 1.0;
         const T alpha_min = 0.7;
@@ -684,6 +746,12 @@ namespace artsim {
         const T mu = 1.0;
 #endif
 #ifdef SOLVER_PGS
+        T alpha = 0.6;
+        const T alpha_min = 0.6;
+        const T gamma = 1.0;
+        const T mu = 1.0;
+#endif
+#ifdef SOLVER_NCP
         T alpha = 0.6;
         const T alpha_min = 0.6;
         const T gamma = 1.0;
@@ -720,6 +788,9 @@ namespace artsim {
 #endif
 #ifdef SOLVER_PGS
                         tvec3<T> lambda_star = contact_projection_solver(lambda[i], M_inv_ii, c[i], mu);
+#endif
+#ifdef SOLVER_NCP
+                        tvec3<T> lambda_star = contact_ncp_solver(M_inv_ii, c[i], mu, dt);
 #endif
                         lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
                     }
