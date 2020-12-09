@@ -192,17 +192,6 @@ namespace artsim {
     }
 
     template <class T>
-    inline glm::tmat3x3<T> move_frame(glm::tmat3x3<T> I_b, glm::tquat<T> q_ba) {
-        glm::tmat3x3<T> R = glm::mat3_cast(q_ba);
-        return glm::transpose(R) * I_b * R;
-    }
-
-    template <class T>
-    inline glm::tmat3x3<T> move_frame(glm::tmat3x3<T> I_b, glm::tmat3x3<T> R_ba) {
-        return glm::transpose(R_ba) * I_b * R_ba;
-    }
-
-    template <class T>
     inline T quadratic_form(const glm::tmat3x3<T>& I, glm::tvec3<T> w, glm::tvec3<T> v) {
         return I[0][0]*w[0]*v[0] + I[0][1]*w[1]*v[0] + I[0][2]*w[2]*v[0]
                + I[1][0]*w[0]*v[1] + I[1][1]*w[1]*v[1] + I[1][2]*w[2]*v[1]
@@ -216,9 +205,100 @@ namespace artsim {
                + I[2][0]*w[0]*w[2] + I[2][1]*w[1]*w[2] + I[2][2]*w[2]*w[2];
     }
 
+    // 3x3 symmetric matrix.
     template <class T>
-    inline glm::tmat3x3<T> symmetric_cartesian_product(glm::tvec3<T> w) {
-        return cartesian_product(w, w);
+    struct tsmat3x3 {
+        T xx, yy, zz, yz, zx, xy;
+
+        tsmat3x3() = default;
+        tsmat3x3(T k) : xx(k), yy(k), zz(k), yz(0), zx(0), xy(0) {}
+        tsmat3x3(T xx, T yy, T zz, T yz, T zx, T xy) : xx(xx), yy(yy), zz(zz), yz(yz), zx(zx), xy(xy) {}
+
+        template <class U>
+        explicit operator tsmat3x3<U>() const { return tsmat3x3<U>(xx, yy, zz, yz, zx, xy); }
+    };
+
+    template <class T>
+    inline glm::tmat3x3<T> mat3_cast(const tsmat3x3<T>& m) {
+        return {m.xx, m.xy, m.zx, m.xy, m.yy, m.yz, m.zx, m.yz, m.zz};
+    }
+
+    template <class T>
+    inline tsmat3x3<T> smat3_cast(const glm::tmat3x3<T>& m) {
+        return {m[0][0], m[1][1], m[2][2], m[1][2], m[2][0], m[0][1]};
+    }
+
+    template <class T>
+    inline tsmat3x3<T> operator+(const tsmat3x3<T>& m1, const tsmat3x3<T>& m2) {
+        return {m1.xx + m2.xx, m1.yy + m2.yy, m1.zz + m2.zz, m1.yz + m2.yz, m1.zx + m2.zx, m1.xy + m2.xy};
+    }
+
+    template <class T>
+    inline tsmat3x3<T> operator-(const tsmat3x3<T>& m1, const tsmat3x3<T>& m2) {
+        return {m1.xx - m2.xx, m1.yy - m2.yy, m1.zz - m2.zz, m1.yz - m2.yz, m1.zx - m2.zx, m1.xy - m2.xy};
+    }
+
+    template <class T>
+    inline tsmat3x3<T>& operator+=(tsmat3x3<T>& m1, const tsmat3x3<T>& m2) {
+        m1.xx += m2.xx; m1.yy += m2.yy; m1.zz += m2.zz; m1.yz += m2.yz; m1.zx += m2.zx; m1.xy += m2.xy;
+        return m1;
+    }
+
+    template <class T>
+    inline tsmat3x3<T>& operator-=(tsmat3x3<T>& m1, const tsmat3x3<T>& m2) {
+        m1.xx -= m2.xx; m1.yy -= m2.yy; m1.zz -= m2.zz; m1.yz -= m2.yz; m1.zx -= m2.zx; m1.xy -= m2.xy;
+        return m1;
+    }
+
+    template <class T>
+    inline glm::tvec3<T> operator*(const tsmat3x3<T>& m, const glm::tvec3<T>& v) {
+        return {m.xx*v.x + m.xy*v.y + m.zx*v.z, m.xy*v.x + m.yy*v.y + m.yz*v.z, m.zx*v.x + m.yz*v.y + m.zz*v.z};
+    }
+
+    template <class T>
+    inline tsmat3x3<T> operator*(T k, const tsmat3x3<T>& m) {
+        return {m.xx * k, m.yy * k, m.zz * k, m.yz * k, m.zx * k, m.xy * k};
+    }
+
+    template <class T>
+    inline tsmat3x3<T> operator/(const tsmat3x3<T>& m, T k) {
+        return {m.xx / k, m.yy / k, m.zz / k, m.yz / k, m.zx / k, m.xy / k};
+    }
+
+    template <class T>
+    inline tsmat3x3<T>& operator*=(tsmat3x3<T>& m, T k) {
+        m.xx *= k; m.yy *= k; m.zz *= k; m.yz *= k; m.zx *= k; m.xy *= k;
+        return m;
+    }
+
+    template <class T>
+    inline tsmat3x3<T>& operator/=(tsmat3x3<T>& m, T k) {
+        m.xx /= k; m.yy /= k; m.zz /= k; m.yz /= k; m.zx /= k; m.xy /= k;
+        return m;
+    }
+
+    template <class T>
+    tsmat3x3<T> inverse(const tsmat3x3<T>& m) {
+        tsmat3x3<T> minv;
+        minv.xx = m.yy * m.zz - m.yz * m.yz;
+        minv.yy = m.zz * m.xx - m.zx * m.zx;
+        minv.zz = m.xx * m.yy - m.xy * m.xy;
+        minv.xy = m.zx * m.yz - m.zz * m.xy;
+        minv.yz = m.xy * m.zx - m.xx * m.yz;
+        minv.zx = m.yz * m.xy - m.yy * m.zx;
+        T determinant = m.xx * minv.xx + m.xy * minv.xy + m.zx * minv.zx;
+        minv /= determinant;
+        return minv;
+    }
+
+    template <class T>
+    inline tsmat3x3<T> move_frame(tsmat3x3<T> I_b, const glm::tmat3x3<T>& R_ba) {
+        return smat3_cast(glm::transpose(R_ba) * mat3_cast(I_b) * R_ba);
+    }
+
+    template <class T>
+    inline tsmat3x3<T> symmetric_cartesian_product(glm::tvec3<T> w) {
+        return {w[0]*w[0], w[1]*w[1], w[2]*w[2], w[1]*w[2], w[2]*w[0], w[0]*w[1]};
     }
 
     // Spatial matrix.
@@ -236,12 +316,12 @@ namespace artsim {
      */
     template <class T>
     struct tspmat {
-        glm::tmat3x3<T> I;
+        tsmat3x3<T> I;
         glm::tvec3<T> c;
         T m;
 
         tspmat() = default;
-        tspmat(glm::tmat3x3<T> I, glm::tvec3<T> c, T m) : I(I), c(c), m(m) {}
+        tspmat(tsmat3x3<T> I, glm::tvec3<T> c, T m) : I(I), c(c), m(m) {}
 
         template <class U>
         explicit operator tspmat<U>() const { return tspmat<U>(I, c, m); }
@@ -289,13 +369,13 @@ namespace artsim {
      */
     template <class T>
     struct tsmat6x6 {
-        glm::tmat3x3<T> I, M;
+        tsmat3x3<T> I, M;
         glm::tmat3x3<T> C;
 
         tsmat6x6() = default;
-        tsmat6x6(glm::tmat3x3<T> I, glm::tmat3x3<T> C, glm::tmat3x3<T> M) : I(I), C(C), M(M) {}
+        tsmat6x6(tsmat3x3<T> I, glm::tmat3x3<T> C, tsmat3x3<T> M) : I(I), C(C), M(M) {}
         explicit tsmat6x6(const tspmat<T>& G)
-                : I(G.I), C(G.m * skew_symmetric(G.c)), M(G.m, 0, 0, 0, G.m, 0, 0, 0, G.m) {}
+                : I(G.I), C(G.m * skew_symmetric(G.c)), M(G.m, G.m, G.m, 0, 0, 0) {}
 
         template <class U>
         explicit operator tsmat6x6<U>() const { return tsmat6x6<U>(I, C, M); }
@@ -364,10 +444,10 @@ namespace artsim {
     inline tsmat6x6<T> move_frame(const tsmat6x6<T>& G_b, const ttransform<T>& T_ba) {
         tsmat6x6<T> G_a;
         glm::tmat3x3<T> P = skew_symmetric(T_ba.v);
-        glm::tmat3x3<T> PM = P * G_b.M;
+        glm::tmat3x3<T> PM = P * mat3_cast(G_b.M);
         glm::tmat3x3<T> CP = G_b.C * P;
-        G_a.I = move_frame(G_b.I + CP + glm::transpose(CP) - PM*P, T_ba.R);
-        G_a.C = move_frame(G_b.C - PM, T_ba.R);
+        G_a.I = move_frame(G_b.I + smat3_cast(CP + glm::transpose(CP) - PM*P), T_ba.R);
+        G_a.C = glm::transpose(T_ba.R) * (G_b.C - PM) * T_ba.R;
         G_a.M = move_frame(G_b.M, T_ba.R);
         return G_a;
     }
@@ -379,13 +459,13 @@ namespace artsim {
 
     template <class T>
     inline tsmat6x6<T> inverse(const tsmat6x6<T>& G) {
-        glm::tmat3x3<T> Iinv = inverse(G.I);
-        glm::tmat3x3<T> Iinv_C = Iinv * G.C;
-        glm::tmat3x3<T> D = inverse(G.M - glm::transpose(G.C) * Iinv_C);
+        tsmat3x3<T> Iinv = inverse(G.I);
+        glm::tmat3x3<T> Iinv_C = mat3_cast(Iinv) * G.C;
+        tsmat3x3<T> D = inverse(G.M - smat3_cast(glm::transpose(G.C) * Iinv_C));
 
         tsmat6x6<T> Ginv;
-        Ginv.I = Iinv + Iinv_C * D * glm::transpose(Iinv_C);
-        Ginv.C = -Iinv_C * D;
+        Ginv.I = Iinv + smat3_cast(Iinv_C * mat3_cast(D) * glm::transpose(Iinv_C));
+        Ginv.C = -Iinv_C * mat3_cast(D);
         Ginv.M = D;
         return Ginv;
     }
@@ -394,6 +474,7 @@ namespace artsim {
     using screw = tscrew<float>;
     using spmat = tspmat<float>;
     using smat6x6 = tsmat6x6<float>;
+    using smat3x3 = tsmat3x3<float>;
     using mat6x6 = glm::mat<6, 6, float>;
 }
 

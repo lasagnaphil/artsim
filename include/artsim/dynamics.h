@@ -169,9 +169,9 @@ namespace artsim {
         UV[1].v = UV_mat_v[1];
         UV[2].v = UV_mat_v[2];
 
-        UVUt.I = UV_mat_w * transpose(U_mat_w);
+        UVUt.I = smat3_cast(UV_mat_w * transpose(U_mat_w));
         UVUt.C = UV_mat_w * transpose(U_mat_v);
-        UVUt.M = UV_mat_v * transpose(U_mat_v);
+        UVUt.M = smat3_cast(UV_mat_v * transpose(U_mat_v));
     }
 
     template <class T>
@@ -260,7 +260,7 @@ namespace artsim {
             data[i].joint_dof = num_vel_dofs;
             data[i].has_parent = i != 0;
             jcalc(art.joints[i], art.links[i], q + cur_pos_dof, u + cur_vel_dof, OUT data[i].kin);
-            data[i].I = tspmat<T>(art.links[i].inertia, glm::vec3(0), art.links[i].mass);
+            data[i].I = tspmat<T>(tsmat3x3<T>(art.links[i].inertia), glm::tvec3<T>(0), art.links[i].mass);
             if (f_ext) data[i].f_ext = f_ext[i];
 
             if (!art.floating || i != 0) {
@@ -434,7 +434,8 @@ namespace artsim {
             data[i].joint_dof = art.joint_vel_dofs[i];
             data[i].has_parent = i != 0;
             jcalc(art.joints[i], art.links[i], q + cur_pos_dof, u + cur_vel_dof, OUT data[i].kin);
-            data[i].I_a = tsmat6x6<T>(art.links[i].inertia, glm::tmat3x3<T>(0), glm::tmat3x3<T>(art.links[i].mass));
+            data[i].I_a = tsmat6x6<T>(
+                    tsmat3x3<T>(art.links[i].inertia), glm::tmat3x3<T>(0), tsmat3x3<T>((T)art.links[i].mass));
             if (f_ext) data[i].f_ext = f_ext[i];
 
             if (!(i == 0 && art.floating)) {
@@ -508,55 +509,49 @@ namespace artsim {
         }
     }
 
-    inline float compute_r(float theta, glm::vec3 Minv_r3, float c_z, float mu) {
-        float r = -c_z / (Minv_r3.z / mu + Minv_r3.x * cos(theta) + Minv_r3.y * sin(theta));
-        // float lambda_z = r / mu;
-        // float lambda_z = (-c_z - Minv_r3.x * r * cos(theta) - Minv_r3.y * r * sin(theta)) / Minv_r3.z;
-        return r;
+    template <class T>
+    inline T compute_r(T theta, glm::tvec3<T> Minv_r3, T c_z, T mu) {
+        return -c_z / (Minv_r3.z / mu + Minv_r3.x * cos(theta) + Minv_r3.y * sin(theta));
     }
 
-    inline float bisection_gradient(const glm::mat3& Minv, glm::vec3 c, glm::vec3 lambda, float mu) {
-        glm::mat3 M = inverse(Minv);
-        glm::vec3 M_r3 = glm::vec3(M[0][2], M[1][2], M[2][2]);
-        glm::vec3 eta = glm::cross(M_r3, glm::vec3(lambda.x, lambda.y, -mu*mu*lambda.z));
+    template <class T>
+    inline T bisection_gradient(const tsmat3x3<T>& Minv, tvec3<T> c, tvec3<T> lambda, T mu) {
+        tsmat3x3<T> M = inverse(Minv);
+        glm::tvec3<T> M_r3 = tvec3<T>(M.zx, M.yz, M.zz);
+        glm::tvec3<T> eta = glm::cross(M_r3, glm::tvec3<T>(lambda.x, lambda.y, -mu*mu*lambda.z));
         return glm::dot(Minv * lambda + c, eta);
-        /*
-        glm::vec3 Minv_bar_c1 = Minv[0] - Minv[2] * (Minv[0][2] / Minv[2][2]);
-        glm::vec3 Minv_bar_c2 = Minv[1] - Minv[2] * (Minv[1][2] / Minv[2][2]);
-        glm::vec3 c_bar = c - Minv[2] * (c.z / Minv[2][2]);
-        return glm::dot(lambda.x * Minv_bar_c1 + lambda.y + Minv_bar_c2 + c_bar, eta);
-         */
     }
 
-    static glm::vec3 contact_bisection_solver(const glm::mat3& Minv, glm::vec3 c, float mu) {
-        const float gamma = 1e-4f;
-        vec3 lambda_v0 = -inverse(Minv) * c;
-        float theta = glm::atan(lambda_v0.y, lambda_v0.x);
-        vec3 Minv_r3 = vec3(Minv[0].z, Minv[1].z, Minv[2].z);
-        float r = compute_r(theta, Minv_r3, c.z, mu);
-        float lambda_z = r / mu;
-        vec3 lambda = vec3(r*cos(theta), r*sin(theta), lambda_z);
-        float D0 = bisection_gradient(Minv, c, lambda, mu);
+    template <class T>
+    static glm::tvec3<T> contact_bisection_solver(const tsmat3x3<T>& Minv, tvec3<T> c, T mu) {
+        const T gamma = 1e-4;
+        tvec3<T> lambda_v0 = -(inverse(Minv) * c);
+        T theta = glm::atan(lambda_v0.y, lambda_v0.x);
+        tvec3<T> Minv_r3 = tvec3<T>(Minv.zx, Minv.yz, Minv.zz);
+        T r = compute_r(theta, Minv_r3, c.z, mu);
+        T lambda_z = r / mu;
+        tvec3<T> lambda = tvec3<T>(r*cos(theta), r*sin(theta), lambda_z);
+        T D0 = bisection_gradient(Minv, c, lambda, mu);
 
-        float theta_p_delta = glm::asin(mu*lambda_v0.z / glm::sqrt(lambda_v0.x*lambda_v0.x + lambda_v0.y*lambda_v0.y));
-        float theta_p;
-        if (D0 >= 0.0f) {
-            theta_p = theta - pi<float>()/2 + theta_p_delta;
+        T theta_p_delta = glm::asin(mu*lambda_v0.z / glm::sqrt(lambda_v0.x*lambda_v0.x + lambda_v0.y*lambda_v0.y));
+        T theta_p;
+        if (D0 >= 0) {
+            theta_p = theta - pi<T>()/2 + theta_p_delta;
         }
         else {
-            theta_p = theta + pi<float>()/2 - theta_p_delta;
+            theta_p = theta + pi<T>()/2 - theta_p_delta;
         }
 
         int iter = 0;
-        vec3 lambda_b;
-        float theta_orig = theta;
-        float theta_p_orig = theta_p;
+        tvec3<T> lambda_b;
+        T theta_orig = theta;
+        T theta_p_orig = theta_p;
         do {
-            float theta_b = 0.5f * (theta + theta_p);
-            float r_b = compute_r(theta_b, Minv_r3, c.z, mu);
-            float lambda_z_b = r_b / mu;
+            T theta_b = 0.5 * (theta + theta_p);
+            T r_b = compute_r(theta_b, Minv_r3, c.z, mu);
+            T lambda_z_b = r_b / mu;
             lambda_b = vec3(r_b*cos(theta_b), r_b*sin(theta_b), lambda_z_b);
-            float grad = bisection_gradient(Minv, c, lambda_b, mu);
+            T grad = bisection_gradient(Minv, c, lambda_b, mu);
             if (grad * D0 > 0) { theta_p = theta_b; }
             else { theta = theta_b; }
             iter++;
@@ -571,18 +566,19 @@ namespace artsim {
         return lambda_b;
     }
 
-    static glm::vec3 contact_projection_solver(glm::vec3 lambda, const mat3& Minv, glm::vec3 c, float mu) {
-        const float alpha = 0.1f;
-        float r_z = alpha / Minv[2][2];
-        float r_t = alpha / max(Minv[0][0], Minv[1][1]);
-        vec3 v = c + Minv*lambda;
-        float lambda_z = max(0.0f, lambda.z - r_z*v.z);
-        vec2 lambda_t = vec2(lambda.x - r_t*v.x, lambda.y - r_t*v.y);
-        float lambda_t_len = length(lambda_t);
+    template <class T>
+    static tvec3<T> contact_projection_solver(tvec3<T> lambda, const tsmat3x3<T>& Minv, tvec3<T> c, T mu) {
+        const T alpha = 0.1f;
+        T r_z = alpha / Minv.zz;
+        T r_t = alpha / max(Minv.xx, Minv.yy);
+        tvec3<T> v = c + Minv*lambda;
+        T lambda_z = max(T(0), lambda.z - r_z*v.z);
+        tvec2<T> lambda_t = tvec2<T>(lambda.x - r_t*v.x, lambda.y - r_t*v.y);
+        T lambda_t_len = length(lambda_t);
         if (lambda_t_len > mu*lambda_z) {
             lambda_t = mu*lambda_z*normalize(lambda_t);
         }
-        return vec3(lambda_t.x, lambda_t.y, lambda_z);
+        return tvec3<T>(lambda_t.x, lambda_t.y, lambda_z);
     }
 
     template <class T>
@@ -636,7 +632,7 @@ namespace artsim {
 
         Eigen::Matrix<T, Dynamic, 1> tau_star = Jc * u_bar;
 
-        dynmat<tmat3x3<T>> M_contact_inv(num_contact_points, num_contact_points);
+        dynmat<tsmat3x3<T>> M_contact_inv(num_contact_points, num_contact_points);
 
         Eigen::Matrix<T, Dynamic, Dynamic> Minv_Jc_T(num_vel_dofs, 3*num_contact_points);
         std::vector<T> zero_vec(num_vel_dofs, 0);
@@ -650,7 +646,13 @@ namespace artsim {
             for (int i = 0; i < num_contact_points; i++) {
                 Eigen::Matrix<T, 3, Dynamic> Jci = Jc.middleRows(3*i, 3);
                 Eigen::Matrix<T, 3, 3> M_contact_inv_eigen = Jci * Minv_Jck_T;
-                M_contact_inv(i, k) = glm::make_mat3(M_contact_inv_eigen.data());
+                M_contact_inv(i, k) = tsmat3x3<T>(
+                        M_contact_inv_eigen(0, 0),
+                        M_contact_inv_eigen(1, 1),
+                        M_contact_inv_eigen(2, 2),
+                        M_contact_inv_eigen(1, 2),
+                        M_contact_inv_eigen(2, 0),
+                        M_contact_inv_eigen(0, 1));
             }
         }
 
@@ -706,9 +708,9 @@ namespace artsim {
                     lambda[i] = (1 - alpha)*lambda[i];
                 }
                 else {
-                    tmat3x3<T> M_inv_ii = M_contact_inv(i, i);
-                    tmat3x3<T> M_ii = inverse(M_inv_ii);
-                    tvec3<T> lambda_v0 = -M_ii * c[i];
+                    tsmat3x3<T> M_inv_ii = M_contact_inv(i, i);
+                    tsmat3x3<T> M_ii = inverse(M_inv_ii);
+                    tvec3<T> lambda_v0 = -(M_ii * c[i]);
                     if (mu*mu * lambda_v0.z*lambda_v0.z >= lambda_v0.x*lambda_v0.x + lambda_v0.y*lambda_v0.y) {
                         lambda[i] = alpha * lambda_v0 + (1 - alpha) * lambda[i];
                     }
@@ -725,7 +727,7 @@ namespace artsim {
 
                 for (int ip = 0; ip < num_contact_points; ip++) {
                     if (i == ip) continue;
-                    tmat3x3<T> M_ip_i_inv = M_contact_inv(ip, i);
+                    tsmat3x3<T> M_ip_i_inv = M_contact_inv(ip, i);
                     c[ip] += M_ip_i_inv*(lambda[i] - lambda_old[i]);
                 }
             }
@@ -764,6 +766,20 @@ namespace artsim {
         if (out_contact_forces) {
             std::memcpy(out_contact_forces, contact_forces.data(), sizeof(T) * num_vel_dofs);
         }
+    }
+
+    template <class T>
+    void solve_collision_ncp(const ArticulatedBody& art,
+                             const MaterialDB& material_db,
+                             glm::tvec3<T> gravity, T dt,
+                             const T*__restrict q, const T*__restrict u, const T*__restrict udot_orig,
+                             const tscrew<T>*__restrict f_ext, const T*__restrict tau,
+                             const ContactPoint*__restrict contact_points, uint32_t num_contact_points,
+                             OUT glm::tvec3<T>*__restrict out_lambda, OUT T*__restrict out_contact_forces) {
+
+        using namespace Eigen;
+
+
     }
 
     template <class T>
@@ -909,12 +925,22 @@ namespace artsim {
     }
 
     template <class T>
-    Eigen::Matrix<T, 3, 3> glm_to_eigen(glm::tmat3x3<T>& M) {
-        return Eigen::Map<Eigen::Matrix<T, 3, 3>>(glm::value_ptr<T>(M), 3, 3).transpose();
+    Eigen::Matrix<T, 3, 3> glm_to_eigen(const glm::tmat3x3<T>& M) {
+        return Eigen::Map<Eigen::Matrix<T, 3, 3>>((T*)&M[0], 3, 3).transpose();
     }
 
     template <class T>
-    Eigen::Matrix<T, 6, 6> glm_to_eigen(tsmat6x6<T>& I) {
+    Eigen::Matrix<T, 3, 3> glm_to_eigen(const tsmat3x3<T>& M) {
+        Eigen::Matrix<T, 3, 3> Me;
+        Me(0, 0) = M.xx; Me(1, 1) = M.yy; Me(2, 2) = M.zz;
+        Me(1, 2) = Me(2, 1) = M.yz;
+        Me(2, 0) = Me(0, 2) = M.zx;
+        Me(0, 1) = Me(1, 0) = M.xy;
+        return Me;
+    }
+
+    template <class T>
+    Eigen::Matrix<T, 6, 6> glm_to_eigen(const tsmat6x6<T>& I) {
         Eigen::Matrix<T, 6, 6> M;
         M.template block<3,3>(0, 0) = glm_to_eigen<T>(I.I);
         M.template block<3,3>(3, 0) = glm_to_eigen<T>(I.C);
@@ -954,7 +980,7 @@ M(vpos_##idx1+k1, vpos_##idx2+k2) = M(vpos_##idx2+k2, vpos_##idx1+k1) = dot(Fi[k
             uint32_t ppos = art.joint_pos_dof_starts[i];
             uint32_t vpos = art.joint_vel_dof_starts[i];
             jcalc(art.joints[i], art.links[i], q + ppos, q + vpos, kin[i]);
-            I[i] = tsmat6x6<T>(art.links[i].inertia, glm::tmat3x3<T>(0), glm::tmat3x3<T>(art.links[i].mass));
+            I[i] = tsmat6x6<T>(tsmat3x3<T>(art.links[i].inertia), glm::tmat3x3<T>(0), tsmat3x3<T>(art.links[i].mass));
 
             if (art.floating) {
                 if (i == 0) T_flink[i] = ttransform<T>();

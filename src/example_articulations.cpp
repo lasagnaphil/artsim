@@ -22,14 +22,14 @@ artsim::ArticulatedBody artsim::examples::create_single_pendulum_link(bool spher
 artsim::ArticulatedBody artsim::examples::create_double_pendulum_ball(bool spherical, float m1, float m2, float l1, float l2) {
     ArticulatedBody art;
     art.add_link_and_joint(
-            Link::create(glm::mat3(0), m1, Shape::make_sphere(0.1f),
+            Link::create(smat3x3(0), m1, Shape::make_sphere(0.1f),
                          transform(glm::vec3(0.0f, -l1, 0.0f)),
                          transform(glm::vec3(0.0f, l1, 0.0f)),
                          -1, Id<artsim::Material>::null()),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
     art.add_link_and_joint(
-            Link::create(glm::mat3(0), m2, Shape::make_sphere(0.1f),
+            Link::create(smat3x3(0), m2, Shape::make_sphere(0.1f),
                          transform(glm::vec3(0.0f, -l2, 0.0f)),
                          transform(glm::vec3(0.0f, l2, 0.0f)),
                          0, Id<artsim::Material>::null()),

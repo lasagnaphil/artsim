@@ -86,7 +86,7 @@ float Shape::mass(float density) {
     }
 }
 
-glm::mat3 Shape::inertia(float density) {
+smat3x3 Shape::inertia(float density) {
     glm::vec3 I;
     switch (type) {
         case Type::Box: {
@@ -98,7 +98,7 @@ glm::mat3 Shape::inertia(float density) {
             I = 0.4f * mass(density) * glm::vec3(r*r);
         } break;
     }
-    return glm::mat3(I.x, 0, 0, 0, I.y, 0, 0, 0, I.z);
+    return smat3x3(I.x, I.y, I.z, 0, 0, 0);
 }
 
 Shape Shape::make_ground() {
@@ -120,7 +120,7 @@ Shape Shape::make_sphere(float radius) {
     return shape;
 }
 
-Link Link::create(glm::mat3 inertia, float mass, Shape shape, transform local_link_pose, transform local_joint_pose,
+Link Link::create(const smat3x3& inertia, float mass, Shape shape, transform local_link_pose, transform local_joint_pose,
                   int parent_idx, Id<Material> mat_id) {
     Link link;
     link.inertia = inertia;

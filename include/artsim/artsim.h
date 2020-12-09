@@ -78,7 +78,7 @@ namespace artsim {
         static Shape make_sphere(float radius);
 
         float mass(float density);
-        glm::mat3 inertia(float density);
+        smat3x3 inertia(float density);
     };
 
     struct Material {
@@ -92,14 +92,14 @@ namespace artsim {
     };
 
     struct RigidBody {
-        glm::mat3 inertia;
+        smat3x3 inertia;
         float mass;
         Shape shape;
         transform global_trans;
     };
 
     struct Link {
-        glm::mat3 inertia;
+        smat3x3 inertia;
         float mass;
         Shape shape;
         transform local_link_pose;
@@ -107,7 +107,7 @@ namespace artsim {
         uint32_t parent_idx;
         Id<Material> mat_id;
 
-        static Link create(glm::mat3 inertia, float mass, Shape shape,
+        static Link create(const smat3x3& inertia, float mass, Shape shape,
                            transform local_link_pose, transform local_joint_pose,
                            int parent_idx, Id<Material> mat_id);
     };

@@ -42,9 +42,9 @@ void get_random_symmetric(std::default_random_engine& engine, glm::tmat3x3<Real>
 
 template <class Real>
 void get_random(std::default_random_engine& engine, artsim::tsmat6x6<Real>& M) {
-    get_random_symmetric<Real>(engine, M.I);
+    get_random<artsim::tsmat3x3<Real>, Real>(engine, M.I);
     get_random<glm::tmat3x3<Real>, Real>(engine, M.C);
-    get_random_symmetric<Real>(engine, M.M);
+    get_random<artsim::tsmat3x3<Real>, Real>(engine, M.M);
 }
 
 template <class Real>
@@ -112,6 +112,16 @@ Eigen::Matrix<T, 6, 3> to_eigen(artsim::tscrew<T> S[3]) {
     M.col(1) = to_eigen(S[1]);
     M.col(2) = to_eigen(S[2]);
     return M;
+}
+
+template <class T>
+Eigen::Matrix<T, 3, 3> to_eigen(const artsim::tsmat3x3<T>& M) {
+    Eigen::Matrix<T, 3, 3> Me;
+    Me(0, 0) = M.xx; Me(1, 1) = M.yy; Me(2, 2) = M.zz;
+    Me(1, 2) = Me(2, 1) = M.yz;
+    Me(2, 0) = Me(0, 2) = M.zx;
+    Me(0, 1) = Me(1, 0) = M.xy;
+    return Me;
 }
 
 template <class T>
