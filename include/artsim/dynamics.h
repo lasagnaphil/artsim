@@ -597,7 +597,6 @@ namespace artsim {
 
         bool success = true;
 
-        r = 1.0;
         for (int i = 0; i < 16; i++) {
             tvec3<T> v = c + Minv*lambda;
 
@@ -773,7 +772,7 @@ namespace artsim {
         const T alpha_min = 1.0;
         const T gamma = 1.0;
         const T mu = 1.0;
-        const T ncp_error_sq_tol = 1e-8;
+        const T ncp_error_sq_tol = 1e-6;
 #endif
 
 #ifdef SOLVER_NCP
