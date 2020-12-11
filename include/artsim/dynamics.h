@@ -46,19 +46,15 @@ namespace artsim {
                     S[vel_start + 5] = tscrew<T>(tvec3<T>(0, 0, 0), tvec3<T>(0, 0, 1));
                 } break;
                 case JointType::Revolute: {
-                    S[vel_start] = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(joint.revolute.axis, tvec3<T>(0)));
+                    S[vel_start] = tscrew<T>(joint.revolute.axis, tvec3<T>(0));
                 } break;
                 case JointType::Prismatic: {
-                    S[vel_start] = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(tvec3<T>(0), joint.prismatic.dir));
+                    S[vel_start] = tscrew<T>(tvec3<T>(0), joint.prismatic.dir);
                 } break;
                 case JointType::Spherical: {
-                    ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
-                    S[vel_start + 0].w = T_j.R[0];
-                    S[vel_start + 0].v = glm::cross(tvec3<T>(T_j.v), T_j.R[0]);
-                    S[vel_start + 1].w = T_j.R[1];
-                    S[vel_start + 1].v = glm::cross(tvec3<T>(T_j.v), T_j.R[1]);
-                    S[vel_start + 2].w = T_j.R[2];
-                    S[vel_start + 2].v = glm::cross(tvec3<T>(T_j.v), T_j.R[2]);
+                    S[vel_start + 0] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0, 0, 0));
+                    S[vel_start + 1] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0, 0, 0));
+                    S[vel_start + 2] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0, 0, 0));
                 } break;
             }
         }
@@ -81,32 +77,26 @@ namespace artsim {
                 // Skip calculation of S, v, c for floating joints
             } break;
             case JointType::Revolute: {
-                tscrew<T> S = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(joint.revolute.axis, tvec3<T>(0)));
-                kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_link_pose));
+                tscrew<T> S = tscrew<T>(joint.revolute.axis, tvec3<T>(0));
+                kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_joint_pose));
                 kin.S[0] = S;
                 kin.v = S * u[0];
                 kin.c = tscrew<T>();
             } break;
             case JointType::Prismatic: {
-                tscrew<T> S = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(tvec3<T>(0), joint.prismatic.dir));
-                kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_link_pose));
+                tscrew<T> S = tscrew<T>(tvec3<T>(0), joint.prismatic.dir);
+                kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_joint_pose));
                 kin.S[0] = S;
                 kin.v = S * u[0];
                 kin.c = tscrew<T>();
             } break;
             case JointType::Spherical: {
                 glm::tquat<T> q_inv = glm::inverse(glm::make_quat<T>(q));
-                ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
-                kin.Tinv = T_j * ttransform<T>(q_inv) * inverse(T_j) * ttransform<T>(inverse(link.local_link_pose));
-
-                kin.S[0].w = T_j.R[0];
-                kin.S[0].v = glm::cross(tvec3<T>(T_j.v), T_j.R[0]);
-                kin.S[1].w = T_j.R[1];
-                kin.S[1].v = glm::cross(tvec3<T>(T_j.v), T_j.R[1]);
-                kin.S[2].w = T_j.R[2];
-                kin.S[2].v = glm::cross(tvec3<T>(T_j.v), T_j.R[2]);
-
-                kin.v = kin.S[0] * u[0] + kin.S[1] * u[1] + kin.S[2] * u[2];
+                kin.Tinv = ttransform<T>(q_inv) * ttransform<T>(inverse(link.local_joint_pose));
+                kin.S[0] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0, 0, 0));
+                kin.S[1] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0, 0, 0));
+                kin.S[2] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0, 0, 0));
+                kin.v = tscrew<T>(tvec3<T>(u[0], u[1], u[2]), tvec3<T>(0));
                 kin.c = tscrew<T>();
             } break;
         }
@@ -260,7 +250,8 @@ namespace artsim {
             data[i].joint_dof = num_vel_dofs;
             data[i].has_parent = i != 0;
             jcalc(art.joints[i], art.links[i], q + cur_pos_dof, u + cur_vel_dof, OUT data[i].kin);
-            data[i].I = tspmat<T>(tsmat3x3<T>(art.links[i].inertia), glm::tvec3<T>(0), art.links[i].mass);
+            auto I0 = tspmat<T>(tsmat3x3<T>(art.links[i].inertia), glm::tvec3<T>(0), art.links[i].mass);
+            data[i].I = move_frame(I0, ttransform<T>(inverse(art.links[i].local_link_pose)));
             if (f_ext) data[i].f_ext = f_ext[i];
 
             if (!art.floating || i != 0) {
@@ -434,8 +425,8 @@ namespace artsim {
             data[i].joint_dof = art.joint_vel_dofs[i];
             data[i].has_parent = i != 0;
             jcalc(art.joints[i], art.links[i], q + cur_pos_dof, u + cur_vel_dof, OUT data[i].kin);
-            data[i].I_a = tsmat6x6<T>(
-                    tsmat3x3<T>(art.links[i].inertia), glm::tmat3x3<T>(0), tsmat3x3<T>((T)art.links[i].mass));
+            auto I0 = tspmat<T>(tsmat3x3<T>(art.links[i].inertia), glm::tvec3<T>(0), art.links[i].mass);
+            data[i].I_a = tsmat6x6<T>(move_frame(I0, ttransform<T>(inverse(art.links[i].local_link_pose))));
             if (f_ext) data[i].f_ext = f_ext[i];
 
             if (!(i == 0 && art.floating)) {
@@ -681,11 +672,8 @@ namespace artsim {
         std::vector<tscrew<T>> S(num_vel_dofs);
         calc_S(art, q, OUT S.data());
 
-        std::vector<ttransform<T>> T_link_local(num_joints), T_link_global(num_joints),
-                                T_joint_local(num_joints), T_joint_global(num_joints);
-        calc_transforms(art, q,
-                        OUT T_link_local.data(), OUT T_link_global.data(),
-                        OUT T_joint_local.data(), OUT T_joint_global.data());
+        std::vector<ttransform<T>> T_link_global(num_joints), T_joint_global(num_joints);
+        calc_transforms(art, q, OUT T_link_global.data(), OUT T_joint_global.data());
 
         std::vector<tscrew<T>> J_local(num_vel_dofs);
         for (int c = 0; c < num_contact_points; c++) {
@@ -694,7 +682,7 @@ namespace artsim {
                 if (contact_point.body2_id.index == 0) {
                     uint32_t link_idx = contact_point.body1_id.link_idx;
                     calculate_jacobian_for_local_frame(art, link_idx,
-                                                       ttransform<T>(contact_point.T_global), T_link_global.data(), S.data(),
+                                                       ttransform<T>(contact_point.T_global), T_joint_global.data(), S.data(),
                                                        OUT J_local.data());
                     for (int i = 0; i < num_vel_dofs; i++) {
                         Jc(3*c + 0, i) = J_local[i].v[0];
@@ -984,50 +972,40 @@ namespace artsim {
     template <class T>
     void calc_transforms(const ArticulatedBody& art,
                          const T*__restrict q,
-                         OUT ttransform<T>* T_link_locals,
                          OUT ttransform<T>* T_link_globals,
-                         OUT ttransform<T>* T_joint_locals,
                          OUT ttransform<T>* T_joint_globals) {
 
-        for (uint32_t i = 0; i < art.get_num_joints(); i++) {
+        for (uint32_t i : art.bfs_iteration_order) {
             int d = art.joint_pos_dof_starts[i];
             auto& joint = art.joints[i];
             auto& link = art.links[i];
+            ttransform<T> T_joint_global_parent;
+            if (i == 0) {
+                T_joint_global_parent = ttransform<T>();
+            }
+            else {
+                T_joint_global_parent = T_joint_globals[art.parents[i]];
+            }
             switch (joint.type) {
                 case JointType::Revolute: {
-                    tscrew<T> S = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(joint.revolute.axis, tvec3<T>(0)));
-                    T_joint_locals[i] = move(S, q[d]);
-                    T_link_locals[i] = ttransform<T>(link.local_link_pose) * T_joint_locals[i];
+                    tscrew<T> S = tscrew<T>(joint.revolute.axis, tvec3<T>(0));
+                    T_joint_globals[i] = T_joint_global_parent * ttransform<T>(link.local_joint_pose) * move(S, q[d]);
                 } break;
                 case JointType::Prismatic: {
-                    tscrew<T> S = Ad(ttransform<T>(link.local_joint_pose), tscrew<T>(tvec3<T>(0), joint.prismatic.dir));
-                    T_joint_locals[i] = move(S, q[d]);
-                    T_link_locals[i] = ttransform<T>(link.local_link_pose) * T_joint_locals[i];
+                    tscrew<T> S = tscrew<T>(tvec3<T>(0), joint.prismatic.dir);
+                    T_joint_globals[i] = T_joint_global_parent * ttransform<T>(link.local_joint_pose) * move(S, q[d]);
                 } break;
                 case JointType::Spherical: {
                     glm::tquat<T> q_j = glm::make_quat<T>(q + d);
-                    ttransform<T> T_j = ttransform<T>(link.local_joint_pose);
-                    T_joint_locals[i] = T_j * ttransform<T>(glm::mat3_cast(q_j)) * inverse(T_j);
-                    T_link_locals[i] = ttransform<T>(link.local_link_pose) * T_joint_locals[i];
+                    T_joint_globals[i] = T_joint_global_parent * ttransform<T>(link.local_joint_pose) * glm::mat3_cast(q_j);
                 } break;
                 case JointType::Floating: {
                     glm::tvec3<T> v_j = glm::make_vec3<T>(q + d);
                     glm::tquat<T> q_j = glm::make_quat<T>(q + d + 3);
-                    T_joint_locals[i] = T_link_locals[i] = ttransform<T>(v_j, glm::mat3_cast(q_j));
+                    T_joint_globals[i] = T_joint_global_parent * ttransform<T>(v_j, glm::mat3_cast(q_j));
                 }
             }
-        }
-
-        for (uint32_t i : art.bfs_iteration_order) {
-            auto T_j = ttransform<T>(art.links[i].local_joint_pose);
-            if (i == 0) {
-                T_link_globals[i] = T_link_locals[i];
-                T_joint_globals[i] = T_link_globals[i] * T_j;
-            }
-            else {
-                T_link_globals[i] = T_link_globals[art.parents[i]] * T_link_locals[i];
-                T_joint_globals[i] = T_link_globals[i] * T_j;
-            }
+            T_link_globals[i] = T_joint_globals[i] * ttransform<T>(link.local_link_pose);
         }
     }
 
@@ -1087,7 +1065,8 @@ M(vpos_##idx1+k1, vpos_##idx2+k2) = M(vpos_##idx2+k2, vpos_##idx1+k1) = dot(Fi[k
             uint32_t ppos = art.joint_pos_dof_starts[i];
             uint32_t vpos = art.joint_vel_dof_starts[i];
             jcalc(art.joints[i], art.links[i], q + ppos, q + vpos, kin[i]);
-            I[i] = tsmat6x6<T>(tsmat3x3<T>(art.links[i].inertia), glm::tmat3x3<T>(0), tsmat3x3<T>(art.links[i].mass));
+            auto I0 = tspmat<T>(tsmat3x3<T>(art.links[i].inertia), glm::tvec3<T>(0), art.links[i].mass);
+            I[i] = tsmat6x6<T>(move_frame(I0, ttransform<T>(inverse(art.links[i].local_link_pose))));
 
             if (art.floating) {
                 if (i == 0) T_flink[i] = ttransform<T>();

@@ -11,8 +11,8 @@ artsim::ArticulatedBody artsim::examples::create_single_pendulum_link(bool spher
     Shape box1 = Shape::make_box({d, l, d});
     art.add_link_and_joint(
             Link::create(box1.inertia(density), box1.mass(density), box1,
-                         transform(glm::vec3(0.0f, -l / 2, 0.0f)),
-                         transform(glm::vec3(0.0f, l / 2, 0.0f)),
+                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
+                         transform(glm::vec3(0.0f, -l, 0.0f)),
                          -1, Id<artsim::Material>::null()),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>()));
     art.setup();
@@ -23,15 +23,15 @@ artsim::ArticulatedBody artsim::examples::create_double_pendulum_ball(bool spher
     ArticulatedBody art;
     art.add_link_and_joint(
             Link::create(smat3x3(0), m1, Shape::make_sphere(0.1f),
+                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
                          transform(glm::vec3(0.0f, -l1, 0.0f)),
-                         transform(glm::vec3(0.0f, l1, 0.0f)),
                          -1, Id<artsim::Material>::null()),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
     art.add_link_and_joint(
             Link::create(smat3x3(0), m2, Shape::make_sphere(0.1f),
+                         transform(glm::vec3(0.0f, -l1, 0.0f)),
                          transform(glm::vec3(0.0f, -l2, 0.0f)),
-                         transform(glm::vec3(0.0f, l2, 0.0f)),
                          0, Id<artsim::Material>::null()),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
@@ -46,14 +46,15 @@ artsim::ArticulatedBody artsim::examples::create_double_pendulum_link(bool spher
     ArticulatedBody art;
     art.add_link_and_joint(
             Link::create(box1.inertia(density), box1.mass(density), box1,
-                         transform(glm::vec3(0.0f, -l1 / 2, 0.0f)),
-                         transform(glm::vec3(0.0f, l1 / 2, 0.0f)),
+                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
+                         transform(glm::vec3(0.0f, -l1/2, 0.0f)),
                          -1, {}),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
     art.add_link_and_joint(
-            Link::create(box2.inertia(density), box2.mass(density), box2, transform(glm::vec3(0.0f, -(l1 + l2) / 2, 0.0f)),
-                         transform(glm::vec3(0.0f, l2 / 2, 0.0f)),
+            Link::create(box2.inertia(density), box2.mass(density), box2,
+                         transform(glm::vec3(0.0f, -l1, 0.0f)),
+                         transform(glm::vec3(0.0f, -l2/2, 0.0f)),
                          0, {}),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
@@ -70,22 +71,22 @@ artsim::examples::create_triple_pendulum_link(bool spherical, float density, flo
     ArticulatedBody art;
     art.add_link_and_joint(
             Link::create(box1.inertia(density), box1.mass(density), box1,
-                         transform(glm::vec3(0.0f, -l1 / 2, 0.0f)),
-                         transform(glm::vec3(0.0f, l1 / 2, 0.0f)),
+                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
+                         transform(glm::vec3(0.0f, -l1/2, 0.0f)),
                          -1, {}),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
     art.add_link_and_joint(
             Link::create(box2.inertia(density), box2.mass(density), box2,
-                         transform(glm::vec3(0.0f, -(l1 + l2) / 2, 0.0f)),
-                         transform(glm::vec3(0.0f, l2 / 2, 0.0f)),
+                         transform(glm::vec3(0.0f, -l1, 0.0f)),
+                         transform(glm::vec3(0.0f, -l2/2, 0.0f)),
                          0, {}),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
     art.add_link_and_joint(
             Link::create(box3.inertia(density), box3.mass(density), box2,
-                         transform(glm::vec3(0.0f, -(l2 + l3) / 2, 0.0f)),
-                         transform(glm::vec3(0.0f, l3 / 2, 0.0f)),
+                         transform(glm::vec3(0.0f, -l2, 0.0f)),
+                         transform(glm::vec3(0.0f, -l3/2, 0.0f)),
                          1, {}),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
@@ -100,15 +101,15 @@ artsim::ArticulatedBody artsim::examples::create_furuta_pendulum(bool spherical,
     ArticulatedBody art;
     art.add_link_and_joint(
             Link::create(box1.inertia(density), box1.mass(density), box1,
-                         transform(glm::vec3(l1 / 2, 0.0f, 0.0f)),
-                         transform(glm::vec3(-l1 / 2, 0.0f, 0.0f)),
+                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
+                         transform(glm::vec3(l1/2, 0.0f, 0.0f)),
                          -1, {}),
             Joint::revolute_free(Ey<float>())
     );
     art.add_link_and_joint(
             Link::create(box2.inertia(density), box2.mass(density), box2,
-                         transform(glm::vec3(l1 / 2, -l2 / 2, 0.0f)),
-                         transform(glm::vec3(0.f, l2 / 2, 0.0f)),
+                         transform(glm::vec3(l1, 0.0f, 0.0f)),
+                         transform(glm::vec3(0.f, -l2/2, 0.0f)),
                          0, {}),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ex<float>())
     );
@@ -124,8 +125,8 @@ artsim::ArticulatedBody artsim::examples::create_5_link_tree(bool spherical) {
 
     art.add_link_and_joint(
             Link::create(box.inertia(density), box.mass(density), box,
+                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
                          transform(glm::vec3(0.0f, -0.5f, 0.0f)),
-                         transform(glm::vec3(0.0f, 0.5f, 0.0f)),
                          -1, {}),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
@@ -134,7 +135,7 @@ artsim::ArticulatedBody artsim::examples::create_5_link_tree(bool spherical) {
         art.add_link_and_joint(
                 Link::create(box.inertia(density), box.mass(density), box,
                              transform(glm::vec3(0.0f, -1.0f, 0.0f)),
-                             transform(glm::vec3(0.0f, 0.5f, 0.0f)),
+                             transform(glm::vec3(0.0f, -0.5f, 0.0f)),
                              parent, {}), joint);
     };
 
@@ -155,8 +156,8 @@ artsim::ArticulatedBody artsim::examples::create_13_link_tree(bool spherical) {
 
     art.add_link_and_joint(
             Link::create(box.inertia(density), box.mass(density), box,
+                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
                          transform(glm::vec3(0.0f, -0.5f, 0.0f)),
-                         transform(glm::vec3(0.0f, 0.5f, 0.0f)),
                          -1, {}),
             spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>())
     );
@@ -165,7 +166,7 @@ artsim::ArticulatedBody artsim::examples::create_13_link_tree(bool spherical) {
         art.add_link_and_joint(
                 Link::create(box.inertia(density), box.mass(density), box,
                              transform(glm::vec3(0.0f, -1.0f, 0.0f)),
-                             transform(glm::vec3(0.0f, 0.5f, 0.0f)),
+                             transform(glm::vec3(0.0f, -0.5f, 0.0f)),
                              parent, {}), joint);
     };
 
@@ -194,8 +195,8 @@ artsim::ArticulatedBody artsim::examples::create_free_link(int num_links, bool s
 
     art.add_link_and_joint(
             Link::create(box.inertia(density), box.mass(density), box,
-                         transform(),
-                         transform(),
+                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
+                         transform(glm::vec3(0.0f, -0.5f, 0.0f)),
                          -1, {}),
             Joint::floating());
 
@@ -203,7 +204,7 @@ artsim::ArticulatedBody artsim::examples::create_free_link(int num_links, bool s
         art.add_link_and_joint(
                 Link::create(box.inertia(density), box.mass(density), box,
                              transform(glm::vec3(0.0f, -1.0f, 0.0f)),
-                             transform(glm::vec3(0.0f, 0.5f, 0.0f)),
+                             transform(glm::vec3(0.0f, -0.5f, 0.0f)),
                              i-1, {}), spherical? Joint::spherical_free() : Joint::revolute_free(Ez<float>()));
     }
 

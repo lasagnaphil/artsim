@@ -58,7 +58,7 @@ int main(void)
     MaterialDB material_db;
 
     ArticulationState<real_t> state(&art, &material_db);
-    state.enable_collision_with_ground = art.floating;
+    state.enable_collision_with_ground = false;
     state.randomize_positions();
 
     float dt = 1.0f / 600.0f;
@@ -79,7 +79,7 @@ int main(void)
 
         if (IsKeyPressed(KEY_R)) {
             state = ArticulationState<real_t>(&art, &material_db);
-            state.enable_collision_with_ground = true;
+            state.enable_collision_with_ground = false;
             state.randomize_positions();
         }
         if (IsKeyPressed(KEY_SPACE)) {

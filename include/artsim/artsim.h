@@ -102,13 +102,13 @@ namespace artsim {
         smat3x3 inertia;
         float mass;
         Shape shape;
-        transform local_link_pose;
         transform local_joint_pose;
+        transform local_link_pose;
         uint32_t parent_idx;
         Id<Material> mat_id;
 
         static Link create(const smat3x3& inertia, float mass, Shape shape,
-                           transform local_link_pose, transform local_joint_pose,
+                           transform local_joint_pose, transform local_link_pose,
                            int parent_idx, Id<Material> mat_id);
     };
 

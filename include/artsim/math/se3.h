@@ -20,8 +20,8 @@ namespace artsim {
         glm::tvec3<T> v;
         glm::tmat3x3<T> R;
 
-        ttransform() : v(0), R(1, 0, 0, 0, 1, 0, 0, 0, 1) {}
-        explicit ttransform(glm::tvec3<T> v) : v(v), R(1, 0, 0, 0, 1, 0, 0, 0, 1) {}
+        ttransform() : v(0), R(glm::identity<glm::tmat3x3<T>>()) {}
+        explicit ttransform(glm::tvec3<T> v) : v(v), R(glm::identity<glm::tmat3x3<T>>()) {}
         explicit ttransform(glm::tquat<T> q) : v(0), R(glm::mat3_cast(q)) {}
         explicit ttransform(glm::tmat3x3<T> R) : v(0), R(R) {}
         ttransform(glm::tvec3<T> v, glm::tmat3x3<T> R) : v(v), R(R) {}
@@ -46,18 +46,23 @@ namespace artsim {
     }
 
     template <class T>
-    inline ttransform<T> operator*(glm::quat q, const ttransform<T>& t) {
-        return {glm::mat3_cast(q) * t.R, glm::mat3_cast(q) * t.R};
+    inline ttransform<T> operator*(const glm::tmat3x3<T>& R, const ttransform<T>& t) {
+        return {R * t.v, R * t.R};
     }
 
     template <class T>
-    inline ttransform<T> operator*(glm::tmat3x3<T> R, const ttransform<T>& t) {
-        return {R * t.R, R * t.R};
+    inline ttransform<T> operator*(const ttransform<T>& t1, const glm::tmat3x3<T>& R) {
+        return {t1.v, t1.R * R};
     }
 
     template <class T>
     inline ttransform<T> operator*(glm::tvec3<T> v, const ttransform<T>& t) {
         return {t.v + v, t.R};
+    }
+
+    template <class T>
+    inline ttransform<T> operator*(const ttransform<T>& t, glm::tvec3<T> v) {
+        return {t.R * v + t.v, t.R};
     }
 
     template <class T>
@@ -328,12 +333,12 @@ namespace artsim {
     };
 
     template <class T>
-    inline tscrew<T> operator*(const tspmat<T>& G, tscrew<T> V) {
+    inline tscrew<T> operator*(const tspmat<T>& G, const tscrew<T>& V) {
         return tscrew<T>(G.I * V.w + G.m * glm::cross(G.c, V.v), G.m*(V.v - glm::cross(G.c, V.w)));
     }
 
     template <class T>
-    inline tspmat<T> move_frame(const tspmat<T>& G_b, ttransform<T> T_ba) {
+    inline tspmat<T> move_frame(const tspmat<T>& G_b, const ttransform<T>& T_ba) {
         tspmat<T> G_a;
         glm::tvec3<T> c = glm::transpose(T_ba.R) * G_b.c;
         glm::tvec3<T> cp = glm::transpose(T_ba.R) * (G_b.c - T_ba.v);
@@ -350,7 +355,7 @@ namespace artsim {
     }
 
     template <class T>
-    inline T quadratic_form(const tspmat<T>& G, tscrew<T> V) {
+    inline T quadratic_form(const tspmat<T>& G, const tscrew<T>& V) {
         return quadratic_form(G.I, V.w) + G.m*glm::length2(V.v) - 2*G.m*glm::dot(glm::cross(V.w, V.v), G.c);
     }
 

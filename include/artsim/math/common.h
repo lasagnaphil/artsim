@@ -164,7 +164,7 @@ namespace artsim {
         glm::tvec3<T> u = v / theta;
         glm::tmat3x3<T> K = skew_symmetric(u);
         R += sin(theta) * K;
-        R += cos(theta) * K * K;
+        R += (1 - cos(theta)) * K * K;
         return R;
     }
 

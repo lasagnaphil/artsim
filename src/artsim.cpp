@@ -120,14 +120,14 @@ Shape Shape::make_sphere(float radius) {
     return shape;
 }
 
-Link Link::create(const smat3x3& inertia, float mass, Shape shape, transform local_link_pose, transform local_joint_pose,
+Link Link::create(const smat3x3& inertia, float mass, Shape shape, transform local_joint_pose, transform local_link_pose,
                   int parent_idx, Id<Material> mat_id) {
     Link link;
     link.inertia = inertia;
     link.mass = mass;
     link.shape = shape;
-    link.local_link_pose = local_link_pose;
     link.local_joint_pose = local_joint_pose;
+    link.local_link_pose = local_link_pose;
     link.parent_idx = parent_idx;
     link.mat_id = mat_id;
     return link;
