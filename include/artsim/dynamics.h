@@ -582,17 +582,23 @@ namespace artsim {
     }
 
     template <class T>
-    static glm::tvec3<T> contact_ncp_solver(const tsmat3x3<T>& Minv, tvec3<T> c, T mu, T r) {
+    static std::tuple<glm::tvec3<T>, T, bool> contact_ncp_solver(const tsmat3x3<T>& Minv, tvec3<T> c, T mu, T r) {
         // Initial value for lambda
         tvec3<T> lambda = -(inverse(Minv) * c);
+        tvec3<T> lambda_prev = lambda;
 
         // Damping parameter for Newton method
         const T alpha = T(0.75);
 
         // Newton-Raphson method with NCP formulation
-        T ncp_error;
+        T ncp_error_sq;
+        T ncp_error_sq_prev = 1e8;
         T w;
-        for (int i = 0; i < 8; i++) {
+
+        bool success = true;
+
+        r = 1.0;
+        for (int i = 0; i < 16; i++) {
             tvec3<T> v = c + Minv*lambda;
 
             // Calculate Jacobian of the current system
@@ -628,18 +634,27 @@ namespace artsim {
             phi.x = v.x + w * lambda.x;
             phi.y = v.y + w * lambda.y;
             phi.z = glm::sqrt(v.z*v.z + lambda.z*lambda.z) - v.z - lambda.z;
-            ncp_error = glm::length(phi);
-            output_log("NCP error: %d\n", ncp_error);
+
+            ncp_error_sq = glm::length2(phi);
+            output_log("NCP error: %f\n", ncp_error_sq);
+            if (ncp_error_sq > ncp_error_sq_prev) {
+                // Newton method failed
+                lambda = lambda_prev;
+                ncp_error_sq = ncp_error_sq_prev;
+                success = false;
+                break;
+            }
+
+            ncp_error_sq_prev = ncp_error_sq;
+            lambda_prev = lambda;
+
+            if (ncp_error_sq <= T(1e-8)) {
+                // Newton method finished
+                break;
+            }
         }
 
-        if (ncp_error <= T(1e-6)) {
-            output_log("NCP Newton success!\n");
-        }
-        else {
-            output_log("NCP Newton fail!\n");
-        }
-
-        return lambda;
+        return {lambda, ncp_error_sq, success};
     }
 
     template <class T>
@@ -744,18 +759,25 @@ namespace artsim {
         const T alpha_min = 0.7;
         const T gamma = 0.99;
         const T mu = 1.0;
+        const T lambda_sq_tol = 1e-6;
 #endif
 #ifdef SOLVER_PGS
         T alpha = 0.6;
         const T alpha_min = 0.6;
         const T gamma = 1.0;
         const T mu = 1.0;
+        const T lambda_sq_tol = 1e-6;
 #endif
 #ifdef SOLVER_NCP
-        T alpha = 0.6;
-        const T alpha_min = 0.6;
+        T alpha = 1.0;
+        const T alpha_min = 1.0;
         const T gamma = 1.0;
         const T mu = 1.0;
+        const T ncp_error_sq_tol = 1e-8;
+#endif
+
+#ifdef SOLVER_NCP
+        T total_ncp_error_sq = T(0);
 #endif
 
         for (int i = 0; i < num_contact_points; i++) {
@@ -785,14 +807,22 @@ namespace artsim {
                     else {
 #ifdef SOLVER_BISECTION
                         tvec3<T> lambda_star = contact_bisection_solver(M_inv_ii, c[i], mu);
+                        lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
 #endif
 #ifdef SOLVER_PGS
                         tvec3<T> lambda_star = contact_projection_solver(lambda[i], M_inv_ii, c[i], mu);
+                        lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
 #endif
 #ifdef SOLVER_NCP
-                        tvec3<T> lambda_star = contact_ncp_solver(M_inv_ii, c[i], mu, dt);
+                        auto [lambda_star, ncp_error_sq, success] = contact_ncp_solver(M_inv_ii, c[i], mu, dt);
+                        if (success) {
+                            lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
+                        }
+                        else {
+                            lambda[i] = 0.5 * (lambda_star + lambda[i]);
+                        }
+                        total_ncp_error_sq += ncp_error_sq;
 #endif
-                        lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
                     }
                 }
 
@@ -803,14 +833,21 @@ namespace artsim {
                 }
             }
             alpha = alpha_min + gamma * (alpha - alpha_min);
+
+#if defined(SOLVER_BISECTION) or defined(SOLVER_PGS)
             lambda_norm2 = 0.0;
             for (int i = 0; i < num_contact_points; i++) {
                 lambda_norm2 += length2(lambda[i] - lambda_old[i]);
             }
-            if (lambda_norm2 < 1e-6) {
-                iter++;
-                break;
+            if (lambda_norm2 < lambda_sq_tol) {
+                iter++; break;
             }
+#elif defined(SOLVER_NCP)
+            if (total_ncp_error_sq < ncp_error_sq_tol) {
+                iter++; break;
+            }
+            total_ncp_error_sq = T(0);
+#endif
         }
         if (iter == max_iters) {
             output_log("Contact solver did not converge! (error = %f)\n", sqrt(lambda_norm2));
