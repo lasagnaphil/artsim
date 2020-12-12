@@ -240,45 +240,72 @@ namespace artsim {
 
     };
 
-    struct RigidBodyOrLink {
-        bool is_link: 1;
-        uint32_t index : 31;
+    struct BodyId {
+        /*
+         * Memory layout:
+         *
+        bool is_art: 1;
+        union {
+            uint32_t rigid_body_idx: 31;
+            struct {
+                uint16_t art_idx: 15;
+                uint16_t art_body_idx: 16;
+            };
+        };
+         */
+        uint32_t index;
         uint32_t generation;
-        uint32_t link_idx;
 
-        RigidBodyOrLink() = default;
-        static RigidBodyOrLink from_articulation_link(Id<ArticulatedBody> id, uint32_t link_idx) {
-            return RigidBodyOrLink { true, id.index, id.generation, link_idx };
+        static BodyId from_articulation_link(Id<ArticulatedBody> id, uint16_t link_idx) {
+            BodyId body_id;
+            body_id.index = 0x80000000 | ((id.index & 0x0000ffff) << 16) | link_idx;
+            body_id.generation = id.generation;
+            return body_id;
         }
-        static RigidBodyOrLink from_rigid_body(Id<RigidBody> id) {
-            return RigidBodyOrLink { false, id.index, id.generation, 0 };
+        static BodyId from_rigid_body(Id<RigidBody> id) {
+            BodyId body_id;
+            body_id.index = id.index;
+            body_id.generation = id.generation;
+            return body_id;
         }
-        std::pair<Id<ArticulatedBody>, uint32_t> get_articulation_link() const {
-            return {Id<ArticulatedBody>{index, generation}, link_idx};
+        static BodyId from_ground() {
+            return {0, 0};
         }
-        Id<RigidBody> get_rigid_body_id() const { return Id<RigidBody>{index, generation}; }
+        std::pair<Id<ArticulatedBody>, uint32_t> get_articulation_id() const {
+            if (!is_articulation()) return {Id<ArticulatedBody>::null(), 0};
+            uint32_t art_index = (index & 0x7fff0000) >> 16;
+            uint32_t art_body_index = index & 0x0000ffff;
+            return {Id<ArticulatedBody>{art_index, generation}, art_body_index};
+        }
+        Id<RigidBody> get_rigid_body_id() const {
+            if (is_articulation()) return Id<RigidBody>::null();
+            return Id<RigidBody>{index, generation};
+        }
+        bool is_articulation() const {
+            return (index & 0x80000000) != 0;
+        }
     };
 
     struct ContactPoint {
         transform T_global;
         float depth;
-        RigidBodyOrLink body1_id;
-        RigidBodyOrLink body2_id;
+        BodyId body1_id;
+        BodyId body2_id;
 
         ContactPoint() = default;
         ContactPoint(glm::vec3 pos, glm::vec3 normal, glm::vec3 tangent,
-                     float depth, RigidBodyOrLink body1_id, RigidBodyOrLink body2_id)
+                     float depth, BodyId body1_id, BodyId body2_id)
               : T_global(pos, glm::mat3(tangent, glm::cross(normal, tangent), normal)),
                 depth(depth), body1_id(body1_id), body2_id(body2_id) {}
     };
 
     struct Frame {
-        RigidBodyOrLink body;
+        BodyId body;
         artsim::transform T_local;
 
         static Frame from_articulation(Id<ArticulatedBody> id, uint32_t link_idx,
                                        const artsim::transform& T_local) {
-            return {RigidBodyOrLink::from_articulation_link(id, link_idx), T_local};
+            return {BodyId::from_articulation_link(id, link_idx), T_local};
         }
     };
 }

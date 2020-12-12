@@ -677,20 +677,19 @@ namespace artsim {
         std::vector<tscrew<T>> J_local(num_vel_dofs);
         for (int c = 0; c < num_contact_points; c++) {
             const auto& contact_point = contact_points[c];
-            if (contact_point.body1_id.is_link && !contact_point.body2_id.is_link) {
-                if (contact_point.body2_id.index == 0) {
-                    uint32_t link_idx = contact_point.body1_id.link_idx;
-                    calculate_jacobian_for_local_frame(art, link_idx,
-                                                       ttransform<T>(contact_point.T_global), T_joint_global.data(), S.data(),
-                                                       OUT J_local.data());
-                    for (int i = 0; i < num_vel_dofs; i++) {
-                        Jc(3*c + 0, i) = J_local[i].v[0];
-                        Jc(3*c + 1, i) = J_local[i].v[1];
-                        Jc(3*c + 2, i) = J_local[i].v[2];
-                    }
+            if (contact_point.body1_id.is_articulation() && contact_point.body2_id.index == 0) {
+                auto [art_id, art_link_idx] = contact_point.body1_id.get_articulation_id();
+                calculate_jacobian_for_local_frame(art, art_link_idx,
+                                                   ttransform<T>(contact_point.T_global), T_joint_global.data(), S.data(),
+                                                   OUT J_local.data());
+                for (int i = 0; i < num_vel_dofs; i++) {
+                    Jc(3*c + 0, i) = J_local[i].v[0];
+                    Jc(3*c + 1, i) = J_local[i].v[1];
+                    Jc(3*c + 2, i) = J_local[i].v[2];
                 }
             }
         }
+        std::cout << "Size of BodyId: " << sizeof(BodyId) << std::endl;
 
         Eigen::Matrix<T, Dynamic, 1> tau_star = Jc * u_bar;
 
