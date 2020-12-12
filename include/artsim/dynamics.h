@@ -514,9 +514,8 @@ namespace artsim {
     }
 
     template <class T>
-    static glm::tvec3<T> contact_bisection_solver(const tsmat3x3<T>& Minv, tvec3<T> c, T mu) {
+    static glm::tvec3<T> contact_bisection_solver(tvec3<T> lambda_v0, const tsmat3x3<T>& Minv, tvec3<T> c, T mu) {
         const T gamma = 1e-4;
-        tvec3<T> lambda_v0 = -(inverse(Minv) * c);
         T theta = glm::atan(lambda_v0.y, lambda_v0.x);
         tvec3<T> Minv_r3 = tvec3<T>(Minv.zx, Minv.yz, Minv.zz);
         T r = compute_r(theta, Minv_r3, c.z, mu);
@@ -768,7 +767,8 @@ namespace artsim {
 #endif
 
         for (int i = 0; i < num_contact_points; i++) {
-            c[i] = make_vec3<T>(tau_star.data() + 3*i) - beta/dt*glm::max<T>(contact_points[i].depth - slop, 0) * Ez<T>();
+            c[i] = make_vec3<T>(tau_star.data() + 3*i);
+            c[i].z -= beta/dt*glm::max<T>(contact_points[i].depth - slop, 0);
         }
 
         const int max_iters = 64;
@@ -786,14 +786,13 @@ namespace artsim {
                 }
                 else {
                     tsmat3x3<T> M_inv_ii = M_contact_inv(i, i);
-                    tsmat3x3<T> M_ii = inverse(M_inv_ii);
-                    tvec3<T> lambda_v0 = -(M_ii * c[i]);
+                    tvec3<T> lambda_v0 = -(inverse(M_inv_ii) * c[i]);
                     if (mu*mu * lambda_v0.z*lambda_v0.z >= lambda_v0.x*lambda_v0.x + lambda_v0.y*lambda_v0.y) {
                         lambda[i] = alpha * lambda_v0 + (1 - alpha) * lambda[i];
                     }
                     else {
 #ifdef SOLVER_BISECTION
-                        tvec3<T> lambda_star = contact_bisection_solver(M_inv_ii, c[i], mu);
+                        tvec3<T> lambda_star = contact_bisection_solver(lambda_v0, M_inv_ii, c[i], mu);
                         lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
 #endif
 #ifdef SOLVER_PGS

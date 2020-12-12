@@ -51,7 +51,17 @@ struct dynmat {
     dynmat(uint32_t rows, uint32_t cols) : rows(rows), cols(cols) {
         ptr = new T[rows*cols];
     }
-    ~dynmat() { delete ptr; }
+    dynmat(const dynmat& m) : rows(m.rows), cols(m.cols) {
+        std::copy(m.ptr, m.ptr + rows*cols, ptr);
+    }
+    dynmat(dynmat&& m) noexcept : ptr(std::move(m.ptr)), rows(std::move(m.rows)), cols(std::move(m.cols)) {}
+    dynmat& operator=(const dynmat& m) {
+        *this = dynmat(m); return *this;
+    }
+    dynmat& operator=(dynmat&& m) noexcept {
+        std::swap(ptr, m.ptr); std::swap(rows, m.rows); std::swap(cols, m.cols); return *this;
+    }
+    ~dynmat() { delete[] ptr; }
 
     T& operator()(uint32_t i, uint32_t j) {
         return ptr[i*rows + j];
