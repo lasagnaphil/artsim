@@ -50,15 +50,12 @@ int main(void)
 
     //--------------------------------------------------------------------------------------
 
-    ArticulatedBody art = examples::create_free_link(3, true);
+    ArticulatedBody art = examples::create_free_link(1, true);
     MaterialDB material_db;
 
     ArticulationState<real_t> state(&art, &material_db);
     state.enable_collision_with_ground = art.floating;
     state.randomize_positions();
-    auto T_root = state.get_root_transform();
-    T_root.v.y += 3.0;
-    state.set_root_transform(T_root);
 
     float dt = 1.0f / 600.0f;
 
@@ -80,9 +77,6 @@ int main(void)
             state = ArticulationState<real_t>(&art, &material_db);
             state.enable_collision_with_ground = true;
             state.randomize_positions();
-            auto T_root = state.get_root_transform();
-            T_root.v.y += 3.0;
-            state.set_root_transform(T_root);
         }
         if (IsKeyPressed(KEY_SPACE)) {
             run_simulation = !run_simulation;

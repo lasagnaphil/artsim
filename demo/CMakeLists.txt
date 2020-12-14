@@ -11,7 +11,10 @@ target_link_libraries(artsim_demo_pendulum PRIVATE artsim raylib imgui)
 
 add_executable(artsim_demo_contacts contacts.cpp)
 target_link_libraries(artsim_demo_contacts PRIVATE artsim raylib imgui)
-#
+
+add_executable(artsim_demo_contact_bench contact_bench.cpp)
+target_link_libraries(artsim_demo_contact_bench PRIVATE artsim raylib imgui)
+
 # add_executable(artsim_demo_contacts contacts.cpp)
 # target_link_libraries(artsim_demo_contacts PRIVATE gengine artsim)
 # add_dependencies(artsim_demo_contacts artsim_copy_resource_folder)
