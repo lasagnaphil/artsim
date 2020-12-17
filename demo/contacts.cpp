@@ -53,12 +53,9 @@ int main(void)
     ArticulatedBody art = examples::create_free_link(3, true);
     MaterialDB material_db;
 
-    ArticulationState<real_t> state(&art, &material_db);
+    ArticulationState<real_t> state(&art, &material_db, ContactSolverType::NCP);
     state.enable_collision_with_ground = art.floating;
     state.randomize_positions();
-    auto T_root = state.get_root_transform();
-    T_root.v.y += 3.0;
-    state.set_root_transform(T_root);
 
     float dt = 1.0f / 600.0f;
 
@@ -77,12 +74,9 @@ int main(void)
         // SetCameraMode(camera, CAMERA_THIRD_PERSON);
 
         if (IsKeyPressed(KEY_R)) {
-            state = ArticulationState<real_t>(&art, &material_db);
+            state = ArticulationState<real_t>(&art, &material_db, ContactSolverType::NCP);
             state.enable_collision_with_ground = true;
             state.randomize_positions();
-            auto T_root = state.get_root_transform();
-            T_root.v.y += 3.0;
-            state.set_root_transform(T_root);
         }
         if (IsKeyPressed(KEY_SPACE)) {
             run_simulation = !run_simulation;
@@ -93,7 +87,7 @@ int main(void)
             state.simulate(dt, 10);
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-            printf("Duration: %ld microsecs\n", duration.count());
+            printf("Duration: %lld microsecs\n", duration.count());
         }
 
         //----------------------------------------------------------------------------------

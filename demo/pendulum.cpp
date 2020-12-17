@@ -32,9 +32,9 @@ int main(void)
 
     // Define the camera to look into our 3d world
     Camera camera = { 0 };
-    camera.position = (Vector3){ 0.0f, 5.0f, 5.0f };
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    camera.position = Vector3 { 0.0f, 5.0f, 5.0f };
+    camera.target = Vector3 { 0.0f, 0.0f, 0.0f };
+    camera.up = Vector3 { 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
     camera.type = CAMERA_PERSPECTIVE;
     SetCameraMode(camera, CAMERA_THIRD_PERSON);
@@ -57,7 +57,7 @@ int main(void)
     ArticulatedBody art = examples::create_13_link_tree(true);
     MaterialDB material_db;
 
-    ArticulationState<real_t> state(&art, &material_db);
+    ArticulationState<real_t> state(&art, &material_db, ContactSolverType::NCP);
     state.enable_collision_with_ground = false;
     state.randomize_positions();
 
@@ -78,7 +78,7 @@ int main(void)
         // SetCameraMode(camera, CAMERA_THIRD_PERSON);
 
         if (IsKeyPressed(KEY_R)) {
-            state = ArticulationState<real_t>(&art, &material_db);
+            state = ArticulationState<real_t>(&art, &material_db, ContactSolverType::NCP);
             state.enable_collision_with_ground = false;
             state.randomize_positions();
         }
@@ -91,7 +91,7 @@ int main(void)
             state.simulate(dt, 10);
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-            printf("Duration: %ld microsecs\n", duration.count());
+            printf("Duration: %lld microsecs\n", duration.count());
         }
 
         //----------------------------------------------------------------------------------
