@@ -36,13 +36,19 @@ struct ArticulationState {
     std::vector<ContactPoint> contact_points;
     std::vector<tvec3<T>> contact_normals;
 
-    ArticulationState(artsim::ArticulatedBody *artPtr, artsim::MaterialDB* material_db)
+    ContactSolverType solverType;
+
+    ArticulationState() = default;
+
+    ArticulationState(artsim::ArticulatedBody *artPtr, artsim::MaterialDB* material_db,
+                      ContactSolverType solverType = ContactSolverType::NCP)
             : art(artPtr), material_db(material_db),
               num_pos_dofs(art->get_num_pos_dofs()), num_vel_dofs(art->get_num_vel_dofs()), num_joints(art->get_num_joints()),
               q(num_pos_dofs, 0), u(num_vel_dofs, 0), udot(num_vel_dofs, 0), tau(num_vel_dofs, 0),
               f_ext(num_joints, tscrew<T>()),
               T_link_global(num_joints, ttransform<T>()),
-              T_joint_global(num_joints, ttransform<T>())
+              T_joint_global(num_joints, ttransform<T>()),
+              solverType(solverType)
     {
         reset_positions();
         for (uint32_t i = 0; i < num_joints; i++) {
@@ -72,8 +78,7 @@ struct ArticulationState {
     }
 
     void randomize_positions() {
-        std::random_device r;
-        std::default_random_engine engine(r());
+        static std::default_random_engine engine(0);
 
         const T pi = glm::pi<T>();
         T* qp = q.data();
@@ -94,7 +99,7 @@ struct ArticulationState {
                 } break;
                 case JOINT_TYPE_FLOATING: {
                     qp[0] = std::uniform_real_distribution<T>(-0.1, 0.1)(engine);
-                    qp[1] = std::uniform_real_distribution<T>(2, 3)(engine);
+                    qp[1] = std::uniform_real_distribution<T>(num_joints, num_joints+1)(engine);
                     qp[2] = std::uniform_real_distribution<T>(-0.1, 0.1)(engine);
 
                     T len = std::uniform_real_distribution<T>(-0.2f*pi, 0.2f*pi)(engine);
@@ -121,10 +126,26 @@ struct ArticulationState {
             contact_normals.resize(contact_points.size());
         }
 
-        artsim::euler_step_with_collision(*art, *material_db, gravity, dt, f_ext.data(), tau.data(),
-                                          contact_points.data(), contact_points.size(),
-                                          INOUT q.data(), INOUT u.data(),
-                                          OUT udot.data(), OUT contact_normals.data());
+        switch (solverType) {
+            case ContactSolverType::PGS:
+                artsim::euler_step_with_collision<T, ContactSolverType::PGS>(
+                        *art, *material_db, gravity, dt, f_ext.data(), tau.data(),
+                        contact_points.data(), contact_points.size(),
+                        INOUT q.data(), INOUT u.data(),
+                        OUT udot.data(), OUT contact_normals.data()); break;
+            case ContactSolverType::Bisection:
+                artsim::euler_step_with_collision<T, ContactSolverType::Bisection>(
+                        *art, *material_db, gravity, dt, f_ext.data(), tau.data(),
+                        contact_points.data(), contact_points.size(),
+                        INOUT q.data(), INOUT u.data(),
+                        OUT udot.data(), OUT contact_normals.data()); break;
+            case ContactSolverType::NCP:
+                artsim::euler_step_with_collision<T, ContactSolverType::NCP>(
+                        *art, *material_db, gravity, dt, f_ext.data(), tau.data(),
+                        contact_points.data(), contact_points.size(),
+                        INOUT q.data(), INOUT u.data(),
+                        OUT udot.data(), OUT contact_normals.data()); break;
+        }
 
         calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
     }

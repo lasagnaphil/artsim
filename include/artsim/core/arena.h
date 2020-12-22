@@ -84,7 +84,13 @@ public:
     Arena(uint32_t capacity = 0) :
             _size(0), _capacity(capacity), data(nullptr), indices(capacity), firstAvailable(0)
     {
-        data = (T*)aligned_alloc(alignof(T), capacity * sizeof(T));
+#if defined(_WIN64)
+        data = (T*)_aligned_malloc(capacity * sizeof(T), alignof(T));
+#elif defined(__APPLE__)
+        data = (T*)malloc(capacity * sizeof(T));
+#else
+        data = (T*)std::aligned_alloc(alignof(T), capacity * sizeof(T));
+#endif
         for (uint32_t i = 0; i < capacity; ++i) {
             indices[i].nextIndex = i + 1;
             indices[i].generation = 0;
@@ -108,10 +114,13 @@ public:
         T* oldData = data;
         // For some strange reason, aligned_alloc sometimes returns NULL on MacOS.
         // malloc() in MacOS is always 16-byte aligned, so let's just use it instead.
-#ifdef __APPLE__
+
+#if defined(_WIN64)
+        data = (T*)_aligned_malloc(newCapacity* sizeof(T), alignof(T));
+#elif defined(__APPLE__)
         data = (T*)malloc(newCapacity * sizeof(T));
 #else
-        data = (T*)aligned_alloc(alignof(T), newCapacity * sizeof(T));
+        data = (T*)std::aligned_alloc(alignof(T), newCapacity * sizeof(T));
 #endif
         indices.resize(newCapacity);
 

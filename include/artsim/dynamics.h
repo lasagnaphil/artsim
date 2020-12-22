@@ -13,11 +13,12 @@
 
 #include <queue>
 #include <iostream>
+#include <chrono>
 
 #include <Eigen/Dense>
 #include <glm/gtc/type_ptr.hpp>
 
-#define SHOW_LOG
+// #define SHOW_LOG
 
 #ifdef SHOW_LOG
 #define output_log(...) printf(__VA_ARGS__)
@@ -592,9 +593,10 @@ namespace artsim {
     }
 
     template <class T>
-    static std::tuple<glm::tvec3<T>, T, bool> contact_ncp_solver(const tsmat3x3<T>& Minv, tvec3<T> c, T mu, T r) {
+    static std::tuple<glm::tvec3<T>, T, bool> contact_ncp_solver(tvec3<T> lambda_v0,
+                                                                 const tsmat3x3<T>& Minv, tvec3<T> c, T mu, T r) {
         // Initial value for lambda
-        tvec3<T> lambda = -(inverse(Minv) * c);
+        tvec3<T> lambda = lambda_v0;
         tvec3<T> lambda_prev = lambda;
 
         // Damping parameter for Newton method
@@ -666,7 +668,11 @@ namespace artsim {
         return {lambda, ncp_error_sq, success};
     }
 
-    template <class T>
+    enum class ContactSolverType {
+        PGS, Bisection, NCP
+    };
+
+    template <class T, ContactSolverType type>
     void solve_collision(const ArticulatedBody& art,
                          const MaterialDB& material_db,
                          glm::tvec3<T> gravity, T dt,
@@ -709,7 +715,6 @@ namespace artsim {
                 }
             }
         }
-        std::cout << "Size of BodyId: " << sizeof(BodyId) << std::endl;
 
         Eigen::Matrix<T, Dynamic, 1> tau_star = Jc * u_bar;
 
@@ -737,60 +742,44 @@ namespace artsim {
             }
         }
 
-        /*
-        Eigen::Matrix<T, Dynamic, Dynamic> M(num_vel_dofs, num_vel_dofs);
-        mass_matrix(art, q, OUT M.data());
-        Eigen::Matrix<T, Dynamic, Dynamic> M_inv = M.inverse();
-        for (int k = 0; k < num_contact_points; k++) {
-            Eigen::Matrix<T, Dynamic, 3> Minv_Jck_T = M_inv * Jc.middleRows(3*k, 3).transpose();
-            for (int i = 0; i < num_contact_points; i++) {
-                Eigen::Matrix<T, 3, 3> M_inv_ik = Jc.middleRows(3*i, 3) * Minv_Jck_T;
-                M_contact_inv(i, k) = glm::make_mat3(M_inv_ik.data());
-            }
-        }
-         */
-
         std::vector<tvec3<T>> c(num_contact_points);
         std::vector<tvec3<T>> lambda(num_contact_points, tvec3<T>(0));
 
         const T beta = 0.1;
         const T slop = 1e-4;
 
-// #define SOLVER_BISECTION
-// #define SOLVER_PGS
-#define SOLVER_NCP
-#ifdef SOLVER_BISECTION
-        T alpha = 1.0;
-        const T alpha_min = 0.7;
-        const T gamma = 0.99;
         const T mu = 1.0;
-        const T lambda_sq_tol = 1e-6;
-#endif
-#ifdef SOLVER_PGS
-        T alpha = 0.6;
-        const T alpha_min = 0.6;
-        const T gamma = 1.0;
-        const T mu = 1.0;
-        const T lambda_sq_tol = 1e-6;
-#endif
-#ifdef SOLVER_NCP
-        T alpha = 1.0;
-        const T alpha_min = 1.0;
-        const T gamma = 1.0;
-        const T mu = 1.0;
-        const T ncp_error_sq_tol = 1e-6;
-#endif
 
-#ifdef SOLVER_NCP
-        T total_ncp_error_sq = T(0);
-#endif
+        T alpha_min, gamma, lambda_sq_tol, ncp_error_sq_tol;
+        T alpha, total_ncp_error_sq;
+
+        if constexpr (type == ContactSolverType::PGS) {
+            alpha = 0.6;
+            alpha_min = 0.6;
+            gamma = 1.0;
+            lambda_sq_tol = 1e-6;
+        }
+        else if constexpr (type == ContactSolverType::Bisection) {
+            alpha = 1.0;
+            alpha_min = 0.7;
+            gamma = 0.99;
+            lambda_sq_tol = 1e-6;
+        }
+        else if constexpr (type == ContactSolverType::NCP) {
+            alpha = 1.0;
+            alpha_min = 1.0;
+            gamma = 1.0;
+            lambda_sq_tol = 1e-6;
+            ncp_error_sq_tol = 1e-6;
+            total_ncp_error_sq = 0;
+        }
 
         for (int i = 0; i < num_contact_points; i++) {
             c[i] = make_vec3<T>(tau_star.data() + 3*i);
             c[i].z -= beta/dt*glm::max<T>(contact_points[i].depth - slop, 0);
         }
 
-        const int max_iters = 64;
+        const int max_iters = 1000;
 
         T lambda_norm2;
         std::vector<tvec3<T>> lambda_old(num_contact_points);
@@ -810,24 +799,18 @@ namespace artsim {
                         lambda[i] = alpha * lambda_v0 + (1 - alpha) * lambda[i];
                     }
                     else {
-#ifdef SOLVER_BISECTION
-                        tvec3<T> lambda_star = contact_bisection_solver(lambda_v0, M_inv_ii, c[i], mu);
-                        lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
-#endif
-#ifdef SOLVER_PGS
-                        tvec3<T> lambda_star = contact_projection_solver(lambda[i], M_inv_ii, c[i], mu);
-                        lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
-#endif
-#ifdef SOLVER_NCP
-                        auto [lambda_star, ncp_error_sq, success] = contact_ncp_solver(M_inv_ii, c[i], mu, dt);
-                        if (success) {
+                        if constexpr (type == ContactSolverType::PGS) {
+                            tvec3<T> lambda_star = contact_projection_solver(lambda[i], M_inv_ii, c[i], mu);
                             lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
                         }
-                        else {
-                            lambda[i] = 0.5 * (lambda_star + lambda[i]);
+                        else if constexpr (type == ContactSolverType::Bisection) {
+                            tvec3<T> lambda_star = contact_bisection_solver(lambda_v0, M_inv_ii, c[i], mu);
+                            lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
                         }
-                        total_ncp_error_sq += ncp_error_sq;
-#endif
+                        else if constexpr (type == ContactSolverType::NCP) {
+                            auto [lambda_star, ncp_error_sq, success] = contact_ncp_solver(lambda_v0, M_inv_ii, c[i], mu, dt);
+                            lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
+                        }
                     }
                 }
 
@@ -839,7 +822,6 @@ namespace artsim {
             }
             alpha = alpha_min + gamma * (alpha - alpha_min);
 
-#if defined(SOLVER_BISECTION) or defined(SOLVER_PGS)
             lambda_norm2 = 0.0;
             for (int i = 0; i < num_contact_points; i++) {
                 lambda_norm2 += length2(lambda[i] - lambda_old[i]);
@@ -847,12 +829,12 @@ namespace artsim {
             if (lambda_norm2 < lambda_sq_tol) {
                 iter++; break;
             }
-#elif defined(SOLVER_NCP)
+            /*
             if (total_ncp_error_sq < ncp_error_sq_tol) {
                 iter++; break;
             }
             total_ncp_error_sq = T(0);
-#endif
+             */
         }
         if (iter == max_iters) {
             output_log("Contact solver did not converge! (error = %f)\n", sqrt(lambda_norm2));
@@ -938,13 +920,10 @@ namespace artsim {
         Vector b(dof);
         Vector tau_ext = Eigen::Map<const Vector>(tau, dof);
         mass_matrix_using_rnea(art, q, M.data());
-        // std::cout << M << std::endl;
         all_forces(art, gravity, f_ext, q, u, OUT h.data());
         b.noalias() = tau_ext - h;
-        // std::cout << b << std::endl;
         Eigen::Map<Vector> x = Eigen::Map<Vector>(udot, dof);
         x.noalias() = M.llt().solve(b);
-        // std::cout << x << std::endl;
     }
 
     template <class T>
@@ -1176,7 +1155,7 @@ M(vpos_##idx1+k1, vpos_##idx2+k2) = M(vpos_##idx2+k2, vpos_##idx1+k1) = dot(Fi[k
         }
     }
 
-    template <class T>
+    template <class T, ContactSolverType contact_solver_type>
     void euler_step_with_collision(const ArticulatedBody& art,
                                    const MaterialDB& material_db,
                                    glm::tvec3<T> gravity, T dt,
@@ -1196,19 +1175,25 @@ M(vpos_##idx1+k1, vpos_##idx2+k2) = M(vpos_##idx2+k2, vpos_##idx1+k1) = dot(Fi[k
             integrate_implicit_euler(art, dt, udot_bar.data(), INOUT q, INOUT u);
         }
         else {
+            auto t1 = std::chrono::high_resolution_clock::now();
             std::vector<T> tau_contact(num_vel_dofs);
             std::vector<T> tau_total(num_vel_dofs);
 
-            solve_collision(art, material_db, gravity, dt,
-                            q, u, udot_bar.data(),
-                            f_ext, tau,
-                            contact_points, num_contact_points,
-                            OUT lambda, OUT tau_contact.data());
+            solve_collision<T, contact_solver_type>(art, material_db, gravity, dt,
+                                                    q, u, udot_bar.data(),
+                                                    f_ext, tau,
+                                                    contact_points, num_contact_points,
+                                                    OUT lambda, OUT tau_contact.data());
+
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
+            printf("Contact solver: %lld ns\n", duration.count());
+
             for (int i = 0; i < num_vel_dofs; i++) {
                 tau_total[i] = tau[i] + tau_contact[i];
-                std::cout << tau_total[i] << ", ";
+                output_log("%f, ", tau_total[i]);
             }
-            std::cout << std::endl;
+            output_log("\n");
             featherstone_forward_dynamics(art, gravity, f_ext, q, u, tau_total.data(), OUT udot);
             // forward_dynamics_using_rnea(art, gravity, f_ext, q, u, tau, OUT udot);
 
