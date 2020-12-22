@@ -110,11 +110,22 @@ namespace artsim {
     inline glm::tvec3<T> Ez() { return glm::tvec3<T>(0, 0, 1); }
 
     template <class T>
-    inline glm::tquat<T> Rx(T theta) { return glm::angleAxis(theta, Ex<T>()); }
+    glm::tmat3x3<T> Rx(T theta) {
+        T s = glm::sin(theta); T c = glm::cos(theta);
+        return glm::tmat3x3<T>(1, 0, 0, 0, c, s, 0, -s, c);
+    }
+
     template <class T>
-    inline glm::tquat<T> Ry(T theta) { return glm::angleAxis(theta, Ey<T>()); }
+    glm::tmat3x3<T> Ry(T theta) {
+        T s = glm::sin(theta); T c = glm::cos(theta);
+        return glm::tmat3x3<T>(c, 0, -s, 0, 1, 0, s, 0, c);
+    }
+
     template <class T>
-    inline glm::tquat<T> Rz(T theta) { return glm::angleAxis(theta, Ez<T>()); }
+    glm::tmat3x3<T> Rz(T theta) {
+        T s = glm::sin(theta); T c = glm::cos(theta);
+        return glm::tmat3x3<T>(c, s, 0, -s, c, 0, 0, 0, 1);
+    }
 
     template <class T>
     inline glm::tmat3x3<T> mat3_from_diag(glm::tvec3<T> v) {

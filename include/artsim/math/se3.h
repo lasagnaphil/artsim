@@ -81,9 +81,14 @@ namespace artsim {
 
         tscrew() : w(0), v(0) {}
         tscrew(glm::tvec3<T> w, glm::tvec3<T> v) : w(w), v(v) {}
+        tscrew(T wx, T wy, T wz, T vx, T vy, T vz) : w(wx, wy, wz), v(vx, vy, vz) {}
 
         template <class U>
         explicit operator tscrew<U>() const { return tscrew<U>(w, v); }
+
+        // Use this with care!
+        const T& operator[](size_t i) const { return reinterpret_cast<const T*>(this)[i]; }
+        T& operator[](size_t i) { return reinterpret_cast<T*>(this)[i]; }
     };
 
     template <class T>
@@ -221,6 +226,17 @@ namespace artsim {
 
         template <class U>
         explicit operator tsmat3x3<U>() const { return tsmat3x3<U>(xx, yy, zz, yz, zx, xy); }
+
+
+        glm::tvec3<T> operator[](size_t i) const {
+            assert(i >= 0 && i < 3);
+            switch(i) {
+                case 0: return glm::tvec3<T>(xx, xy, zx);
+                case 1: return glm::tvec3<T>(xy, yy, yz);
+                case 2: return glm::tvec3<T>(zx, yz, zz);
+                default: return glm::tvec3<T>(0);
+            }
+        }
     };
 
     template <class T>
@@ -231,6 +247,12 @@ namespace artsim {
     template <class T>
     inline tsmat3x3<T> smat3_cast(const glm::tmat3x3<T>& m) {
         return {m[0][0], m[1][1], m[2][2], m[1][2], m[2][0], m[0][1]};
+    }
+
+
+    template <class T>
+    inline tsmat3x3<T> operator-(const tsmat3x3<T>& m) {
+        return {-m.xx, -m.yy, -m.zz, -m.yz, -m.zx, -m.xy};
     }
 
     template <class T>
@@ -296,9 +318,55 @@ namespace artsim {
         return minv;
     }
 
+    // TODO: optimize rotate and inv_rotate (see Featherstone2008 A.5)
     template <class T>
-    inline tsmat3x3<T> move_frame(tsmat3x3<T> I_b, const glm::tmat3x3<T>& R_ba) {
-        return smat3_cast(glm::transpose(R_ba) * mat3_cast(I_b) * R_ba);
+    inline tsmat3x3<T> rotate(const tsmat3x3<T>& I, const glm::tmat3x3<T>& R) {
+        return smat3_cast(R * mat3_cast(I) * glm::transpose(R));
+    }
+
+    template <class T>
+    inline tsmat3x3<T> rotate_x(const tsmat3x3<T>& I, const glm::tmat3x3<T>& R) {
+        T c = R[1][1]; T s = R[1][2];
+        T cs = s * c;
+        T ss = s * s;
+        T alpha = 2*cs*I.yz + ss*(I.zz - I.yy);
+        T beta = cs*(I.zz - I.yy) + (1 - 2*ss) * I.yz;
+        return tsmat3x3(I.xx, I.yy + alpha, I.zz - alpha, beta, c*I.zx - s*I.xy, c*I.xy + s*I.zx);
+    }
+
+    template <class T>
+    inline tsmat3x3<T> rotate_y(const tsmat3x3<T>& I, const glm::tmat3x3<T>& R) {
+        T c = R[2][2]; T s = R[2][0];
+        T cs = s * c;
+        T ss = s * s;
+        T alpha = 2*cs*I.zx + ss*(I.xx - I.zz);
+        T beta = cs*(I.xx - I.zz) + (1 - 2*ss) * I.zx;
+        return tsmat3x3(I.xx - alpha, I.yy, I.zz + alpha, c*I.yz + s*I.xy, beta, c*I.xy - s*I.yz);
+    }
+
+    template <class T>
+    inline tsmat3x3<T> rotate_z(const tsmat3x3<T>& I, const glm::tmat3x3<T>& R) {
+        T c = R[0][0]; T s = R[0][1];
+        T cs = s * c;
+        T ss = s * s;
+        T alpha = 2*cs*I.xy + ss*(I.yy - I.xx);
+        T beta = cs*(I.yy - I.xx) + (1 - 2*ss) * I.xy;
+        return tsmat3x3(I.xx + alpha, I.yy - alpha, I.zz, c*I.yz - s*I.zx, c*I.zx + s*I.yz, beta);
+    }
+
+    template <class T>
+    inline tsmat3x3<T> inv_rotate(const tsmat3x3<T>& I, const glm::tmat3x3<T>& R) {
+        return smat3_cast(glm::transpose(R) * mat3_cast(I) * R);
+    }
+
+    template <class T>
+    inline glm::tmat3x3<T> rotate(const glm::tmat3x3<T>& M, const glm::tmat3x3<T>& R) {
+        return R * M * glm::transpose(R);
+    }
+
+    template <class T>
+    inline glm::tmat3x3<T> inv_rotate(const glm::tmat3x3<T>& M, const glm::tmat3x3<T>& R) {
+        return glm::transpose(R) * M * R;
     }
 
     template <class T>
@@ -338,11 +406,11 @@ namespace artsim {
     }
 
     template <class T>
-    inline tspmat<T> move_frame(const tspmat<T>& G_b, const ttransform<T>& T_ba) {
+    inline tspmat<T> inv_transform(const tspmat<T>& G_b, const ttransform<T>& T_ba) {
         tspmat<T> G_a;
         glm::tvec3<T> c = glm::transpose(T_ba.R) * G_b.c;
         glm::tvec3<T> cp = glm::transpose(T_ba.R) * (G_b.c - T_ba.v);
-        G_a.I = move_frame(G_b.I, T_ba.R);
+        G_a.I = inv_rotate(G_b.I, T_ba.R);
         G_a.I.xx += G_b.m*(-c.y*c.y - c.z*c.z + cp.y*cp.y + cp.z*cp.z);
         G_a.I.yy += G_b.m*(-c.z*c.z - c.x*c.x + cp.z*cp.z + cp.x*cp.x);
         G_a.I.zz += G_b.m*(-c.x*c.x - c.y*c.y + cp.x*cp.x + cp.y*cp.y);
@@ -384,6 +452,17 @@ namespace artsim {
 
         template <class U>
         explicit operator tsmat6x6<U>() const { return tsmat6x6<U>(I, C, M); }
+
+        // Use with care!
+        tscrew<T> operator[](size_t i) const {
+            assert(i >= 0 && i < 6);
+            if (i < 3) {
+                return tscrew<T>(I[i], glm::tvec3<T>(C[0][i], C[1][i], C[2][i]));
+            }
+            else {
+                return tscrew<T>(C[i-3], M[i-3]);
+            }
+        }
     };
 
     template <class T>
@@ -446,14 +525,25 @@ namespace artsim {
     }
 
     template <class T>
-    inline tsmat6x6<T> move_frame(const tsmat6x6<T>& G_b, const ttransform<T>& T_ba) {
+    inline tsmat6x6<T> inv_transform(const tsmat6x6<T>& G_b, const ttransform<T>& T_ba) {
         tsmat6x6<T> G_a;
         glm::tmat3x3<T> P = skew_symmetric(T_ba.v);
         glm::tmat3x3<T> PM = P * mat3_cast(G_b.M);
         glm::tmat3x3<T> CP = G_b.C * P;
-        G_a.I = move_frame(G_b.I + smat3_cast(CP + glm::transpose(CP) - PM*P), T_ba.R);
-        G_a.C = glm::transpose(T_ba.R) * (G_b.C - PM) * T_ba.R;
-        G_a.M = move_frame(G_b.M, T_ba.R);
+        G_a.I = inv_rotate(G_b.I + smat3_cast(CP + glm::transpose(CP) - PM*P), T_ba.R);
+        G_a.C = inv_rotate(G_b.C - PM, T_ba.R);
+        G_a.M = inv_rotate(G_b.M, T_ba.R);
+        return G_a;
+    }
+
+    template <class T>
+    inline tsmat6x6<T> inv_transform(const tsmat3x3<T>& M_b, const ttransform<T>& T_ba) {
+        tsmat6x6<T> G_a;
+        glm::tmat3x3<T> P = skew_symmetric(T_ba.v);
+        glm::tmat3x3<T> PM = P * mat3_cast(M_b);
+        G_a.I = -inv_rotate(smat3_cast(PM*P), T_ba.R);
+        G_a.C = -inv_rotate(PM, T_ba.R);
+        G_a.M = inv_rotate(M_b, T_ba.R);
         return G_a;
     }
 

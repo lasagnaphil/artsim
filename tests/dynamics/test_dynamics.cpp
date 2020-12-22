@@ -18,51 +18,6 @@ using namespace artsim;
 
 using real_t = double;
 
-TEST_CASE("Helper functions for dynamics.h") {
-    std::random_device random_dev;
-    std::default_random_engine engine(random_dev());
-
-    {
-        tsmat6x6<real_t> A;
-        tscrew<real_t> B[3];
-        tscrew<real_t> C[3];
-
-        get_random(engine, A);
-        for (int i = 0; i < 3; i++) get_random<tscrew<real_t>, real_t>(engine, B[i]);
-
-        mult_6x6_6x3(A, B, OUT C);
-
-        Eigen::Matrix<real_t, 6, 6> Ae = to_eigen(A);
-        Eigen::Matrix<real_t, 6, 3> Be = to_eigen(B);
-        Eigen::Matrix<real_t, 6, 3> Cg = to_eigen(C);
-
-        Eigen::Matrix<real_t, 6, 3> Ce = Ae * Be;
-        compare_eigen(Cg, Ce)
-    }
-    {
-        tscrew<real_t> U[3];
-        tmat3x3<real_t> V;
-        tscrew<real_t> UV[3];
-        tsmat6x6<real_t> UVUt;
-
-        for (int i = 0; i < 3; i++) get_random<tscrew<real_t>, real_t>(engine, U[i]);
-        get_random_symmetric<real_t>(engine, V);
-
-        mult_UVUt_6x3_3x3_3x6_sym(U, V, OUT UV, OUT UVUt);
-
-        Eigen::Matrix<real_t, 6, 3> Ue = to_eigen(U);
-        Eigen::Matrix<real_t, 3, 3> Ve = to_eigen(V);
-        Eigen::Matrix<real_t, 6, 3> UVe = Ue * Ve;
-        Eigen::Matrix<real_t, 6, 6> UVUte = UVe * Ue.transpose();
-
-        Eigen::Matrix<real_t, 6, 3> UVg = to_eigen(UV);
-        Eigen::Matrix<real_t, 6, 6> UVUtg = to_eigen(UVUt);
-
-        compare_eigen(UVg, UVe)
-        compare_eigen(UVUtg, UVUte)
-    }
-}
-
 TEST_CASE("Double pendulum") {
     real_t m1 = 1.0f;
     real_t m2 = 1.0f;

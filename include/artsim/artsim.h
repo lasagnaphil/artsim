@@ -20,40 +20,97 @@
 #define INOUT
 
 namespace artsim {
-    enum class JointType : uint8_t {
-        Revolute, Prismatic, Spherical, Floating
+    enum JointType : int {
+        JOINT_TYPE_REVOLUTE_X = 0,
+        JOINT_TYPE_REVOLUTE_Y,
+        JOINT_TYPE_REVOLUTE_Z,
+
+        JOINT_TYPE_PRISMATIC_X,
+        JOINT_TYPE_PRISMATIC_Y,
+        JOINT_TYPE_PRISMATIC_Z,
+
+        JOINT_TYPE_SPHERICAL,
+        JOINT_TYPE_FLOATING,
     };
+
+#define JOINT_DOF_1_CASE case JOINT_TYPE_REVOLUTE_X: case JOINT_TYPE_REVOLUTE_Y: case JOINT_TYPE_REVOLUTE_Z: \
+                         case JOINT_TYPE_PRISMATIC_X: case JOINT_TYPE_PRISMATIC_Y: case JOINT_TYPE_PRISMATIC_Z:
 
     struct Joint {
         JointType type;
-        union {
-            struct {
-                glm::vec3 axis;
-                bool enable_limit;
-                float limit_min;
-                float limit_max;
-            } revolute;
-            struct {
-                glm::vec3 dir;
-                bool enable_limit;
-                float limit_min;
-                float limit_max;
-            } prismatic;
-            struct {
-            } spherical;
-        };
-        float damping = 0.0f;
-        float max_velocity = 100.0f;
+        bool enable_limit;
+        float limit_min;
+        float limit_max;
+        float damping;
+        float max_velocity;
 
-        static Joint revolute_free(glm::vec3 axis);
-        static Joint revolute_limited(glm::vec3 axis, float limit_min, float limit_max);
-        static Joint prismatic_free(glm::vec3 dir);
-        static Joint prismatic_limited(glm::vec3 dir, float limit_min, float limit_max);
-        static Joint spherical_free();
-        static Joint floating();
+        static Joint floating(float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_FLOATING, false, 0, 0, damping, max_velocity};
+        }
+        static Joint revolute_x(float limit_min, float limit_max,
+                                float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_REVOLUTE_X, true, limit_min, limit_max, damping, max_velocity};
+        }
+        static Joint revolute_x(float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_REVOLUTE_X, false, 0, 0, damping, max_velocity};
+        }
+        static Joint revolute_y(float limit_min, float limit_max,
+                                float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_REVOLUTE_Y, true, limit_min, limit_max, damping, max_velocity};
+        }
+        static Joint revolute_y(float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_REVOLUTE_Y, false, 0, 0, damping, max_velocity};
+        }
+        static Joint revolute_z(float limit_min, float limit_max,
+                                float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_REVOLUTE_Z, true, limit_min, limit_max, damping, max_velocity};
+        }
+        static Joint revolute_z(float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_REVOLUTE_Z, false, 0, 0, damping, max_velocity};
+        }
 
-        uint32_t pos_dof();
-        uint32_t vel_dof();
+        static Joint prismatic_x(float limit_min, float limit_max,
+                                float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_PRISMATIC_X, true, limit_min, limit_max, damping, max_velocity};
+        }
+        static Joint prismatic_x(float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_PRISMATIC_X, false, 0, 0, damping, max_velocity};
+        }
+        static Joint prismatic_y(float limit_min, float limit_max,
+                                float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_PRISMATIC_Y, true, limit_min, limit_max, damping, max_velocity};
+        }
+        static Joint prismatic_y(float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_PRISMATIC_Y, false, 0, 0, damping, max_velocity};
+        }
+        static Joint prismatic_z(float limit_min, float limit_max,
+                                float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_PRISMATIC_Z, true, limit_min, limit_max, damping, max_velocity};
+        }
+        static Joint prismatic_z(float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_PRISMATIC_Z, false, 0, 0, damping, max_velocity};
+        }
+
+        static Joint spherical(float damping = 0.0f, float max_velocity = 100.0f) {
+            return {JOINT_TYPE_SPHERICAL, false, 0, 0, damping, max_velocity};
+        }
+
+        uint32_t pos_dof() {
+            switch (type) {
+                JOINT_DOF_1_CASE { return 1; }
+                case JOINT_TYPE_SPHERICAL: return 4;
+                case JOINT_TYPE_FLOATING: return 7;
+                default: return 0;
+            }
+        }
+        uint32_t vel_dof() {
+            switch (type) {
+                JOINT_DOF_1_CASE { return 1; }
+                case JOINT_TYPE_SPHERICAL: return 3;
+                case JOINT_TYPE_FLOATING: return 6;
+                default: return 0;
+            }
+        }
     };
 
     struct Shape {
@@ -135,7 +192,7 @@ namespace artsim {
         ArticulatedBody(bool floating = false) : floating(floating) {}
 
         void add_link_and_joint(Link link, Joint joint) {
-            if (joint.type == JointType::Floating) {
+            if (joint.type == JOINT_TYPE_FLOATING) {
                 if (!links.empty() || !joints.empty()) {
                     fprintf(stderr, "Error in ArticulatedBody::add_link_and_joint: "
                                     "Free joint can only be added at the root!\n");

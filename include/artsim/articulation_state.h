@@ -54,14 +54,14 @@ struct ArticulationState {
         T* qp = q.data();
         for (int i = 0; i < num_joints; i++) {
             switch (art->joints[i].type) {
-                case JointType::Floating: {
-                    qp[0] = 0; qp[1] = 0; qp[2] = 0;
-                    qp[3] = 0; qp[4] = 0; qp[5] = 0; qp[6] = 1;
-                }
-                case JointType::Prismatic: case JointType::Revolute: {
+                JOINT_DOF_1_CASE {
                     qp[0] = 0;
                 } break;
-                case JointType::Spherical: {
+                case JOINT_TYPE_FLOATING: {
+                    qp[0] = 0; qp[1] = 0; qp[2] = 0;
+                    qp[3] = 0; qp[4] = 0; qp[5] = 0; qp[6] = 1;
+                } break;
+                case JOINT_TYPE_SPHERICAL: {
                     qp[0] = 0; qp[1] = 0; qp[2] = 0; qp[3] = 1;
                 } break;
             }
@@ -79,10 +79,10 @@ struct ArticulationState {
         T* qp = q.data();
         for (int i = 0; i < num_joints; i++) {
             switch (art->joints[i].type) {
-                case JointType::Prismatic: case JointType::Revolute: {
+                JOINT_DOF_1_CASE {
                     qp[0] = std::uniform_real_distribution<T>(-0.2*pi, 0.2*pi)(engine);
                 } break;
-                case JointType::Spherical: {
+                case JOINT_TYPE_SPHERICAL: {
                     T len = std::uniform_real_distribution<T>(-0.2*pi, 0.2*pi)(engine);
                     glm::tvec3<T> dir = glm::tvec3<T>(
                             std::uniform_real_distribution<T>(-1, 1)(engine),
@@ -92,7 +92,7 @@ struct ArticulationState {
                     glm::tquat<T> vexp = artsim::exp(len * normalize(dir));
                     qp[0] = vexp[0]; qp[1] = vexp[1]; qp[2] = vexp[2]; qp[3] = vexp[3];
                 } break;
-                case JointType::Floating: {
+                case JOINT_TYPE_FLOATING: {
                     qp[0] = std::uniform_real_distribution<T>(-0.1, 0.1)(engine);
                     qp[1] = std::uniform_real_distribution<T>(2, 3)(engine);
                     qp[2] = std::uniform_real_distribution<T>(-0.1, 0.1)(engine);
@@ -105,7 +105,7 @@ struct ArticulationState {
                     );
                     glm::tquat<T> vexp = artsim::exp(len * normalize(dir));
                     qp[3] = vexp[0]; qp[4] = vexp[1]; qp[5] = vexp[2]; qp[6] = vexp[3];
-                }
+                } break;
             }
             qp += art->joint_pos_dofs[i];
         }

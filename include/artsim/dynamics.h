@@ -28,6 +28,17 @@
 namespace artsim {
     using namespace glm;
 
+    inline int get_screw_idx(JointType joint_type) {
+        return (int)joint_type;
+    }
+
+    template <class T>
+    inline tscrew<T> get_joint_screw(JointType joint_type) {
+        tscrew<T> V;
+        V[get_screw_idx(joint_type)] = T(1);
+        return V;
+    }
+
     template <class T>
     void calc_S(const ArticulatedBody& art,
                 const T*__restrict q, OUT tscrew<T>* S) {
@@ -37,7 +48,7 @@ namespace artsim {
             uint32_t vel_start = art.joint_vel_dof_starts[i];
             uint32_t vel_dof = art.joint_vel_dofs[i];
             switch (joint.type) {
-                case JointType::Floating: {
+                case JOINT_TYPE_FLOATING: {
                     S[vel_start + 0] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0, 0, 0));
                     S[vel_start + 1] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0, 0, 0));
                     S[vel_start + 2] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0, 0, 0));
@@ -45,13 +56,13 @@ namespace artsim {
                     S[vel_start + 4] = tscrew<T>(tvec3<T>(0, 0, 0), tvec3<T>(0, 1, 0));
                     S[vel_start + 5] = tscrew<T>(tvec3<T>(0, 0, 0), tvec3<T>(0, 0, 1));
                 } break;
-                case JointType::Revolute: {
-                    S[vel_start] = tscrew<T>(joint.revolute.axis, tvec3<T>(0));
-                } break;
-                case JointType::Prismatic: {
-                    S[vel_start] = tscrew<T>(tvec3<T>(0), joint.prismatic.dir);
-                } break;
-                case JointType::Spherical: {
+                case JOINT_TYPE_REVOLUTE_X: S[vel_start] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0)); break;
+                case JOINT_TYPE_REVOLUTE_Y: S[vel_start] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0)); break;
+                case JOINT_TYPE_REVOLUTE_Z: S[vel_start] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0)); break;
+                case JOINT_TYPE_PRISMATIC_X: S[vel_start] = tscrew<T>(tvec3<T>(0), tvec3<T>(1, 0, 0)); break;
+                case JOINT_TYPE_PRISMATIC_Y: S[vel_start] = tscrew<T>(tvec3<T>(0), tvec3<T>(0, 1, 0)); break;
+                case JOINT_TYPE_PRISMATIC_Z: S[vel_start] = tscrew<T>(tvec3<T>(0), tvec3<T>(0, 0, 1)); break;
+                case JOINT_TYPE_SPHERICAL: {
                     S[vel_start + 0] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0, 0, 0));
                     S[vel_start + 1] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0, 0, 0));
                     S[vel_start + 2] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0, 0, 0));
@@ -72,34 +83,27 @@ namespace artsim {
     void jcalc(const Joint& joint, const Link& link,
                const T*__restrict q, const T*__restrict u, OUT KinematicsData<T>& kin) {
         switch (joint.type) {
-            case JointType::Floating: {
+            case JOINT_TYPE_FLOATING: {
                 kin.Tinv = ttransform<T>();
                 // Skip calculation of S, v, c for floating joints
             } break;
-            case JointType::Revolute: {
-                tscrew<T> S = tscrew<T>(joint.revolute.axis, tvec3<T>(0));
+            JOINT_DOF_1_CASE {
+                tscrew<T> S = get_joint_screw<T>(joint.type);
                 kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_joint_pose));
                 kin.S[0] = S;
                 kin.v = S * u[0];
                 kin.c = tscrew<T>();
             } break;
-            case JointType::Prismatic: {
-                tscrew<T> S = tscrew<T>(tvec3<T>(0), joint.prismatic.dir);
-                kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_joint_pose));
-                kin.S[0] = S;
-                kin.v = S * u[0];
-                kin.c = tscrew<T>();
-            } break;
-            case JointType::Spherical: {
+            case JOINT_TYPE_SPHERICAL: {
                 glm::tquat<T> q_inv = glm::inverse(glm::make_quat<T>(q));
                 kin.Tinv = ttransform<T>(q_inv) * ttransform<T>(inverse(link.local_joint_pose));
                 kin.S[0] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0, 0, 0));
                 kin.S[1] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0, 0, 0));
                 kin.S[2] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0, 0, 0));
                 kin.v = tscrew<T>(tvec3<T>(u[0], u[1], u[2]), tvec3<T>(0));
-                kin.c = tscrew<T>();
             } break;
         }
+        kin.c = tscrew<T>();
     }
 
     template <class T>
@@ -193,7 +197,7 @@ namespace artsim {
     struct RecursiveNewtonEulerData {
         // IN
         bool is_floating_art;
-        uint32_t joint_dof;
+        JointType joint_type;
         bool has_parent;
         KinematicsData<T> kin;
         tspmat<T> I;
@@ -215,16 +219,28 @@ namespace artsim {
             v = Ad(kin.Tinv, v) + kin.v;
             a = Ad(kin.Tinv, a) + ad(v, kin.v) + kin.c;
             if (!is_floating_art) {
-                for (int i = 0; i < joint_dof; i++) {
-                    a += kin.S[i] * udot[i];
+                switch (joint_type) {
+                    JOINT_DOF_1_CASE {
+                        int k = get_screw_idx(joint_type);
+                        a[k] += udot[0];
+                    } break;
+                    case JOINT_TYPE_SPHERICAL: {
+                        a.w += udot;
+                    } break;
                 }
             }
             f = I * a - adT(v, I * v) - AdT(T_global_inv, f_ext);
         }
 
         void rnea_pass2() {
-            for (int i = 0; i < joint_dof; i++) {
-                tau[i] = dot(kin.S[i], f);
+            switch (joint_type) {
+                JOINT_DOF_1_CASE {
+                    int k = get_screw_idx(joint_type);
+                    tau[0] = f[k];
+                } break;
+                case JOINT_TYPE_SPHERICAL: {
+                    tau = f.w;
+                } break;
             }
             if (has_parent) {
                 f = AdT(kin.Tinv, f);
@@ -247,11 +263,11 @@ namespace artsim {
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
             data[i].is_floating_art = art.floating;
-            data[i].joint_dof = num_vel_dofs;
+            data[i].joint_type = art.joints[i].type;
             data[i].has_parent = i != 0;
             jcalc(art.joints[i], art.links[i], q + cur_pos_dof, u + cur_vel_dof, OUT data[i].kin);
             auto I0 = tspmat<T>(tsmat3x3<T>(art.links[i].inertia), glm::tvec3<T>(0), art.links[i].mass);
-            data[i].I = move_frame(I0, ttransform<T>(inverse(art.links[i].local_link_pose)));
+            data[i].I = inv_transform(I0, ttransform<T>(inverse(art.links[i].local_link_pose)));
             if (f_ext) data[i].f_ext = f_ext[i];
 
             if (!art.floating || i != 0) {
@@ -297,7 +313,7 @@ namespace artsim {
         for (int i = 0; i < num_joints; i++) {
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
-            if (art.joints[i].type == JointType::Floating) {
+            if (art.joints[i].type == JOINT_TYPE_FLOATING) {
                 tau[0] = data[0].f.w[0];
                 tau[1] = data[0].f.w[1];
                 tau[2] = data[0].f.w[2];
@@ -316,7 +332,7 @@ namespace artsim {
 
     template <class T>
     struct FeatherstoneData {
-        uint32_t joint_dof;     // 1 (revolute, prismatic) or 3 (spherical)
+        JointType joint_type;
         bool has_parent;
 
         // IN
@@ -358,52 +374,56 @@ namespace artsim {
             tsmat6x6<T> I_prime;
             tscrew<T> p_prime;
 
-            if (joint_dof == 1) {
-                U[0] = I_a * kin.S[0];
-                D[0][0] = dot(kin.S[0], U[0]);
-                u[0] = tau[0] - dot(kin.S[0], p_a);
-            }
-            else if (joint_dof == 3) {
-                mult_6x6_6x3(I_a, kin.S, OUT U);
-                mult_3x6_6x3(kin.S, U, OUT D);
-                u[0] = tau[0] - dot(kin.S[0], p_a);
-                u[1] = tau[1] - dot(kin.S[1], p_a);
-                u[2] = tau[2] - dot(kin.S[2], p_a);
-            }
-            if (has_parent) {
-                if (joint_dof == 1) {
-                    tsmat6x6<T> UUt = symmetric_cartesian_product(U[0]);
-                    I_prime = I_a - UUt / D[0][0];
-                    p_prime = p_a + I_prime * c + u[0] / D[0][0] * U[0];
-                }
-                else if (joint_dof == 3) {
-                    tmat3x3<T> Dinv = inverse(D);
-                    tscrew<T> U_Dinv[3];
-                    mult_UVUt_6x3_3x3_3x6_sym(U, Dinv, OUT U_Dinv, OUT I_prime);
-                    I_prime = I_a - I_prime;
-                    p_prime = p_a + I_prime * c;
-                    p_prime += U_Dinv[0] * u[0];
-                    p_prime += U_Dinv[1] * u[1];
-                    p_prime += U_Dinv[2] * u[2];
-                }
-                I_a = move_frame(I_prime, kin.Tinv);
-                p_a = AdT(kin.Tinv, p_prime);
+            switch (joint_type) {
+                JOINT_DOF_1_CASE {
+                    U[0] = I_a * kin.S[0];
+                    D[0][0] = dot(kin.S[0], U[0]);
+                    u[0] = tau[0] - dot(kin.S[0], p_a);
+                    if (has_parent) {
+                        tsmat6x6<T> UUt = symmetric_cartesian_product(U[0]);
+                        I_prime = I_a - UUt / D[0][0];
+                        p_prime = p_a + I_prime * c + u[0] / D[0][0] * U[0];
+                        I_a = inv_transform(I_prime, kin.Tinv);
+                        p_a = AdT(kin.Tinv, p_prime);
+                    }
+                } break;
+                case JOINT_TYPE_SPHERICAL: {
+                    mult_6x6_6x3(I_a, kin.S, OUT U);
+                    mult_3x6_6x3(kin.S, U, OUT D);
+                    u[0] = tau[0] - dot(kin.S[0], p_a);
+                    u[1] = tau[1] - dot(kin.S[1], p_a);
+                    u[2] = tau[2] - dot(kin.S[2], p_a);
+                    if (has_parent) {
+                        tmat3x3<T> Dinv = inverse(D);
+                        tscrew<T> U_Dinv[3];
+                        mult_UVUt_6x3_3x3_3x6_sym(U, Dinv, OUT U_Dinv, OUT I_prime);
+                        I_prime = I_a - I_prime;
+                        p_prime = p_a + I_prime * c;
+                        p_prime += U_Dinv[0] * u[0];
+                        p_prime += U_Dinv[1] * u[1];
+                        p_prime += U_Dinv[2] * u[2];
+                        I_a = inv_transform(I_prime, kin.Tinv);
+                        p_a = AdT(kin.Tinv, p_prime);
+                    }
+                } break;
             }
         }
 
         inline void featherstone_pass3() {
             tscrew<T> a_p = Ad(kin.Tinv, a) + c;
-            if (joint_dof == 1) {
-                udot[0] = (u[0] - dot(U[0], a_p)) / D[0][0];
-                a = a_p + kin.S[0] * udot[0];
-            }
-            else if (joint_dof == 3) {
-                tvec3<T> u_p;
-                u_p[0] = u[0] - dot(U[0], a_p);
-                u_p[1] = u[1] - dot(U[1], a_p);
-                u_p[2] = u[2] - dot(U[2], a_p);
-                udot = inverse(D) * u_p;
-                a = a_p + kin.S[0] * udot[0] + kin.S[1] * udot[1] + kin.S[2] * udot[2];
+            switch (joint_type) {
+                JOINT_DOF_1_CASE {
+                    udot[0] = (u[0] - dot(U[0], a_p)) / D[0][0];
+                    a = a_p + kin.S[0] * udot[0];
+                } break;
+                case JOINT_TYPE_SPHERICAL: {
+                    tvec3<T> u_p;
+                    u_p[0] = u[0] - dot(U[0], a_p);
+                    u_p[1] = u[1] - dot(U[1], a_p);
+                    u_p[2] = u[2] - dot(U[2], a_p);
+                    udot = inverse(D) * u_p;
+                    a = a_p + kin.S[0] * udot[0] + kin.S[1] * udot[1] + kin.S[2] * udot[2];
+                }
             }
         }
     };
@@ -422,11 +442,11 @@ namespace artsim {
             uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
-            data[i].joint_dof = art.joint_vel_dofs[i];
+            data[i].joint_type = art.joints[i].type;
             data[i].has_parent = i != 0;
             jcalc(art.joints[i], art.links[i], q + cur_pos_dof, u + cur_vel_dof, OUT data[i].kin);
             auto I0 = tspmat<T>(tsmat3x3<T>(art.links[i].inertia), glm::tvec3<T>(0), art.links[i].mass);
-            data[i].I_a = tsmat6x6<T>(move_frame(I0, ttransform<T>(inverse(art.links[i].local_link_pose))));
+            data[i].I_a = tsmat6x6<T>(inv_transform(I0, ttransform<T>(inverse(art.links[i].local_link_pose))));
             if (f_ext) data[i].f_ext = f_ext[i];
 
             if (!(i == 0 && art.floating)) {
@@ -937,10 +957,10 @@ namespace artsim {
         T* qi = q; T* qdi = u;
         for (int i = 0; i < art.get_num_joints(); i++) {
             switch (art.joints[i].type) {
-                case JointType::Revolute: case JointType::Prismatic: {
+                JOINT_DOF_1_CASE {
                     qi[0] += qdi[0]*dt;
                 } break;
-                case JointType::Spherical: {
+                case JOINT_TYPE_SPHERICAL: {
                     qi[0] += 0.5*dt*(qi[3]*qdi[0] + qi[1]*qdi[2] - qi[2]*qdi[1]);
                     qi[1] += 0.5*dt*(qi[3]*qdi[1] + qi[2]*qdi[0] - qi[0]*qdi[2]);
                     qi[2] += 0.5*dt*(qi[3]*qdi[2] + qi[0]*qdi[1] - qi[1]*qdi[0]);
@@ -948,7 +968,7 @@ namespace artsim {
                     T q_len = glm::sqrt(qi[0]*qi[0] + qi[1]*qi[1] + qi[2]*qi[2] + qi[3]*qi[3]);
                     qi[0] /= q_len; qi[1] /= q_len; qi[2] /= q_len; qi[3] /= q_len;
                 } break;
-                case JointType::Floating: {
+                case JOINT_TYPE_FLOATING: {
                     // TODO: is there a more accurate way to integrate SE(3)?
                     glm::tvec3<T> p_dot = make_quat(qi+3) * make_vec3(qdi+3);
                     qi[0] += dt*p_dot[0];
@@ -985,23 +1005,19 @@ namespace artsim {
                 T_joint_global_parent = T_joint_globals[art.parents[i]];
             }
             switch (joint.type) {
-                case JointType::Revolute: {
-                    tscrew<T> S = tscrew<T>(joint.revolute.axis, tvec3<T>(0));
+                JOINT_DOF_1_CASE {
+                    tscrew<T> S = get_joint_screw<T>(joint.type);
                     T_joint_globals[i] = T_joint_global_parent * ttransform<T>(link.local_joint_pose) * move(S, q[d]);
                 } break;
-                case JointType::Prismatic: {
-                    tscrew<T> S = tscrew<T>(tvec3<T>(0), joint.prismatic.dir);
-                    T_joint_globals[i] = T_joint_global_parent * ttransform<T>(link.local_joint_pose) * move(S, q[d]);
-                } break;
-                case JointType::Spherical: {
+                case JOINT_TYPE_SPHERICAL: {
                     glm::tquat<T> q_j = glm::make_quat<T>(q + d);
                     T_joint_globals[i] = T_joint_global_parent * ttransform<T>(link.local_joint_pose) * glm::mat3_cast(q_j);
                 } break;
-                case JointType::Floating: {
+                case JOINT_TYPE_FLOATING: {
                     glm::tvec3<T> v_j = glm::make_vec3<T>(q + d);
                     glm::tquat<T> q_j = glm::make_quat<T>(q + d + 3);
                     T_joint_globals[i] = T_joint_global_parent * ttransform<T>(v_j, glm::mat3_cast(q_j));
-                }
+                } break;
             }
             T_link_globals[i] = T_joint_globals[i] * ttransform<T>(link.local_link_pose);
         }
@@ -1064,7 +1080,7 @@ M(vpos_##idx1+k1, vpos_##idx2+k2) = M(vpos_##idx2+k2, vpos_##idx1+k1) = dot(Fi[k
             uint32_t vpos = art.joint_vel_dof_starts[i];
             jcalc(art.joints[i], art.links[i], q + ppos, q + vpos, kin[i]);
             auto I0 = tspmat<T>(tsmat3x3<T>(art.links[i].inertia), glm::tvec3<T>(0), art.links[i].mass);
-            I[i] = tsmat6x6<T>(move_frame(I0, ttransform<T>(inverse(art.links[i].local_link_pose))));
+            I[i] = tsmat6x6<T>(inv_transform(I0, ttransform<T>(inverse(art.links[i].local_link_pose))));
 
             if (art.floating) {
                 if (i == 0) T_flink[i] = ttransform<T>();
@@ -1079,7 +1095,7 @@ M(vpos_##idx1+k1, vpos_##idx2+k2) = M(vpos_##idx2+k2, vpos_##idx1+k1) = dot(Fi[k
             uint32_t vdof_i = art.joint_vel_dofs[i];
 
             if (i != 0) {
-                I[art.parents[i]] += move_frame(I[i], kin[i].Tinv);
+                I[art.parents[i]] += inv_transform(I[i], kin[i].Tinv);
             }
             switch (vdof_i) {
                 case 1: {

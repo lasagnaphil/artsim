@@ -10,8 +10,8 @@
 using namespace glm;
 using namespace artsim;
 
-std::random_device random_dev;
-std::default_random_engine engine(random_dev());
+static std::random_device random_dev;
+static std::default_random_engine engine(random_dev());
 using real_t = float;
 
 TEST_CASE("spmat x screw") {
@@ -67,7 +67,7 @@ TEST_CASE("symmetric_cartesian_product") {
     compare_eigen(VVt_g, VVt_e);
 }
 
-TEST_CASE("move_frame") {
+TEST_CASE("inv_transform") {
     ttransform<real_t> T_ba;
     tsmat6x6<real_t> G_b;
     tsmat6x6<real_t> G_a;
@@ -75,7 +75,7 @@ TEST_CASE("move_frame") {
     get_random(engine, T_ba);
     get_random(engine, G_b);
 
-    G_a = move_frame(G_b, T_ba);
+    G_a = inv_transform(G_b, T_ba);
 
     Eigen::Matrix<real_t, 6, 6> Ad_T_ba_e = to_eigen_adj_matrix(T_ba);
     Eigen::Matrix<real_t, 6, 6> G_b_e = to_eigen(G_b);

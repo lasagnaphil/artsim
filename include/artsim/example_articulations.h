@@ -12,7 +12,6 @@
 
 namespace artsim {
 
-
 namespace examples {
 
     ArticulatedBody create_single_pendulum_link(bool spherical,
