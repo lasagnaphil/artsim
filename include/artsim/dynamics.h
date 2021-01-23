@@ -50,23 +50,23 @@ namespace artsim {
             uint32_t vel_dof = art.joint_vel_dofs[i];
             switch (joint.type) {
                 case JOINT_TYPE_FLOATING: {
-                    S[vel_start + 0] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0, 0, 0));
-                    S[vel_start + 1] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0, 0, 0));
-                    S[vel_start + 2] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0, 0, 0));
-                    S[vel_start + 3] = tscrew<T>(tvec3<T>(0, 0, 0), tvec3<T>(1, 0, 0));
-                    S[vel_start + 4] = tscrew<T>(tvec3<T>(0, 0, 0), tvec3<T>(0, 1, 0));
-                    S[vel_start + 5] = tscrew<T>(tvec3<T>(0, 0, 0), tvec3<T>(0, 0, 1));
+                    S[vel_start + 0] = tscrew<T>(1, 0, 0, 0, 0, 0);
+                    S[vel_start + 1] = tscrew<T>(0, 1, 0, 0, 0, 0);
+                    S[vel_start + 2] = tscrew<T>(0, 0, 1, 0, 0, 0);
+                    S[vel_start + 3] = tscrew<T>(0, 0, 0, 1, 0, 0);
+                    S[vel_start + 4] = tscrew<T>(0, 0, 0, 0, 1, 0);
+                    S[vel_start + 5] = tscrew<T>(0, 0, 0, 0, 0, 1);
                 } break;
-                case JOINT_TYPE_REVOLUTE_X: S[vel_start] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0)); break;
-                case JOINT_TYPE_REVOLUTE_Y: S[vel_start] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0)); break;
-                case JOINT_TYPE_REVOLUTE_Z: S[vel_start] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0)); break;
-                case JOINT_TYPE_PRISMATIC_X: S[vel_start] = tscrew<T>(tvec3<T>(0), tvec3<T>(1, 0, 0)); break;
-                case JOINT_TYPE_PRISMATIC_Y: S[vel_start] = tscrew<T>(tvec3<T>(0), tvec3<T>(0, 1, 0)); break;
-                case JOINT_TYPE_PRISMATIC_Z: S[vel_start] = tscrew<T>(tvec3<T>(0), tvec3<T>(0, 0, 1)); break;
+                case JOINT_TYPE_REVOLUTE_X: S[vel_start] = tscrew<T>(1, 0, 0, 0, 0, 0); break;
+                case JOINT_TYPE_REVOLUTE_Y: S[vel_start] = tscrew<T>(0, 1, 0, 0, 0, 0); break;
+                case JOINT_TYPE_REVOLUTE_Z: S[vel_start] = tscrew<T>(0, 0, 1, 0, 0, 0); break;
+                case JOINT_TYPE_PRISMATIC_X: S[vel_start] = tscrew<T>(0, 0, 0, 1, 0, 0); break;
+                case JOINT_TYPE_PRISMATIC_Y: S[vel_start] = tscrew<T>(0, 0, 0, 0, 1, 0); break;
+                case JOINT_TYPE_PRISMATIC_Z: S[vel_start] = tscrew<T>(0, 0, 0, 0, 0, 1); break;
                 case JOINT_TYPE_SPHERICAL: {
-                    S[vel_start + 0] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0, 0, 0));
-                    S[vel_start + 1] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0, 0, 0));
-                    S[vel_start + 2] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0, 0, 0));
+                    S[vel_start + 0] = tscrew<T>(1, 0, 0, 0, 0, 0);
+                    S[vel_start + 1] = tscrew<T>(0, 1, 0, 0, 0, 0);
+                    S[vel_start + 2] = tscrew<T>(0, 0, 1, 0, 0, 0);
                 } break;
             }
         }
@@ -113,33 +113,6 @@ namespace artsim {
         tscrew<T> v;
         tscrew<T> c;
     };
-
-    template <class T>
-    void jcalc(const Joint& joint, const Link& link,
-               const T*__restrict q, const T*__restrict u, OUT KinematicsData<T>& kin) {
-        switch (joint.type) {
-            case JOINT_TYPE_FLOATING: {
-                kin.Tinv = ttransform<T>();
-                // Skip calculation of S, v, c for floating joints
-            } break;
-            JOINT_DOF_1_CASE {
-                tscrew<T> S = get_joint_screw<T>(joint.type);
-                kin.Tinv = move(S, -q[0]) * ttransform<T>(inverse(link.local_joint_pose));
-                kin.S[0] = S;
-                kin.v = S * u[0];
-                kin.c = tscrew<T>();
-            } break;
-            case JOINT_TYPE_SPHERICAL: {
-                glm::tquat<T> q_inv = glm::inverse(glm::make_quat<T>(q));
-                kin.Tinv = ttransform<T>(q_inv) * ttransform<T>(inverse(link.local_joint_pose));
-                kin.S[0] = tscrew<T>(tvec3<T>(1, 0, 0), tvec3<T>(0, 0, 0));
-                kin.S[1] = tscrew<T>(tvec3<T>(0, 1, 0), tvec3<T>(0, 0, 0));
-                kin.S[2] = tscrew<T>(tvec3<T>(0, 0, 1), tvec3<T>(0, 0, 0));
-                kin.v = tscrew<T>(tvec3<T>(u[0], u[1], u[2]), tvec3<T>(0));
-            } break;
-        }
-        kin.c = tscrew<T>();
-    }
 
     template <class T>
     void calculate_jacobian_for_local_frame(const ArticulatedBody& art,
@@ -1011,34 +984,30 @@ namespace artsim {
         Eigen::Map<Eigen::Matrix<T, Dynamic, Dynamic>> M(M_ptr, vdof, vdof);
         M.setZero();
 
-        std::vector<KinematicsData<T>> kin(num_joints);
         std::vector<tsmat6x6<T>> I(num_joints);
-
-        // Calculates H_ij = F_i^T S_j.
-#define CRBA_Ft_S(idx1, idx2, k1, k2) \
-M(vpos_##idx1+k1, vpos_##idx2+k2) = M(vpos_##idx2+k2, vpos_##idx1+k1) = dot(Fi[k1], kin[idx2].S[k2])
 
         // Calculates Fi to M.
 #define CRBA_COPY_Fi_TO_M(k) \
-        M(0, vpos_i + k) = M(vpos_i + k, 0) = Fi[k].w[0]; \
-        M(1, vpos_i + k) = M(vpos_i + k, 1) = Fi[k].w[1]; \
-        M(2, vpos_i + k) = M(vpos_i + k, 2) = Fi[k].w[2]; \
-        M(3, vpos_i + k) = M(vpos_i + k, 3) = Fi[k].v[0]; \
-        M(4, vpos_i + k) = M(vpos_i + k, 4) = Fi[k].v[1]; \
-        M(5, vpos_i + k) = M(vpos_i + k, 5) = Fi[k].v[2];
+        M(0, vpos_i + k) = M(vpos_i + k, 0) = Fi[k][0]; \
+        M(1, vpos_i + k) = M(vpos_i + k, 1) = Fi[k][1]; \
+        M(2, vpos_i + k) = M(vpos_i + k, 2) = Fi[k][2]; \
+        M(3, vpos_i + k) = M(vpos_i + k, 3) = Fi[k][3]; \
+        M(4, vpos_i + k) = M(vpos_i + k, 4) = Fi[k][4]; \
+        M(5, vpos_i + k) = M(vpos_i + k, 5) = Fi[k][5];
 
+        std::vector<ttransform<T>> Tinv(num_joints);
         std::vector<ttransform<T>> T_flink(num_joints); // used when art.floating == true
 
         for (uint32_t i : art.bfs_iteration_order) {
             uint32_t ppos = art.joint_pos_dof_starts[i];
             uint32_t vpos = art.joint_vel_dof_starts[i];
-            jcalc(art.joints[i], art.links[i], q + ppos, q + vpos, kin[i]);
+            Tinv[i] = calc_Tinv(art.joints[i], art.links[i], q + ppos);
             auto I0 = tspmat<T>(tsmat3x3<T>(art.links[i].inertia), glm::tvec3<T>(0), art.links[i].mass);
             I[i] = tsmat6x6<T>(inv_transform(I0, ttransform<T>(inverse(art.links[i].local_link_pose))));
 
             if (art.floating) {
                 if (i == 0) T_flink[i] = ttransform<T>();
-                else T_flink[i] = kin[i].Tinv * T_flink[art.parents[i]];
+                else T_flink[i] = Tinv[i] * T_flink[art.parents[i]];
             }
         }
 
@@ -1049,25 +1018,28 @@ M(vpos_##idx1+k1, vpos_##idx2+k2) = M(vpos_##idx2+k2, vpos_##idx1+k1) = dot(Fi[k
             uint32_t vdof_i = art.joint_vel_dofs[i];
 
             if (i != 0) {
-                I[art.parents[i]] += inv_transform(I[i], kin[i].Tinv);
+                I[art.parents[i]] += inv_transform(I[i], Tinv[i]);
             }
-            switch (vdof_i) {
-                case 1: {
-                    tscrew<T> Fi[1] = {I[i] * kin[i].S[0]};
-                    CRBA_Ft_S(i, i, 0, 0);
+            switch (art.joints[i].type) {
+                JOINT_DOF_1_CASE {
+                    int ti = get_screw_idx(art.joints[i].type);
+                    tscrew<T> Fi[1] = { I[i][ti] };
+                    // CRBA_Ft_S(i, i, 0, 0);
+                    M(vpos_i, vpos_i) = M(vpos_i, vpos_i) = Fi[0][ti];
                     uint32_t j = i;
                     while (j != 0) {
-                        Fi[0] = AdT(kin[j].Tinv, Fi[0]);
+                        Fi[0] = AdT(Tinv[j], Fi[0]);
                         j = art.parents[j];
                         uint32_t vpos_j = art.joint_vel_dof_starts[j];
                         uint32_t vdof_j = art.joint_vel_dofs[j];
                         if (vdof_j == 1) {
-                            CRBA_Ft_S(i, j, 0, 0);
+                            int tj = get_screw_idx(art.joints[j].type);
+                            M(vpos_i, vpos_j) = M(vpos_j, vpos_i) = Fi[0][tj];
                         }
                         else if (vdof_j == 3) {
-                            CRBA_Ft_S(i, j, 0, 0);
-                            CRBA_Ft_S(i, j, 0, 1);
-                            CRBA_Ft_S(i, j, 0, 2);
+                            M(vpos_i, vpos_j+0) = M(vpos_j+0, vpos_i) = Fi[0][0];
+                            M(vpos_i, vpos_j+1) = M(vpos_j+1, vpos_i) = Fi[0][1];
+                            M(vpos_i, vpos_j+2) = M(vpos_j+2, vpos_i) = Fi[0][2];
                         }
                     }
                     if (art.floating) {
@@ -1075,44 +1047,38 @@ M(vpos_##idx1+k1, vpos_##idx2+k2) = M(vpos_##idx2+k2, vpos_##idx1+k1) = dot(Fi[k
                         CRBA_COPY_Fi_TO_M(0);
                     }
                 } break;
-                case 3: {
-                    tscrew<T> Fi[3] = {
-                            I[i] * kin[i].S[0],
-                            I[i] * kin[i].S[1],
-                            I[i] * kin[i].S[2],
-                    };
-                    CRBA_Ft_S(i, i, 0, 0);
-                    CRBA_Ft_S(i, i, 0, 1);
-                    CRBA_Ft_S(i, i, 0, 2);
-                    // CRBA_Ft_S(i, i, 1, 0);
-                    CRBA_Ft_S(i, i, 1, 1);
-                    CRBA_Ft_S(i, i, 1, 2);
-                    // CRBA_Ft_S(i, i, 2, 0);
-                    // CRBA_Ft_S(i, i, 2, 1);
-                    CRBA_Ft_S(i, i, 2, 2);
+                case JOINT_TYPE_SPHERICAL: {
+                    tscrew<T> Fi[3] = {I[i][0], I[i][1], I[i][2]};
+                    M(vpos_i+0, vpos_i+0) = Fi[0][0];
+                    M(vpos_i+0, vpos_i+1) = M(vpos_i+1, vpos_i+0) = Fi[0][1];
+                    M(vpos_i+0, vpos_i+2) = M(vpos_i+2, vpos_i+0) = Fi[0][2];
+                    M(vpos_i+1, vpos_i+1) = Fi[1][1];
+                    M(vpos_i+1, vpos_i+2) = M(vpos_i+2, vpos_i+1) = Fi[1][2];
+                    M(vpos_i+2, vpos_i+2) = M(vpos_i+2, vpos_i+2) = Fi[2][2];
                     uint32_t j = i;
                     while (j != 0) {
-                        Fi[0] = AdT(kin[j].Tinv, Fi[0]);
-                        Fi[1] = AdT(kin[j].Tinv, Fi[1]);
-                        Fi[2] = AdT(kin[j].Tinv, Fi[2]);
+                        Fi[0] = AdT(Tinv[j], Fi[0]);
+                        Fi[1] = AdT(Tinv[j], Fi[1]);
+                        Fi[2] = AdT(Tinv[j], Fi[2]);
                         j = art.parents[j];
                         uint32_t vpos_j = art.joint_vel_dof_starts[j];
                         uint32_t vdof_j = art.joint_vel_dofs[j];
                         if (vdof_j == 1) {
-                            CRBA_Ft_S(i, j, 0, 0);
-                            CRBA_Ft_S(i, j, 1, 0);
-                            CRBA_Ft_S(i, j, 2, 0);
+                            int tj = get_screw_idx(art.joints[j].type);
+                            M(vpos_i+0, vpos_j+0) = M(vpos_j+0, vpos_i+0) = Fi[0][tj];
+                            M(vpos_i+1, vpos_j+0) = M(vpos_j+0, vpos_i+1) = Fi[1][tj];
+                            M(vpos_i+2, vpos_j+0) = M(vpos_j+0, vpos_i+2) = Fi[2][tj];
                         }
                         else if (vdof_j == 3) {
-                            CRBA_Ft_S(i, j, 0, 0);
-                            CRBA_Ft_S(i, j, 1, 0);
-                            CRBA_Ft_S(i, j, 2, 0);
-                            CRBA_Ft_S(i, j, 0, 1);
-                            CRBA_Ft_S(i, j, 1, 1);
-                            CRBA_Ft_S(i, j, 2, 1);
-                            CRBA_Ft_S(i, j, 0, 2);
-                            CRBA_Ft_S(i, j, 1, 2);
-                            CRBA_Ft_S(i, j, 2, 2);
+                            M(vpos_i+0, vpos_j+0) = M(vpos_j+0, vpos_i+0) = Fi[0][0];
+                            M(vpos_i+0, vpos_j+1) = M(vpos_j+1, vpos_i+0) = Fi[0][1];
+                            M(vpos_i+0, vpos_j+2) = M(vpos_j+2, vpos_i+0) = Fi[0][2];
+                            M(vpos_i+1, vpos_j+0) = M(vpos_j+0, vpos_i+1) = Fi[1][0];
+                            M(vpos_i+1, vpos_j+1) = M(vpos_j+1, vpos_i+1) = Fi[1][1];
+                            M(vpos_i+1, vpos_j+2) = M(vpos_j+2, vpos_i+1) = Fi[1][2];
+                            M(vpos_i+2, vpos_j+0) = M(vpos_j+0, vpos_i+2) = Fi[2][0];
+                            M(vpos_i+2, vpos_j+1) = M(vpos_j+1, vpos_i+2) = Fi[2][1];
+                            M(vpos_i+2, vpos_j+2) = M(vpos_j+2, vpos_i+2) = Fi[2][2];
                         }
                     }
                     if (art.floating) {
