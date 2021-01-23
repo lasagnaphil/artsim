@@ -455,7 +455,7 @@ static glm::tvec3<real> contact_bisection_solver(tvec3<real> lambda_v0, const ts
 }
 
 static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tsmat3x3<real>& Minv, tvec3<real> c, real mu) {
-    const real alpha = 0.1f;
+    const real alpha = 1.0f;
     real r_z = alpha / Minv.zz;
     real r_t = alpha / max(Minv.xx, Minv.yy);
     tvec3<real> v = c + Minv*lambda;
@@ -542,6 +542,14 @@ static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> l
 
     return {lambda, ncp_error_sq, success};
 }
+
+/*
+ * TODO for contact solver:
+ * - PGS:
+ *      - Use nesterov momentum for better convergence (See https://apps.dtic.mil/dtic/tr/fulltext/u2/1081106.pdf)
+ * - Bisection:
+ *      - Still seems to be unstable. Investigate why.
+ */
 
 void solve_collision(ContactSolverType type,
                      const ArticulatedBody& art, const MaterialDB& material_db, glm::tvec3<real> gravity, real dt,

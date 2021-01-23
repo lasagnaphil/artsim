@@ -182,10 +182,10 @@ namespace artsim {
     template <class T>
     inline glm::tvec3<T> log_mat(const glm::tmat3x3<T> &R) {
         T theta = glm::acos((R[0][0] + R[1][1] + R[2][2] - 1) / 2);
-        if (theta <= glm::epsilon<T>()) {
+        if (glm::epsilonEqual(theta, T(0), T(1e-8))) {
             return glm::tvec3<T>(0);
         }
-        return glm::vec3(R[1][2] - R[2][1], R[2][0] - R[0][2], R[0][1] - R[1][0]) / (2*glm::sin(theta));
+        return glm::tvec3<T>(R[1][2] - R[2][1], R[2][0] - R[0][2], R[0][1] - R[1][0]) * (theta / (2*glm::sin(theta)));
     }
 }
 

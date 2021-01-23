@@ -17,7 +17,7 @@ Vector3 glm_to_ray(glm::vec3 v) {
     return Vector3{v.x, v.y, v.z};
 }
 
-void render_articulation(const artsim::ArticulationState& state) {
+void render_articulation(const artsim::ArticulationState& state, Color color = RED) {
     for (int i = 0; i < state.num_joints; i++) {
         glm::tmat4x4<artsim::real> model_mat = artsim::mat4_cast(state.T_link_global[i]);
         glm::mat4 model_mat_f = model_mat;
@@ -27,11 +27,11 @@ void render_articulation(const artsim::ArticulationState& state) {
         artsim::Shape shape = state.art->links[i].shape;
         switch(shape.type) {
             case artsim::Shape::Type::Sphere: {
-                DrawSphere(Vector3Zero(), shape.sphere.radius, RED);
+                DrawSphere(Vector3Zero(), shape.sphere.radius, color);
                 DrawSphereWires(Vector3Zero(), shape.sphere.radius, 10, 10, GRAY);
             } break;
             case artsim::Shape::Type::Box: {
-                DrawCube(Vector3Zero(), shape.box.size.x, shape.box.size.y, shape.box.size.z, RED);
+                DrawCube(Vector3Zero(), shape.box.size.x, shape.box.size.y, shape.box.size.z, color);
                 DrawCubeWires(Vector3Zero(), shape.box.size.x, shape.box.size.y, shape.box.size.z, GRAY);
             } break;
             default: {}
@@ -46,7 +46,7 @@ void render_articulation(const artsim::ArticulationState& state) {
             model_mat_f = model_mat;
             rlMultMatrixf(glm::value_ptr(model_mat_f));
 
-            DrawSphere(Vector3Zero(), 0.1f, GREEN);
+            DrawSphere(Vector3Zero(), 0.02f, GREEN);
         }
 
         rlPopMatrix();

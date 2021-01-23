@@ -76,6 +76,10 @@ struct ArticulationState {
         calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
     }
 
+    void update_transforms() {
+        calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
+    }
+
     void randomize_positions() {
         static std::default_random_engine engine(0);
 

@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <vector>
 #include <unordered_map>
+#include <string>
 
 #define OUT
 #define INOUT
@@ -176,6 +177,7 @@ using real = real;
     };
 
     struct ArticulatedBody {
+        std::vector<std::string> names;
         std::vector<Link> links;
         std::vector<Joint> joints;
 
@@ -197,7 +199,7 @@ using real = real;
 
         ArticulatedBody(bool floating = false) : floating(floating) {}
 
-        void add_link_and_joint(Link link, Joint joint) {
+        void add_link_and_joint(Link link, Joint joint, const std::string& name = "") {
             if (joint.type == JOINT_TYPE_FLOATING) {
                 if (!links.empty() || !joints.empty()) {
                     fprintf(stderr, "Error in ArticulatedBody::add_link_and_joint: "
@@ -208,6 +210,7 @@ using real = real;
             }
             links.push_back(link);
             joints.push_back(joint);
+            names.push_back(name);
         }
 
         void setup();
