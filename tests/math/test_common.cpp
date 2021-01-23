@@ -12,9 +12,9 @@ using namespace artsim;
 
 static std::random_device random_dev;
 static std::default_random_engine engine(random_dev());
-using real_t = float;
+using real = float;
 
-void compare_glm(const glm::tmat3x3<real_t>& m1, const glm::tmat3x3<real_t>& m2) {
+void compare_glm(const glm::tmat3x3<real>& m1, const glm::tmat3x3<real>& m2) {
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
             INFO("Iteration (" << i << ", " << j << ")");
@@ -24,7 +24,7 @@ void compare_glm(const glm::tmat3x3<real_t>& m1, const glm::tmat3x3<real_t>& m2)
 }
 
 TEST_CASE("Rx, Ry, Rz") {
-    real_t theta = std::uniform_real_distribution<real_t>(-glm::pi<real_t>(), glm::pi<real_t>())(engine);
+    real theta = std::uniform_real_distribution<real>(-glm::pi<real>(), glm::pi<real>())(engine);
 
     SUBCASE("Rx") {
         auto m1 = Rx(theta);

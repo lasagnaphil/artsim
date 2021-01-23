@@ -17,10 +17,9 @@ Vector3 glm_to_ray(glm::vec3 v) {
     return Vector3{v.x, v.y, v.z};
 }
 
-template <class T>
-void render_articulation(const artsim::ArticulationState<T>& state) {
+void render_articulation(const artsim::ArticulationState& state) {
     for (int i = 0; i < state.num_joints; i++) {
-        glm::tmat4x4<T> model_mat = artsim::mat4_cast(state.T_link_global[i]);
+        glm::tmat4x4<artsim::real> model_mat = artsim::mat4_cast(state.T_link_global[i]);
         glm::mat4 model_mat_f = model_mat;
         rlPushMatrix();
         rlMultMatrixf(glm::value_ptr(model_mat_f));

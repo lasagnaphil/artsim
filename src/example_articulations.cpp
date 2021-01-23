@@ -9,8 +9,8 @@ artsim::ArticulatedBody artsim::examples::create_single_pendulum_link(bool spher
     Shape box1 = Shape::make_box({d, l, d});
     art.add_link_and_joint(
             Link::create(box1.inertia(density), box1.mass(density), box1,
-                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
-                         transform(glm::vec3(0.0f, -l, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l, 0.0f)),
                          -1, Id<artsim::Material>::null()),
             spherical? Joint::spherical() : Joint::revolute_z());
     art.setup();
@@ -20,16 +20,16 @@ artsim::ArticulatedBody artsim::examples::create_single_pendulum_link(bool spher
 artsim::ArticulatedBody artsim::examples::create_double_pendulum_ball(bool spherical, float m1, float m2, float l1, float l2) {
     ArticulatedBody art;
     art.add_link_and_joint(
-            Link::create(smat3x3(0), m1, Shape::make_sphere(0.1f),
-                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
-                         transform(glm::vec3(0.0f, -l1, 0.0f)),
+            Link::create(tsmat3x3<real>(0), m1, Shape::make_sphere(0.1f),
+                         ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l1, 0.0f)),
                          -1, Id<artsim::Material>::null()),
             spherical? Joint::spherical() : Joint::revolute_z()
     );
     art.add_link_and_joint(
-            Link::create(smat3x3(0), m2, Shape::make_sphere(0.1f),
-                         transform(glm::vec3(0.0f, -l1, 0.0f)),
-                         transform(glm::vec3(0.0f, -l2, 0.0f)),
+            Link::create(tsmat3x3<real>(0), m2, Shape::make_sphere(0.1f),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l1, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l2, 0.0f)),
                          0, Id<artsim::Material>::null()),
             spherical? Joint::spherical() : Joint::revolute_z()
     );
@@ -44,15 +44,15 @@ artsim::ArticulatedBody artsim::examples::create_double_pendulum_link(bool spher
     ArticulatedBody art;
     art.add_link_and_joint(
             Link::create(box1.inertia(density), box1.mass(density), box1,
-                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
-                         transform(glm::vec3(0.0f, -l1/2, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l1/2, 0.0f)),
                          -1, {}),
             spherical? Joint::spherical() : Joint::revolute_z()
     );
     art.add_link_and_joint(
             Link::create(box2.inertia(density), box2.mass(density), box2,
-                         transform(glm::vec3(0.0f, -l1, 0.0f)),
-                         transform(glm::vec3(0.0f, -l2/2, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l1, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l2/2, 0.0f)),
                          0, {}),
             spherical? Joint::spherical() : Joint::revolute_z()
     );
@@ -69,22 +69,22 @@ artsim::examples::create_triple_pendulum_link(bool spherical, float density, flo
     ArticulatedBody art;
     art.add_link_and_joint(
             Link::create(box1.inertia(density), box1.mass(density), box1,
-                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
-                         transform(glm::vec3(0.0f, -l1/2, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l1/2, 0.0f)),
                          -1, {}),
             spherical? Joint::spherical() : Joint::revolute_z()
     );
     art.add_link_and_joint(
             Link::create(box2.inertia(density), box2.mass(density), box2,
-                         transform(glm::vec3(0.0f, -l1, 0.0f)),
-                         transform(glm::vec3(0.0f, -l2/2, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l1, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l2/2, 0.0f)),
                          0, {}),
             spherical? Joint::spherical() : Joint::revolute_z()
     );
     art.add_link_and_joint(
             Link::create(box3.inertia(density), box3.mass(density), box2,
-                         transform(glm::vec3(0.0f, -l2, 0.0f)),
-                         transform(glm::vec3(0.0f, -l3/2, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l2, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -l3/2, 0.0f)),
                          1, {}),
             spherical? Joint::spherical() : Joint::revolute_z()
     );
@@ -99,15 +99,15 @@ artsim::ArticulatedBody artsim::examples::create_furuta_pendulum(bool spherical,
     ArticulatedBody art;
     art.add_link_and_joint(
             Link::create(box1.inertia(density), box1.mass(density), box1,
-                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
-                         transform(glm::vec3(l1/2, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(l1/2, 0.0f, 0.0f)),
                          -1, {}),
             Joint::revolute_y()
     );
     art.add_link_and_joint(
             Link::create(box2.inertia(density), box2.mass(density), box2,
-                         transform(glm::vec3(l1, 0.0f, 0.0f)),
-                         transform(glm::vec3(0.f, -l2/2, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(l1, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.f, -l2/2, 0.0f)),
                          0, {}),
             spherical? Joint::spherical() : Joint::revolute_x()
     );
@@ -123,8 +123,8 @@ artsim::ArticulatedBody artsim::examples::create_5_link_tree(bool spherical) {
 
     art.add_link_and_joint(
             Link::create(box.inertia(density), box.mass(density), box,
-                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
-                         transform(glm::vec3(0.0f, -0.5f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -0.5f, 0.0f)),
                          -1, {}),
             spherical? Joint::spherical() : Joint::revolute_z()
     );
@@ -132,8 +132,8 @@ artsim::ArticulatedBody artsim::examples::create_5_link_tree(bool spherical) {
     auto add_link = [&](int parent, Joint joint) {
         art.add_link_and_joint(
                 Link::create(box.inertia(density), box.mass(density), box,
-                             transform(glm::vec3(0.0f, -1.0f, 0.0f)),
-                             transform(glm::vec3(0.0f, -0.5f, 0.0f)),
+                             ttransform<real>(glm::tvec3<real>(0.0f, -1.0f, 0.0f)),
+                             ttransform<real>(glm::tvec3<real>(0.0f, -0.5f, 0.0f)),
                              parent, {}), joint);
     };
 
@@ -154,8 +154,8 @@ artsim::ArticulatedBody artsim::examples::create_13_link_tree(bool spherical) {
 
     art.add_link_and_joint(
             Link::create(box.inertia(density), box.mass(density), box,
-                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
-                         transform(glm::vec3(0.0f, -0.5f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -0.5f, 0.0f)),
                          -1, {}),
             spherical? Joint::spherical() : Joint::revolute_z()
     );
@@ -163,8 +163,8 @@ artsim::ArticulatedBody artsim::examples::create_13_link_tree(bool spherical) {
     auto add_link = [&](int parent, Joint joint) {
         art.add_link_and_joint(
                 Link::create(box.inertia(density), box.mass(density), box,
-                             transform(glm::vec3(0.0f, -1.0f, 0.0f)),
-                             transform(glm::vec3(0.0f, -0.5f, 0.0f)),
+                             ttransform<real>(glm::tvec3<real>(0.0f, -1.0f, 0.0f)),
+                             ttransform<real>(glm::tvec3<real>(0.0f, -0.5f, 0.0f)),
                              parent, {}), joint);
     };
 
@@ -193,16 +193,16 @@ artsim::ArticulatedBody artsim::examples::create_free_link(int num_links, bool s
 
     art.add_link_and_joint(
             Link::create(box.inertia(density), box.mass(density), box,
-                         transform(glm::vec3(0.0f, 0.0f, 0.0f)),
-                         transform(glm::vec3(0.0f, -0.5f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, -0.5f, 0.0f)),
                          -1, {}),
             Joint::floating());
 
     for (int i = 1; i < num_links; i++) {
         art.add_link_and_joint(
                 Link::create(box.inertia(density), box.mass(density), box,
-                             transform(glm::vec3(0.0f, -1.0f, 0.0f)),
-                             transform(glm::vec3(0.0f, -0.5f, 0.0f)),
+                             ttransform<real>(glm::tvec3<real>(0.0f, -1.0f, 0.0f)),
+                             ttransform<real>(glm::tvec3<real>(0.0f, -0.5f, 0.0f)),
                              i-1, {}), spherical? Joint::spherical() : Joint::revolute_z());
     }
 

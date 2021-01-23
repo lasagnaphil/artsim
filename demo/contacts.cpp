@@ -19,8 +19,6 @@
 using namespace artsim;
 using namespace glm;
 
-using real_t = double;
-
 int main(void)
 {
     // Initialization
@@ -53,7 +51,7 @@ int main(void)
     ArticulatedBody art = examples::create_free_link(3, true);
     MaterialDB material_db;
 
-    ArticulationState<real_t> state(&art, &material_db, ContactSolverType::NCP);
+    ArticulationState state(&art, &material_db, ContactSolverType::NCP);
     state.enable_collision_with_ground = art.floating;
     state.randomize_positions();
 
@@ -66,7 +64,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        ttransform<real_t> rootT = state.get_root_transform();
+        ttransform<real> rootT = state.get_root_transform();
         auto& io = ImGui::GetIO();
         if (!io.WantCaptureMouse) {
             UpdateCamera(&camera);
@@ -74,7 +72,7 @@ int main(void)
         // SetCameraMode(camera, CAMERA_THIRD_PERSON);
 
         if (IsKeyPressed(KEY_R)) {
-            state = ArticulationState<real_t>(&art, &material_db, ContactSolverType::NCP);
+            state = ArticulationState(&art, &material_db, ContactSolverType::NCP);
             state.enable_collision_with_ground = true;
             state.randomize_positions();
         }

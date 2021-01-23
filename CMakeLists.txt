@@ -12,6 +12,7 @@ find_package(Eigen3 CONFIG REQUIRED)
 add_library(artsim src/artsim.cpp src/dynamics.cpp src/example_articulations.cpp)
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
 target_link_libraries(artsim PUBLIC Eigen3::Eigen)
+target_compile_definitions(artsim PUBLIC ARTSIM_USE_DOUBLE)
 
 if (ARTSIM_BUILD_DEMOS)
     add_subdirectory(demo)

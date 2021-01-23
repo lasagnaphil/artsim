@@ -9,27 +9,27 @@
 
 using namespace artsim;
 
-float Shape::mass(float density) {
+real Shape::mass(real density) {
     switch (type) {
         case Type::Box: return density * box.size.x * box.size.y * box.size.z;
-        case Type::Sphere: return 4.f / 3.f * glm::pi<float>() * sphere.radius * sphere.radius * sphere.radius;
-        default: return 0;
+        case Type::Sphere: return real(4.0 / 3.0) * glm::pi<real>() * sphere.radius * sphere.radius * sphere.radius;
+        default: return real(0);
     }
 }
 
-smat3x3 Shape::inertia(float density) {
+tsmat3x3<real> Shape::inertia(real density) {
     glm::vec3 I;
     switch (type) {
         case Type::Box: {
-            const glm::vec3& s = box.size;
-            I = mass(density) * glm::vec3(s.y*s.y + s.z*s.z, s.z*s.z + s.x*s.x, s.x*s.x + s.y*s.y) / 12.f;
+            const glm::tvec3<real>& s = box.size;
+            I = mass(density) * glm::tvec3<real>(s.y*s.y + s.z*s.z, s.z*s.z + s.x*s.x, s.x*s.x + s.y*s.y) / real(12);
         } break;
         case Type::Sphere: {
-            float r = sphere.radius;
-            I = 0.4f * mass(density) * glm::vec3(r*r);
+            real r = sphere.radius;
+            I = real(0.4) * mass(density) * glm::tvec3<real>(r*r);
         } break;
     }
-    return smat3x3(I.x, I.y, I.z, 0, 0, 0);
+    return tsmat3x3<real>(I.x, I.y, I.z, 0, 0, 0);
 }
 
 Shape Shape::make_ground() {
@@ -44,14 +44,15 @@ Shape Shape::make_box(glm::vec3 size) {
     return shape;
 }
 
-Shape Shape::make_sphere(float radius) {
+Shape Shape::make_sphere(real radius) {
     Shape shape;
     shape.type = Shape::Type::Sphere;
     shape.sphere.radius = radius;
     return shape;
 }
 
-Link Link::create(const smat3x3& inertia, float mass, Shape shape, transform local_joint_pose, transform local_link_pose,
+Link Link::create(const tsmat3x3<real>& inertia, real mass, Shape shape,
+                  ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
                   int parent_idx, Id<Material> mat_id) {
     Link link;
     link.inertia = inertia;

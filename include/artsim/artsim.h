@@ -20,6 +20,12 @@
 #define INOUT
 
 namespace artsim {
+#ifdef ARTSIM_USE_DOUBLE
+using real = double;
+#else
+using real = real;
+#endif
+
     enum JointType : int {
         JOINT_TYPE_REVOLUTE_X = 0,
         JOINT_TYPE_REVOLUTE_Y,
@@ -39,59 +45,59 @@ namespace artsim {
     struct Joint {
         JointType type;
         bool enable_limit;
-        float limit_min;
-        float limit_max;
-        float damping;
-        float max_velocity;
+        real limit_min;
+        real limit_max;
+        real damping;
+        real max_velocity;
 
-        static Joint floating(float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint floating(real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_FLOATING, false, 0, 0, damping, max_velocity};
         }
-        static Joint revolute_x(float limit_min, float limit_max,
-                                float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint revolute_x(real limit_min, real limit_max,
+                                real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_REVOLUTE_X, true, limit_min, limit_max, damping, max_velocity};
         }
-        static Joint revolute_x(float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint revolute_x(real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_REVOLUTE_X, false, 0, 0, damping, max_velocity};
         }
-        static Joint revolute_y(float limit_min, float limit_max,
-                                float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint revolute_y(real limit_min, real limit_max,
+                                real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_REVOLUTE_Y, true, limit_min, limit_max, damping, max_velocity};
         }
-        static Joint revolute_y(float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint revolute_y(real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_REVOLUTE_Y, false, 0, 0, damping, max_velocity};
         }
-        static Joint revolute_z(float limit_min, float limit_max,
-                                float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint revolute_z(real limit_min, real limit_max,
+                                real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_REVOLUTE_Z, true, limit_min, limit_max, damping, max_velocity};
         }
-        static Joint revolute_z(float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint revolute_z(real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_REVOLUTE_Z, false, 0, 0, damping, max_velocity};
         }
 
-        static Joint prismatic_x(float limit_min, float limit_max,
-                                float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint prismatic_x(real limit_min, real limit_max,
+                                real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_PRISMATIC_X, true, limit_min, limit_max, damping, max_velocity};
         }
-        static Joint prismatic_x(float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint prismatic_x(real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_PRISMATIC_X, false, 0, 0, damping, max_velocity};
         }
-        static Joint prismatic_y(float limit_min, float limit_max,
-                                float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint prismatic_y(real limit_min, real limit_max,
+                                real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_PRISMATIC_Y, true, limit_min, limit_max, damping, max_velocity};
         }
-        static Joint prismatic_y(float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint prismatic_y(real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_PRISMATIC_Y, false, 0, 0, damping, max_velocity};
         }
-        static Joint prismatic_z(float limit_min, float limit_max,
-                                float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint prismatic_z(real limit_min, real limit_max,
+                                real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_PRISMATIC_Z, true, limit_min, limit_max, damping, max_velocity};
         }
-        static Joint prismatic_z(float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint prismatic_z(real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_PRISMATIC_Z, false, 0, 0, damping, max_velocity};
         }
 
-        static Joint spherical(float damping = 0.0f, float max_velocity = 100.0f) {
+        static Joint spherical(real damping = 0.0f, real max_velocity = 100.0f) {
             return {JOINT_TYPE_SPHERICAL, false, 0, 0, damping, max_velocity};
         }
 
@@ -126,46 +132,46 @@ namespace artsim {
                 glm::vec3 size;
             } box;
             struct {
-                float radius;
+                real radius;
             } sphere;
         };
 
         static Shape make_ground();
         static Shape make_box(glm::vec3 size);
-        static Shape make_sphere(float radius);
+        static Shape make_sphere(real radius);
 
-        float mass(float density);
-        smat3x3 inertia(float density);
+        real mass(real density);
+        tsmat3x3<real> inertia(real density);
     };
 
     struct Material {
-        float default_friction;
-        float default_restitution;
+        real default_friction;
+        real default_restitution;
     };
 
     struct MaterialPair {
-        float friction;
-        float restitution;
+        real friction;
+        real restitution;
     };
 
     struct RigidBody {
-        smat3x3 inertia;
-        float mass;
+        tsmat3x3<real> inertia;
+        real mass;
         Shape shape;
-        transform global_trans;
+        ttransform<real> global_trans;
     };
 
     struct Link {
-        smat3x3 inertia;
-        float mass;
+        tsmat3x3<real> inertia;
+        real mass;
         Shape shape;
-        transform local_joint_pose;
-        transform local_link_pose;
+        ttransform<real> local_joint_pose;
+        ttransform<real> local_link_pose;
         uint32_t parent_idx;
         Id<Material> mat_id;
 
-        static Link create(const smat3x3& inertia, float mass, Shape shape,
-                           transform local_joint_pose, transform local_link_pose,
+        static Link create(const tsmat3x3<real>& inertia, real mass, Shape shape,
+                           ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
                            int parent_idx, Id<Material> mat_id);
     };
 
@@ -243,8 +249,8 @@ namespace artsim {
         Arena<Material> materials;
         std::unordered_map<std::pair<Id<Material>, Id<Material>>, MaterialPair, pair_hash> material_pairs;
 
-        Id<Material> add_material(float default_friction = 1.0f,
-                                  float default_restitution = 0.0f) {
+        Id<Material> add_material(real default_friction = 1.0f,
+                                  real default_restitution = 0.0f) {
             auto id = materials.make();
             auto ptr = materials.get(id);
             ptr->default_friction = default_friction;
@@ -255,7 +261,7 @@ namespace artsim {
         METHOD_REMOVE_ID(Material, material, materials)
 
         void add_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
-                               float friction, float restitution) {
+                               real friction, real restitution) {
             material_pairs[std::make_pair(mat1_id, mat2_id)] = MaterialPair {friction, restitution};
         }
 
@@ -345,13 +351,13 @@ namespace artsim {
 
     struct ContactPoint {
         transform T_global;
-        float depth;
+        real depth;
         BodyId body1_id;
         BodyId body2_id;
 
         ContactPoint() = default;
         ContactPoint(glm::vec3 pos, glm::vec3 normal, glm::vec3 tangent,
-                     float depth, BodyId body1_id, BodyId body2_id)
+                     real depth, BodyId body1_id, BodyId body2_id)
               : T_global(pos, glm::mat3(tangent, glm::cross(normal, tangent), normal)),
                 depth(depth), body1_id(body1_id), body2_id(body2_id) {}
     };

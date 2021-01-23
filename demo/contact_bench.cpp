@@ -19,8 +19,6 @@
 using namespace artsim;
 using namespace glm;
 
-using real_t = double;
-
 int main(int argc, char** argv)
 {
     Camera camera;
@@ -58,7 +56,7 @@ int main(int argc, char** argv)
     ArticulatedBody art = examples::create_free_link(3, true);
     MaterialDB material_db;
 
-    ArticulationState<real_t> state;
+    ArticulationState state;
 
     auto reset = [&]() {
         ContactSolverType solver_type;
@@ -71,7 +69,7 @@ int main(int argc, char** argv)
         else if (strcmp(argv[1], "ncp") == 0) {
             solver_type = ContactSolverType::NCP;
         }
-        state = ArticulationState<real_t>(&art, &material_db, solver_type);
+        state = ArticulationState(&art, &material_db, solver_type);
         state.enable_collision_with_ground = art.floating;
         state.randomize_positions();
     };
