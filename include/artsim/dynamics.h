@@ -73,6 +73,38 @@ namespace artsim {
     }
 
     template <class T>
+    ttransform<T> calc_Tinv(const Joint& joint, const Link& link, const T*__restrict q) {
+        switch (joint.type) {
+            case JOINT_TYPE_FLOATING: {
+                return ttransform<T>();
+            } break;
+            JOINT_DOF_1_CASE {
+                tscrew<T> S = get_joint_screw<T>(joint.type);
+                return move(S, -q[0]) * ttransform<T>(inverse(link.local_joint_pose));
+            } break;
+            case JOINT_TYPE_SPHERICAL: {
+                glm::tquat<T> q_inv = glm::inverse(glm::make_quat<T>(q));
+                return ttransform<T>(q_inv) * ttransform<T>(inverse(link.local_joint_pose));
+            } break;
+        }
+    }
+
+    template <class T>
+    tscrew<T> calc_v0(const Joint& joint, const T*__restrict u) {
+        switch (joint.type) {
+            case JOINT_TYPE_FLOATING: return make_tscrew(u);
+            case JOINT_TYPE_REVOLUTE_X: return tscrew<T>(u[0], 0, 0, 0, 0, 0);
+            case JOINT_TYPE_REVOLUTE_Y: return tscrew<T>(0, u[0], 0, 0, 0, 0);
+            case JOINT_TYPE_REVOLUTE_Z: return tscrew<T>(0, 0, u[0], 0, 0, 0);
+            case JOINT_TYPE_PRISMATIC_X: return tscrew<T>(0, 0, 0, u[0], 0, 0);
+            case JOINT_TYPE_PRISMATIC_Y: return tscrew<T>(0, 0, 0, 0, u[0], 0);
+            case JOINT_TYPE_PRISMATIC_Z: return tscrew<T>(0, 0, 0, 0, 0, u[0]);
+            case JOINT_TYPE_SPHERICAL: return tscrew<T>(u[0], u[1], u[2], 0, 0, 0);
+            default: return tscrew<T>();
+        }
+    }
+
+    template <class T>
     struct KinematicsData {
         ttransform<T> Tinv;
         tscrew<T> S[3];
@@ -200,7 +232,10 @@ namespace artsim {
         bool is_floating_art;
         JointType joint_type;
         bool has_parent;
-        KinematicsData<T> kin;
+
+        ttransform<T> Tinv;
+        tscrew<T> v0;
+        // KinematicsData<T> kin;
         tspmat<T> I;
         tscrew<T> f_ext;
         tvec3<T> udot;         // dof
@@ -216,9 +251,9 @@ namespace artsim {
 
         // kin must be calculated using jcalc() before this call
         void rnea_pass1() {
-            if (has_parent) T_global_inv = T_global_inv * kin.Tinv;
-            v = Ad(kin.Tinv, v) + kin.v;
-            a = Ad(kin.Tinv, a) + ad(v, kin.v) + kin.c;
+            if (has_parent) T_global_inv = T_global_inv * Tinv;
+            v = Ad(Tinv, v) + v0;
+            a = Ad(Tinv, a) + ad(v, v0); // + c0; (c0 is zero for all types of joints)
             if (!is_floating_art) {
                 switch (joint_type) {
                     JOINT_DOF_1_CASE {
@@ -244,7 +279,7 @@ namespace artsim {
                 } break;
             }
             if (has_parent) {
-                f = AdT(kin.Tinv, f);
+                f = AdT(Tinv, f);
             }
         }
     };
@@ -266,7 +301,8 @@ namespace artsim {
             data[i].is_floating_art = art.floating;
             data[i].joint_type = art.joints[i].type;
             data[i].has_parent = i != 0;
-            jcalc(art.joints[i], art.links[i], q + cur_pos_dof, u + cur_vel_dof, OUT data[i].kin);
+            data[i].Tinv = calc_Tinv(art.joints[i], art.links[i], q + cur_pos_dof);
+            data[i].v0 = calc_v0(art.joints[i], u + cur_vel_dof);
             auto I0 = tspmat<T>(tsmat3x3<T>(art.links[i].inertia), glm::tvec3<T>(0), art.links[i].mass);
             data[i].I = inv_transform(I0, ttransform<T>(inverse(art.links[i].local_link_pose)));
             if (f_ext) data[i].f_ext = f_ext[i];
