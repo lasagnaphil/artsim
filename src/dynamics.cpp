@@ -4,6 +4,14 @@
 
 #include "artsim/dynamics.h"
 
+#define SHOW_LOG
+
+#ifdef SHOW_LOG
+#define output_log(...) printf(__VA_ARGS__)
+#else
+#define output_log(...)
+#endif
+
 namespace artsim {
 
 void calc_S(const ArticulatedBody &art, const real *q, tscrew<real> *S) {
@@ -102,6 +110,8 @@ struct RecursiveNewtonEulerData {
     tspmat<real> I;
     tscrew<real> f_ext;
     tvec3<real> udot;         // dof
+    real kd;
+    real dt;
 
     // INTERMEDIATE VALUES
     ttransform<real> T_global_inv;
@@ -135,10 +145,10 @@ struct RecursiveNewtonEulerData {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
-                tau[0] = f[k];
+                tau[0] = f[k] + kd * (v0[k] + dt * udot[0]);
             } break;
             case JOINT_TYPE_SPHERICAL: {
-                tau = f.w;
+                tau = f.w + kd * (v0.w + dt * udot);
             } break;
         }
         if (has_parent) {
@@ -147,30 +157,34 @@ struct RecursiveNewtonEulerData {
     }
 };
 
-void rne_inverse_dynamics(const ArticulatedBody& art, const real* q, const real* u, const real* udot,
-                          glm::tvec3<real> gravity, const tscrew<real>* f_ext, real* tau) {
+void rne_inverse_dynamics(const ArticulatedBody& art, glm::tvec3<real> gravity, real dt,
+                          const real* q, const real* u, const real* udot, const tscrew<real>* f_ext,
+                          real* tau) {
 
     int num_joints = art.get_num_joints();
     std::vector<RecursiveNewtonEulerData> data(num_joints);
 
     for (int i = 0; i < num_joints; i++) {
+        auto& joint = art.joints[i];
+        auto& link = art.links[i];
         uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
         uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
         int num_vel_dofs = art.joint_vel_dofs[i];
         data[i].is_floating_art = art.floating;
-        data[i].joint_type = art.joints[i].type;
+        data[i].joint_type = joint.type;
         data[i].has_parent = i != 0;
-        data[i].Tinv = calc_Tinv(art.joints[i], art.links[i], q + cur_pos_dof);
-        data[i].v0 = calc_v0(art.joints[i], u + cur_vel_dof);
+        data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
+        data[i].v0 = calc_v0(joint, u + cur_vel_dof);
         auto I0 = tspmat<real>(tsmat3x3<real>(art.links[i].inertia), glm::tvec3<real>(0), art.links[i].mass);
         data[i].I = inv_transform(I0, ttransform<real>(inverse(art.links[i].local_link_pose)));
         if (f_ext) data[i].f_ext = f_ext[i];
-
         if (!art.floating || i != 0) {
             for (int j = 0; j < num_vel_dofs; j++) {
                 data[i].udot[j] = udot[cur_vel_dof + j];
             }
         }
+        data[i].kd = joint.kd;
+        data[i].dt = dt;
     }
 
     for (int i : art.bfs_iteration_order) {
@@ -234,6 +248,8 @@ struct FeatherstoneData {
     tscrew<real> v0;
     tscrew<real> f_ext;
     tvec3<real> tau;          // dof
+    real kd;
+    real dt;
 
     // INTERMEDIATE VALUES
     ttransform<real> T_global_inv;
@@ -242,12 +258,13 @@ struct FeatherstoneData {
     tscrew<real> v;
     tscrew<real> c;
     struct {
-        tscrew<real> I_a_k;
-        real I_a_kk;
+        tscrew<real> D;
+        real H;
     } j1dof;
     struct {
-        tsmat3x3<real> Iinv;
-        tmat3x3<real> Ct_Iinv;
+        tsmat3x3<real> Dinv;
+        tsmat3x3<real> I_Dinv;
+        tmat3x3<real> Ct_Dinv;
     } j3dof;
     tvec3<real> u; // dof
     tscrew<real> a;
@@ -267,27 +284,32 @@ struct FeatherstoneData {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
-                j1dof.I_a_k = I_a[k];
-                j1dof.I_a_kk = j1dof.I_a_k[k];
+                j1dof.D = I_a[k];
+                j1dof.H = j1dof.D[k] + kd * dt;
                 u[0] = tau[0] - p_a[k];
                 if (has_parent) {
-                    tsmat6x6<real> I_prime = I_a - symmetric_cartesian_product(j1dof.I_a_k) / j1dof.I_a_kk;
-                    tscrew<real> p_prime = p_a + I_prime * c + ((tau[0] - p_a[k]) / j1dof.I_a_kk) * j1dof.I_a_k;
+                    tsmat6x6<real> I_prime = I_a - symmetric_cartesian_product(j1dof.D) / j1dof.H;
+                    tscrew<real> p_prime = p_a + I_prime * c + ((tau[0] - kd * v0[k] - p_a[k]) / j1dof.H) * j1dof.D;
                     I_a = inv_transform(I_prime, Tinv);
                     p_a = AdT(Tinv, p_prime);
                 }
             } break;
             case JOINT_TYPE_SPHERICAL: {
-                j3dof.Iinv = inverse(I_a.I);
-                j3dof.Ct_Iinv = glm::transpose(I_a.C) * mat3_cast(j3dof.Iinv);
+                j3dof.Dinv = inverse(I_a.I + tsmat3x3<real>(kd * dt));
+                j3dof.I_Dinv = I_a.I * j3dof.Dinv;
+                j3dof.Ct_Dinv = glm::transpose(I_a.C) * mat3_cast(j3dof.Dinv);
                 u = tau - p_a.w;
                 if (has_parent) {
-                    tsmat3x3<real> M_prime = I_a.M - smat3_cast(j3dof.Ct_Iinv * I_a.C);
-                    tvec3<real> tau_prime = tau - p_a.w;
-                    tscrew<real> p_prime;
-                    p_prime.w = p_a.w + tau_prime;
-                    p_prime.v = p_a.v + M_prime * c.v + j3dof.Ct_Iinv * tau_prime;
-                    I_a = inv_transform(M_prime, Tinv);
+                    auto I_prime = tsmat6x6<real>(
+                            I_a.I - j3dof.I_Dinv * I_a.I,
+                            I_a.C - mat3_cast(j3dof.I_Dinv) * I_a.C,
+                            I_a.M - smat3_cast(j3dof.Ct_Dinv * I_a.C));
+                    tvec3<real> tau_prime = tau - kd * v0.w - p_a.w;
+                    tscrew<real> p_prime = p_a;
+                    p_prime += I_prime * c;
+                    p_prime.w += j3dof.I_Dinv * tau_prime;
+                    p_prime.v += j3dof.Ct_Dinv * tau_prime;
+                    I_a = inv_transform(I_prime, Tinv);
                     p_a = AdT(Tinv, p_prime);
                 }
             } break;
@@ -299,12 +321,12 @@ struct FeatherstoneData {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
-                udot[0] = (u[0] - dot(j1dof.I_a_k, a_p)) / j1dof.I_a_kk;
+                udot[0] = (u[0] - dot(j1dof.D, a_p)) / j1dof.H;
                 a = a_p;
                 a[k] += udot[0];
             } break;
             case JOINT_TYPE_SPHERICAL: {
-                udot = j3dof.Iinv * u - a_p.w - glm::transpose(j3dof.Ct_Iinv) * a_p.v;
+                udot = j3dof.Dinv * u - j3dof.I_Dinv * a_p.w - glm::transpose(j3dof.Ct_Dinv) * a_p.v;
                 a = a_p;
                 a.w += udot;
             } break;
@@ -312,29 +334,33 @@ struct FeatherstoneData {
     }
 };
 
-void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> gravity, const tscrew<real>* f_ext,
-                                   const real* q, const real* u, const real* tau, real* udot) {
+void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> gravity, real dt,
+                                   const tscrew<real>* f_ext, const real* q, const real* u, const real* tau,
+                                   real* udot) {
 
     int num_joints = art.get_num_joints();
     std::vector<FeatherstoneData> data(num_joints);
 
     for (int i = 0; i < num_joints; i++) {
+        auto& joint = art.joints[i];
+        auto& link = art.links[i];
         uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
         uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
         int num_vel_dofs = art.joint_vel_dofs[i];
-        data[i].joint_type = art.joints[i].type;
+        data[i].joint_type = joint.type;
         data[i].has_parent = i != 0;
-        data[i].Tinv = calc_Tinv(art.joints[i], art.links[i], q + cur_pos_dof);
-        data[i].v0 = calc_v0(art.joints[i], u + cur_vel_dof);
-        auto I0 = tspmat<real>(tsmat3x3<real>(art.links[i].inertia), glm::tvec3<real>(0), art.links[i].mass);
-        data[i].I_a = tsmat6x6<real>(inv_transform(I0, ttransform<real>(inverse(art.links[i].local_link_pose))));
+        data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
+        data[i].v0 = calc_v0(joint, u + cur_vel_dof);
+        auto I0 = tspmat<real>(tsmat3x3<real>(link.inertia), glm::tvec3<real>(0), link.mass);
+        data[i].I_a = tsmat6x6<real>(inv_transform(I0, ttransform<real>(inverse(link.local_link_pose))));
         if (f_ext) data[i].f_ext = f_ext[i];
-
         if (!(i == 0 && art.floating)) {
             for (int j = 0; j < num_vel_dofs; j++) {
                 data[i].tau[j] = tau[cur_vel_dof + j];
             }
         }
+        data[i].kd = joint.kd;
+        data[i].dt = dt;
     }
 
     for (int i : art.bfs_iteration_order) {
@@ -552,6 +578,7 @@ static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> l
  */
 
 void solve_collision(ContactSolverType type,
+                     uint32_t max_iters,
                      const ArticulatedBody& art, const MaterialDB& material_db, glm::tvec3<real> gravity, real dt,
                      const real* q, const real* u, const real* udot_orig, const tscrew<real>* f_ext, const real* tau,
                      const ContactPoint* contact_points, uint32_t num_contact_points, glm::tvec3<real>* out_lambda,
@@ -599,7 +626,7 @@ void solve_collision(ContactSolverType type,
     Eigen::Matrix<real, Dynamic, Dynamic> Minv_Jc_T(num_vel_dofs, 3*num_contact_points);
     std::vector<real> zero_vec(num_vel_dofs, 0);
     for (int c = 0; c < 3*num_contact_points; c++) {
-        featherstone_forward_dynamics(art, glm::tvec3<real>(0), f_ext, q, zero_vec.data(), Jc.data() + c*num_vel_dofs,
+        featherstone_forward_dynamics(art, glm::tvec3<real>(0), dt, f_ext, q, zero_vec.data(), Jc.data() + c*num_vel_dofs,
                                       OUT Minv_Jc_T.data() + c*num_vel_dofs);
     }
 
@@ -631,8 +658,8 @@ void solve_collision(ContactSolverType type,
 
     switch (type) {
         case ContactSolverType::PGS:
-            alpha = 0.6;
-            alpha_min = 0.6;
+            alpha = 0.75;
+            alpha_min = 0.75;
             gamma = 1.0;
             lambda_sq_tol = 1e-6;
             break;
@@ -657,8 +684,6 @@ void solve_collision(ContactSolverType type,
         c[i].z -= beta/dt*glm::max<real>(contact_points[i].depth - slop, 0);
     }
 
-    const int max_iters = 1000;
-
     real lambda_norm2;
     std::vector<tvec3<real>> lambda_old(num_contact_points);
     int iter;
@@ -677,20 +702,20 @@ void solve_collision(ContactSolverType type,
                     lambda[i] = alpha * lambda_v0 + (1 - alpha) * lambda[i];
                 }
                 else {
+                    tvec3<real> lambda_star;
                     switch (type) {
                         case ContactSolverType::PGS: {
-                            tvec3<real> lambda_star = contact_projection_solver(lambda[i], M_inv_ii, c[i], mu);
-                            lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
+                            lambda_star = contact_projection_solver(lambda[i], M_inv_ii, c[i], mu);
                         } break;
                         case ContactSolverType::Bisection: {
-                            tvec3<real> lambda_star = contact_bisection_solver(lambda_v0, M_inv_ii, c[i], mu);
-                            lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
+                            lambda_star = contact_bisection_solver(lambda_v0, M_inv_ii, c[i], mu);
                         } break;
                         case ContactSolverType::NCP: {
-                            auto [lambda_star, ncp_error_sq, success] = contact_ncp_solver(lambda_v0, M_inv_ii, c[i], mu, dt);
-                            lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
+                            real ncp_error_sq, success;
+                            std::tie(lambda_star, ncp_error_sq, success) = contact_ncp_solver(lambda_v0, M_inv_ii, c[i], mu, dt);
                         } break;
                     }
+                    lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
                 }
             }
 
@@ -720,15 +745,6 @@ void solve_collision(ContactSolverType type,
     Eigen::Matrix<real, Dynamic, 1> lambda_vec = Map<Eigen::Matrix<real, Dynamic, 1>>((real*)lambda.data(), 3*num_contact_points);
     Eigen::Matrix<real, Dynamic, 1> contact_forces = Jc.transpose() * lambda_vec / dt;
 
-    for (int c = 0; c < num_contact_points; c++) {
-        if (lambda[c].z > 100) {
-            output_log("Contact force too large\n");
-        }
-        if (lambda[c].z < 0) {
-            output_log("Contact force negative\n");
-        }
-    }
-
     if (out_lambda) {
         std::memcpy(out_lambda, lambda.data(), sizeof(tvec3<real>) * num_contact_points);
     }
@@ -737,7 +753,7 @@ void solve_collision(ContactSolverType type,
     }
 }
 
-void mass_matrix_using_rnea(const ArticulatedBody& art, const real* q, real* M) {
+void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real* q, real* M) {
     uint32_t dof = art.get_num_vel_dofs();
     std::vector<real> u(dof, 0);
     std::vector<real> udot(dof, 0);
@@ -745,22 +761,22 @@ void mass_matrix_using_rnea(const ArticulatedBody& art, const real* q, real* M) 
     std::vector<real> tau(dof, 0);
 
     udot[0] = 1;
-    rne_inverse_dynamics(art, q, u.data(), udot.data(), glm::tvec3<real>(0), f_ext.data(), OUT M);
+    rne_inverse_dynamics(art, glm::tvec3<real>(0), dt, q, u.data(), udot.data(), f_ext.data(), OUT M);
     for (int i = 1; i < dof; i++) {
         udot[i-1] = 0;
         udot[i] = 1;
-        rne_inverse_dynamics(art, q, u.data(), udot.data(), glm::tvec3<real>(0), f_ext.data(), OUT M + i*dof);
+        rne_inverse_dynamics(art, glm::tvec3<real>(0), dt, q, u.data(), udot.data(), f_ext.data(), OUT M + i*dof);
     }
 }
 
-void all_forces(const ArticulatedBody& art, glm::tvec3<real> gravity, const tscrew<real>* f_ext, const real* q,
+void all_forces(const ArticulatedBody& art, glm::tvec3<real> gravity, real dt, const tscrew<real>* f_ext, const real* q,
                 const real* u, real* tau) {
     int dof = art.get_num_vel_dofs();
     std::vector<real> udot(dof, 0);
-    rne_inverse_dynamics(art, q, u, udot.data(), gravity, f_ext, tau);
+    rne_inverse_dynamics(art, gravity, dt, q, u, udot.data(), f_ext, tau);
 }
 
-void forward_dynamics_using_rnea(const ArticulatedBody& art, glm::tvec3<real> gravity, const tscrew<real>* f_ext,
+void forward_dynamics_using_rnea(const ArticulatedBody& art, glm::tvec3<real> gravity, real dt, const tscrew<real>* f_ext,
                                  const real* q, const real* u, const real* tau, real* udot) {
     using Matrix = Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>;
     using Vector = Eigen::Matrix<real, Eigen::Dynamic, 1>;
@@ -770,8 +786,8 @@ void forward_dynamics_using_rnea(const ArticulatedBody& art, glm::tvec3<real> gr
     Vector h(dof);
     Vector b(dof);
     Vector tau_ext = Eigen::Map<const Vector>(tau, dof);
-    mass_matrix_using_rnea(art, q, M.data());
-    all_forces(art, gravity, f_ext, q, u, OUT h.data());
+    mass_matrix_using_rnea(art, dt, q, M.data());
+    all_forces(art, gravity, dt, f_ext, q, u, OUT h.data());
     b.noalias() = tau_ext - h;
     Eigen::Map<Vector> x = Eigen::Map<Vector>(udot, dof);
     x.noalias() = M.llt().solve(b);
@@ -869,7 +885,7 @@ Eigen::Matrix<real, 6, 6> glm_to_eigen(const tsmat6x6<real>& I) {
     return M;
 }
 
-void mass_matrix(const ArticulatedBody& art, const real* q, real* M_ptr) {
+void mass_matrix(const ArticulatedBody& art, real dt, const real* q, real* M_ptr) {
     using namespace Eigen;
     uint32_t vdof = art.get_num_vel_dofs();
     uint32_t num_joints = art.get_num_joints();
@@ -912,12 +928,13 @@ void mass_matrix(const ArticulatedBody& art, const real* q, real* M_ptr) {
         if (i != 0) {
             I[art.parents[i]] += inv_transform(I[i], Tinv[i]);
         }
+        real kd = art.joints[i].kd;
         switch (art.joints[i].type) {
             JOINT_DOF_1_CASE {
                 int ti = get_screw_idx(art.joints[i].type);
                 tscrew<real> Fi[1] = { I[i][ti] };
                 // CRBA_Ft_S(i, i, 0, 0);
-                M(vpos_i, vpos_i) = M(vpos_i, vpos_i) = Fi[0][ti];
+                M(vpos_i, vpos_i) = M(vpos_i, vpos_i) = Fi[0][ti] + kd*dt;
                 uint32_t j = i;
                 while (j != 0) {
                     Fi[0] = AdT(Tinv[j], Fi[0]);
@@ -941,12 +958,12 @@ void mass_matrix(const ArticulatedBody& art, const real* q, real* M_ptr) {
             } break;
             case JOINT_TYPE_SPHERICAL: {
                 tscrew<real> Fi[3] = {I[i][0], I[i][1], I[i][2]};
-                M(vpos_i+0, vpos_i+0) = Fi[0][0];
+                M(vpos_i+0, vpos_i+0) = Fi[0][0] + kd*dt;
                 M(vpos_i+0, vpos_i+1) = M(vpos_i+1, vpos_i+0) = Fi[0][1];
                 M(vpos_i+0, vpos_i+2) = M(vpos_i+2, vpos_i+0) = Fi[0][2];
-                M(vpos_i+1, vpos_i+1) = Fi[1][1];
+                M(vpos_i+1, vpos_i+1) = Fi[1][1] + kd*dt;
                 M(vpos_i+1, vpos_i+2) = M(vpos_i+2, vpos_i+1) = Fi[1][2];
-                M(vpos_i+2, vpos_i+2) = M(vpos_i+2, vpos_i+2) = Fi[2][2];
+                M(vpos_i+2, vpos_i+2) = Fi[2][2] + kd*dt;
                 uint32_t j = i;
                 while (j != 0) {
                     Fi[0] = AdT(Tinv[j], Fi[0]);
@@ -989,7 +1006,7 @@ void mass_matrix(const ArticulatedBody& art, const real* q, real* M_ptr) {
 }
 
 void
-euler_step_with_collision(ContactSolverType type,
+euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
                           const ArticulatedBody& art, const MaterialDB& material_db, glm::tvec3<real> gravity, real dt,
                           const tscrew<real>* f_ext, const real* tau, const ContactPoint* contact_points,
                           uint32_t num_contact_points, real* q, real* u, real* udot, glm::tvec3<real>* lambda) {
@@ -997,8 +1014,8 @@ euler_step_with_collision(ContactSolverType type,
     int num_joints = art.get_num_joints();
 
     std::vector<real> udot_bar(num_vel_dofs);
-    featherstone_forward_dynamics(art, gravity, f_ext, q, u, tau, OUT udot_bar.data());
-    // forward_dynamics_using_rnea(art, gravity, f_ext, q, u, tau, OUT udot_bar.data());
+    featherstone_forward_dynamics(art, gravity, dt, f_ext, q, u, tau, OUT udot_bar.data());
+    // forward_dynamics_using_rnea(art, gravity, dt, f_ext, q, u, tau, OUT udot_bar.data());
 
     if (num_contact_points == 0) {
         integrate_implicit_euler(art, dt, udot_bar.data(), INOUT q, INOUT u);
@@ -1008,7 +1025,8 @@ euler_step_with_collision(ContactSolverType type,
         std::vector<real> tau_contact(num_vel_dofs);
         std::vector<real> tau_total(num_vel_dofs);
 
-        solve_collision(type, art, material_db, gravity, dt,
+        solve_collision(type, max_iters,
+                        art, material_db, gravity, dt,
                         q, u, udot_bar.data(),
                         f_ext, tau,
                         contact_points, num_contact_points,
@@ -1020,10 +1038,8 @@ euler_step_with_collision(ContactSolverType type,
 
         for (int i = 0; i < num_vel_dofs; i++) {
             tau_total[i] = tau[i] + tau_contact[i];
-            output_log("%f, ", tau_total[i]);
         }
-        output_log("\n");
-        featherstone_forward_dynamics(art, gravity, f_ext, q, u, tau_total.data(), OUT udot);
+        featherstone_forward_dynamics(art, gravity, dt, f_ext, q, u, tau_total.data(), OUT udot);
         // forward_dynamics_using_rnea(art, gravity, f_ext, q, u, tau, OUT udot);
 
         integrate_implicit_euler(art, dt, udot, INOUT q, INOUT u);

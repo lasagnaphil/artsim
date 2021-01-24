@@ -283,6 +283,18 @@ namespace artsim {
     }
 
     template <class T>
+    inline tsmat3x3<T> operator*(const tsmat3x3<T>& m1, const tsmat3x3<T>& m2) {
+        tsmat3x3<T> m;
+        m.xx = m1.xx * m2.xx + m1.xy * m2.xy + m1.zx * m2.zx;
+        m.yy = m1.xy * m2.xy + m1.yy * m2.yy + m1.yz * m2.yz;
+        m.zz = m1.zx * m2.zx + m1.yz * m2.yz + m1.zz * m2.zz;
+        m.yz = m1.xy * m2.zx + m1.yy * m2.yz + m1.yz * m2.zz;
+        m.zx = m1.zx * m2.xx + m1.yz * m2.xy + m1.zz * m2.zx;
+        m.xy = m1.xx * m2.xy + m1.xy * m2.yy + m1.zx * m2.yz;
+        return m;
+    }
+
+    template <class T>
     inline tsmat3x3<T> operator*(T k, const tsmat3x3<T>& m) {
         return {m.xx * k, m.yy * k, m.zz * k, m.yz * k, m.zx * k, m.xy * k};
     }

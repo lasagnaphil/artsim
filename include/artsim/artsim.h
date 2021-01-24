@@ -44,62 +44,50 @@ using real = real;
                          case JOINT_TYPE_PRISMATIC_X: case JOINT_TYPE_PRISMATIC_Y: case JOINT_TYPE_PRISMATIC_Z:
 
     struct Joint {
+        constexpr static real default_kp = 10.0;
+        constexpr static real default_kd = 0.1;
+        constexpr static real default_maxvel = 100.0;
+
         JointType type;
-        bool enable_limit;
+        bool limit_enabled;
         real limit_min;
         real limit_max;
-        real damping;
+        real kp, kd;
         real max_velocity;
 
-        static Joint floating(real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_FLOATING, false, 0, 0, damping, max_velocity};
+        static Joint floating(real kp = 0.0, real kd = 0.0, real max_velocity = default_maxvel) {
+            return {JOINT_TYPE_FLOATING, false, 0, 0, kp, kd, max_velocity};
         }
-        static Joint revolute_x(real limit_min, real limit_max,
-                                real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_REVOLUTE_X, true, limit_min, limit_max, damping, max_velocity};
+        static Joint revolute_x(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+            return {JOINT_TYPE_REVOLUTE_X, false, 0, 0, kp, kd, max_velocity};
         }
-        static Joint revolute_x(real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_REVOLUTE_X, false, 0, 0, damping, max_velocity};
+        static Joint revolute_y(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+            return {JOINT_TYPE_REVOLUTE_Y, false, 0, 0, kp, kd, max_velocity};
         }
-        static Joint revolute_y(real limit_min, real limit_max,
-                                real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_REVOLUTE_Y, true, limit_min, limit_max, damping, max_velocity};
+        static Joint revolute_z(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+            return {JOINT_TYPE_REVOLUTE_Z, false, 0, 0, kp, kd, max_velocity};
         }
-        static Joint revolute_y(real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_REVOLUTE_Y, false, 0, 0, damping, max_velocity};
+        static Joint prismatic_x(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+            return {JOINT_TYPE_PRISMATIC_X, false, 0, 0, kp, kd, max_velocity};
         }
-        static Joint revolute_z(real limit_min, real limit_max,
-                                real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_REVOLUTE_Z, true, limit_min, limit_max, damping, max_velocity};
+        static Joint prismatic_y(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+            return {JOINT_TYPE_PRISMATIC_Y, false, 0, 0, kp, kd, max_velocity};
         }
-        static Joint revolute_z(real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_REVOLUTE_Z, false, 0, 0, damping, max_velocity};
+        static Joint prismatic_z(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+            return {JOINT_TYPE_PRISMATIC_Z, false, 0, 0, kp, kd, max_velocity};
         }
-
-        static Joint prismatic_x(real limit_min, real limit_max,
-                                real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_PRISMATIC_X, true, limit_min, limit_max, damping, max_velocity};
-        }
-        static Joint prismatic_x(real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_PRISMATIC_X, false, 0, 0, damping, max_velocity};
-        }
-        static Joint prismatic_y(real limit_min, real limit_max,
-                                real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_PRISMATIC_Y, true, limit_min, limit_max, damping, max_velocity};
-        }
-        static Joint prismatic_y(real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_PRISMATIC_Y, false, 0, 0, damping, max_velocity};
-        }
-        static Joint prismatic_z(real limit_min, real limit_max,
-                                real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_PRISMATIC_Z, true, limit_min, limit_max, damping, max_velocity};
-        }
-        static Joint prismatic_z(real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_PRISMATIC_Z, false, 0, 0, damping, max_velocity};
+        static Joint spherical(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+            return {JOINT_TYPE_SPHERICAL, false, 0, 0, kp, kd, max_velocity};
         }
 
-        static Joint spherical(real damping = 0.0f, real max_velocity = 100.0f) {
-            return {JOINT_TYPE_SPHERICAL, false, 0, 0, damping, max_velocity};
+        void enable_limit(real limit_min, real limit_max) {
+            limit_enabled = true;
+            this->limit_min = limit_min;
+            this->limit_max = limit_max;
+        }
+
+        void disable_limit() {
+            limit_enabled = false;
         }
 
         uint32_t pos_dof() {

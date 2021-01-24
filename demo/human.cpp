@@ -145,25 +145,28 @@ artsim::ArticulatedBody load_human(const char* filename, std::vector<uint32_t>& 
 
         link = Link::create(inertia, mass, shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
 
+        const real kp = 0.0;
+        const real kd = 0.4;
         if(joint_type == "Free")
         {
+            // TODO: Should we also put kd on floating joints?
             joint = Joint::floating();
         }
         else if(joint_type == "Ball")
         {
-            joint = Joint::spherical();
+            joint = Joint::spherical(kp, kd);
         }
         else if(joint_type == "Revolute")
         {
             glm::tvec3<real> axis = string_to_vector3d(joint_elem->Attribute("axis"));
             if (glm::epsilonEqual(axis.x, 1.0, 1e-8)) {
-                joint = Joint::revolute_x();
+                joint = Joint::revolute_x(kp, kd);
             }
             else if (glm::epsilonEqual(axis.y, 1.0, 1e-8)) {
-                joint = Joint::revolute_y();
+                joint = Joint::revolute_y(kp, kd);
             }
             else if (glm::epsilonEqual(axis.z, 1.0, 1e-8)) {
-                joint = Joint::revolute_z();
+                joint = Joint::revolute_z(kp, kd);
             }
         }
 
@@ -211,10 +214,10 @@ int main(int argc, char** argv) {
     ArticulationState state(&art, &material_db, ContactSolverType::PGS);
 
     auto reset = [&]() {
-        state = ArticulationState(&art, &material_db, ContactSolverType::PGS);
+        state = ArticulationState(&art, &material_db, ContactSolverType::PGS, 8);
         state.enable_collision_with_ground = true;
         // state.ground_col_enabled_links = contact_indices;
-        state.set_root_transform(ttransform<real>(tvec3<real>(0.0f, 1.4f, 0.0f)));
+        state.set_root_transform(ttransform<real>(tvec3<real>(0.0f, 1.3f, 0.0f)));
         state.update_transforms();
     };
 

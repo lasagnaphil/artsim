@@ -18,14 +18,6 @@
 #include <Eigen/Dense>
 #include <glm/gtc/type_ptr.hpp>
 
-// #define SHOW_LOG
-
-#ifdef SHOW_LOG
-#define output_log(...) printf(__VA_ARGS__)
-#else
-#define output_log(...)
-#endif
-
 namespace artsim {
 
     using namespace glm;
@@ -54,13 +46,13 @@ namespace artsim {
                                       OUT tscrew<real>* J_local);
 
     void rne_inverse_dynamics(const ArticulatedBody& art,
+                              glm::tvec3<real> gravity, real dt,
                               const real*__restrict q, const real*__restrict u, const real*__restrict udot,
-                              glm::tvec3<real> gravity,
                               const tscrew<real>*__restrict f_ext,
                               OUT real*__restrict tau);
 
     void featherstone_forward_dynamics(const ArticulatedBody& art,
-                                       glm::tvec3<real> gravity,
+                                       glm::tvec3<real> gravity, real dt,
                                        const tscrew<real>*__restrict f_ext,
                                        const real*__restrict q, const real*__restrict u, const real*__restrict tau,
                                        OUT real*__restrict udot);
@@ -78,16 +70,16 @@ namespace artsim {
                          const ContactPoint*__restrict contact_points, uint32_t num_contact_points,
                          OUT glm::tvec3<real>*__restrict out_lambda, OUT real*__restrict out_contact_forces);
 
-    void mass_matrix_using_rnea(const ArticulatedBody& art, const real*__restrict q, OUT real*__restrict M);
+    void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real*__restrict q, OUT real*__restrict M);
 
     void all_forces(const ArticulatedBody& art,
-                    glm::tvec3<real> gravity,
+                    glm::tvec3<real> gravity, real dt,
                     const tscrew<real>*__restrict f_ext,
                     const real*__restrict q, const real*__restrict u,
                     OUT real* tau);
 
     void forward_dynamics_using_rnea(const ArticulatedBody& art,
-                                     glm::tvec3<real> gravity,
+                                     glm::tvec3<real> gravity, real dt,
                                      const tscrew<real>*__restrict f_ext,
                                      const real*__restrict q, const real*__restrict u, const real*__restrict tau,
                                      OUT real*__restrict udot);
@@ -102,9 +94,9 @@ namespace artsim {
                          OUT ttransform<real>* T_joint_globals);
 
     // Mass matrix calculation using the composite-rigid-body algorithm.
-    void mass_matrix(const ArticulatedBody& art, const real*__restrict q, OUT real*__restrict M_ptr);
+    void mass_matrix(const ArticulatedBody& art, real dt, const real*__restrict q, OUT real*__restrict M_ptr);
 
-    void euler_step_with_collision(ContactSolverType type,
+    void euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
                                    const ArticulatedBody& art,
                                    const MaterialDB& material_db,
                                    glm::tvec3<real> gravity, real dt,

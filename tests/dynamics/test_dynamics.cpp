@@ -23,6 +23,8 @@ TEST_CASE("Double pendulum") {
     real l2 = 1.0f;
 
     ArticulatedBody art = examples::create_double_pendulum_ball(false, m1, m2, l1, l2);
+    art.joints[0].kd = 0.0f;
+    art.joints[1].kd = 0.0f;
     MaterialDB material_db;
     ArticulationState state(&art, &material_db);
     std::vector<real> q2dot_empty(state.num_vel_dofs, 0.0f);
@@ -59,17 +61,17 @@ TEST_CASE("Double pendulum") {
     };
 
     for (int i = 0; i < 1000; i++) {
-        mass_matrix_using_rnea(art, state.q.data(), OUT M1.data());
+        mass_matrix_using_rnea(art, dt, state.q.data(), OUT M1.data());
         check_dp_M(M1.data(), state.q[0], state.q[1]);
-        mass_matrix(art, state.q.data(), OUT M2.data());
+        mass_matrix(art, dt, state.q.data(), OUT M2.data());
         check_dp_M(M2.data(), state.q[0], state.q[1]);
 
-        rne_inverse_dynamics(art, state.q.data(), state.u.data(), q2dot_empty.data(),
-                             gravity, state.f_ext.data(), OUT h.data());
+        rne_inverse_dynamics(art, gravity, dt, state.q.data(), state.u.data(), q2dot_empty.data(),
+                             state.f_ext.data(), OUT h.data());
         check_dp_b(h[0], h[1], state.q[0], state.q[1], state.u[0], state.u[1]);
 
-        featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
-        forward_dynamics_using_rnea(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
+        featherstone_forward_dynamics(art, gravity, dt, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
+        forward_dynamics_using_rnea(art, gravity, dt, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
 
         // TODO: check the Featherstone method by plugging it into the Newton eq: M(q) * q2dot + C(q, qdot) = tau.
 
@@ -131,7 +133,7 @@ TEST_CASE("Various kinds of pendulums") {
             {
                 auto t1 = std::chrono::high_resolution_clock::now();
                 for (int i = 0; i < num_iters; i++) {
-                    featherstone_forward_dynamics(art, glm::tvec3<real>(0, -g, 0), state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
+                    featherstone_forward_dynamics(art, glm::tvec3<real>(0, -g, 0), dt, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
                 }
                 auto t2 = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
@@ -141,7 +143,7 @@ TEST_CASE("Various kinds of pendulums") {
             {
                 auto t1 = std::chrono::high_resolution_clock::now();
                 for (int i = 0; i < num_iters; i++) {
-                    forward_dynamics_using_rnea(art, glm::tvec3<real>(0, -g, 0), state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
+                    forward_dynamics_using_rnea(art, glm::tvec3<real>(0, -g, 0), dt, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
                 }
                 auto t2 = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
@@ -150,8 +152,8 @@ TEST_CASE("Various kinds of pendulums") {
 
             for (int i = 0; i < 100; i++) {
                 // Check if the mass matrix obtained by CRBA and RNEA are the same
-                mass_matrix(art, state.q.data(), OUT M1.data());
-                mass_matrix_using_rnea(art, state.q.data(), OUT M2.data());
+                mass_matrix(art, dt, state.q.data(), OUT M1.data());
+                mass_matrix_using_rnea(art, dt, state.q.data(), OUT M2.data());
 
                 SUBCASE("Mass matrix obtained by CRBA and RNEA are the same") {
                     for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
@@ -173,12 +175,12 @@ TEST_CASE("Various kinds of pendulums") {
                 // std::cout << M2_eigen << std::endl;
 
                 // Evaluate Coriolis force
-                rne_inverse_dynamics(art, state.q.data(), state.u.data(), q2dot_empty.data(),
-                                     gravity, state.f_ext.data(), OUT h.data());
+                rne_inverse_dynamics(art, gravity, dt, state.q.data(), state.u.data(), q2dot_empty.data(),
+                                     state.f_ext.data(), OUT h.data());
 
                 // Perform one step of forward dynamics using Featherstone and RNEA
-                featherstone_forward_dynamics(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
-                forward_dynamics_using_rnea(art, gravity, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
+                featherstone_forward_dynamics(art, gravity, dt, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
+                forward_dynamics_using_rnea(art, gravity, dt, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
 
                 // Compare forward dynamics result between Featherstone and RNEA results
                 SUBCASE("Forward dynamics results obtained by Featherstone and RNEA are the same") {
@@ -194,13 +196,13 @@ TEST_CASE("Various kinds of pendulums") {
                 std::vector<tscrew<real>> empty_f_ext(state.num_vel_dofs, tscrew<real>());
 
                 tau_trial[0] = 1;
-                featherstone_forward_dynamics(art, tvec3<real>(0),
+                featherstone_forward_dynamics(art, tvec3<real>(0), dt,
                                               empty_f_ext.data(), state.q.data(), empty_vec.data(), tau_trial.data(),
                                               OUT Minv_using_fs.data());
                 for (int d = 1; d < state.num_vel_dofs; d++) {
                     tau_trial[d-1] = 0;
                     tau_trial[d] = 1;
-                    featherstone_forward_dynamics(art, tvec3<real>(0),
+                    featherstone_forward_dynamics(art, tvec3<real>(0), dt,
                                                   empty_f_ext.data(), state.q.data(), empty_vec.data(), tau_trial.data(),
                                                   OUT Minv_using_fs.data() + d * state.num_vel_dofs);
                 }

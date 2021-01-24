@@ -35,19 +35,21 @@ struct ArticulationState {
     std::vector<ContactPoint> contact_points;
     std::vector<tvec3<real>> contact_normals;
 
-    ContactSolverType solverType;
+    ContactSolverType solver_type;
+    uint32_t max_iters;
 
     ArticulationState() = default;
 
     ArticulationState(artsim::ArticulatedBody *artPtr, artsim::MaterialDB* material_db,
-                      ContactSolverType solverType = ContactSolverType::NCP)
+                      ContactSolverType solverType = ContactSolverType::NCP,
+                      uint32_t max_iters = 4)
             : art(artPtr), material_db(material_db),
               num_pos_dofs(art->get_num_pos_dofs()), num_vel_dofs(art->get_num_vel_dofs()), num_joints(art->get_num_joints()),
               q(num_pos_dofs, 0), u(num_vel_dofs, 0), udot(num_vel_dofs, 0), tau(num_vel_dofs, 0),
               f_ext(num_joints, tscrew<real>()),
               T_link_global(num_joints, ttransform<real>()),
               T_joint_global(num_joints, ttransform<real>()),
-              solverType(solverType)
+              solver_type(solverType), max_iters(max_iters)
     {
         reset_positions();
         for (uint32_t i = 0; i < num_joints; i++) {
@@ -129,11 +131,11 @@ struct ArticulationState {
             contact_normals.resize(contact_points.size());
         }
 
-        artsim::euler_step_with_collision(solverType,
-                *art, *material_db, gravity, dt, f_ext.data(), tau.data(),
-                contact_points.data(), contact_points.size(),
-                INOUT q.data(), INOUT u.data(),
-                OUT udot.data(), OUT contact_normals.data());
+        artsim::euler_step_with_collision(solver_type, max_iters,
+                                          *art, *material_db, gravity, dt, f_ext.data(), tau.data(),
+                                          contact_points.data(), contact_points.size(),
+                                          INOUT q.data(), INOUT u.data(),
+                                          OUT udot.data(), OUT contact_normals.data());
 
         calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
     }
