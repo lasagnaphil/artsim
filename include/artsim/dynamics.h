@@ -70,6 +70,11 @@ namespace artsim {
                          const ContactPoint*__restrict contact_points, uint32_t num_contact_points,
                          OUT glm::tvec3<real>*__restrict out_lambda, OUT real*__restrict out_contact_forces);
 
+    void iterative_solve(ContactSolverType type, uint32_t max_iters, real dt,
+                         uint32_t num_contact_points,
+                         const dynmat<tsmat3x3<real>>& M_contact_inv,
+                         INOUT tvec3<real>* c, INOUT tvec3<real>* lambda);
+
     void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real*__restrict q, OUT real*__restrict M);
 
     void all_forces(const ArticulatedBody& art,
@@ -105,6 +110,15 @@ namespace artsim {
                                    const ContactPoint* contact_points, uint32_t num_contact_points,
                                    INOUT real*__restrict q, INOUT real*__restrict u,
                                    OUT real*__restrict udot, OUT glm::tvec3<real>* lambda);
+
+    void euler_step_with_collision_bullet(ContactSolverType type, uint32_t max_iters,
+                                   const ArticulatedBody& art,
+                                   const MaterialDB& material_db,
+                                   glm::tvec3<real> gravity, real dt,
+                                   const tscrew<real>*__restrict f_ext,
+                                   const real*__restrict tau,
+                                   INOUT real*__restrict q, INOUT real*__restrict u,
+                                   OUT real*__restrict udot, OUT int& num_contact_points, OUT glm::tvec3<real>* lambda);
 
 }
 

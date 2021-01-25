@@ -577,12 +577,167 @@ static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> l
  *      - Still seems to be unstable. Investigate why.
  */
 
-void solve_collision(ContactSolverType type,
-                     uint32_t max_iters,
+void solve_collision_bullet(ContactSolverType type, uint32_t max_iters,
+                            const ArticulatedBody& art, const MaterialDB& material_db, glm::tvec3<real> gravity, real dt,
+                            const real* q, const real* u, const real* udot_orig, const tscrew<real>* f_ext, const real* tau,
+                            int& num_contact_points, glm::tvec3<real>* out_lambda, real* out_contact_forces) {
+    using namespace Eigen;
+
+    int num_vel_dofs = art.get_num_vel_dofs();
+    int num_joints = art.get_num_joints();
+
+    Eigen::Matrix<real, Dynamic, 1> u_bar(num_vel_dofs);
+    for (int i = 0; i < num_vel_dofs; i++) {
+        u_bar[i] = u[i] + udot_orig[i] * dt;
+    }
+
+    std::vector<tscrew<real>> S(num_vel_dofs);
+    calc_S(art, q, OUT S.data());
+
+    std::vector<ttransform<real>> T_link_global(num_joints), T_joint_global(num_joints);
+    calc_transforms(art, q, OUT T_link_global.data(), OUT T_joint_global.data());
+
+    for (int i = 0; i < num_joints; i++) {
+        auto& link = art.links[i];
+        link.bt_collision_object->setWorldTransform(btconv(T_link_global[i]));
+    }
+
+    auto bt_world = art.bt_collision_world;
+    bt_world->performDiscreteCollisionDetection();
+
+    auto dispatcher = bt_world->getDispatcher();
+    btPersistentManifold** manifolds = dispatcher->getInternalManifoldPointer();
+    int num_manifolds = dispatcher->getNumManifolds();
+
+    num_contact_points = 0;
+    for (int i = 0; i < num_manifolds; i++) {
+        btPersistentManifold* manifold = manifolds[i];
+        num_contact_points += manifold->getNumContacts();
+    }
+
+    if (num_contact_points == 0) return;
+
+    std::vector<tscrew<real>> J_local(num_vel_dofs);
+    Eigen::Matrix<real, Dynamic, Dynamic, RowMajor> Jc(3 * num_contact_points, num_vel_dofs);
+    Jc.setZero();
+
+    std::vector<tvec3<real>> c(num_contact_points);
+    std::vector<tvec3<real>> lambda(num_contact_points, tvec3<real>(0));
+
+    int contact_idx = 0;
+    for (int i = 0; i < num_manifolds; i++) {
+        btPersistentManifold* manifold = manifolds[i];
+        const btCollisionObject* body1 = manifold->getBody0();
+        const btCollisionObject* body2 = manifold->getBody1();
+        BodyId body1_id, body2_id;
+        body1_id.index = body1->getUserIndex();
+        body1_id.generation = body1->getUserIndex2();
+        body2_id.index = body2->getUserIndex();
+        body2_id.generation = body2->getUserIndex2();
+        if (body1_id.index < body2_id.index) std::swap(body1_id, body2_id);
+        if (body1_id.is_articulation() && body2_id.index == 0) {
+            auto [art_id, art_link_idx] = body1_id.get_articulation_id();
+            int num_contacts = manifold->getNumContacts();
+            for (int j = 0; j < num_contacts; j++) {
+                btManifoldPoint& pt = manifold->getContactPoint(j);
+                /*
+                if (pt.getLifeTime() > 1) {
+                    lambda[contact_idx] = glm::tvec3<real>(
+                            pt.m_appliedImpulseLateral1, pt.m_appliedImpulseLateral2, pt.m_appliedImpulse);
+                }
+                 */
+                auto normal = glm::normalize(glmconv(pt.m_normalWorldOnB));
+                auto tangent_u = Ez<real>();
+                auto tangent_v = glm::cross(normal, tangent_u);
+                auto contact_pos = glmconv(pt.getPositionWorldOnB());
+                auto contact_T = ttransform<real>(contact_pos, glm::tmat3x3<real>(tangent_u, tangent_v, normal));
+                calculate_jacobian_for_local_frame(art, art_link_idx,
+                                                   contact_T, T_joint_global.data(), S.data(),
+                                                   OUT J_local.data());
+                for (int k = 0; k < num_vel_dofs; k++) {
+                    Jc(3*contact_idx + 0, k) = J_local[k].v[0];
+                    Jc(3*contact_idx + 1, k) = J_local[k].v[1];
+                    Jc(3*contact_idx + 2, k) = J_local[k].v[2];
+                }
+                contact_idx++;
+            }
+        }
+    }
+
+    Eigen::Matrix<real, Dynamic, 1> tau_star = Jc * u_bar;
+
+    const real beta = 0.1;
+    const real slop = 1e-4;
+    const real mu = 1.0;
+
+    contact_idx = 0;
+    for (int i = 0; i < num_manifolds; i++) {
+        btPersistentManifold* manifold = manifolds[i];
+        int num_contacts = manifold->getNumContacts();
+        for (int j = 0; j < num_contacts; j++) {
+            btManifoldPoint& pt = manifold->getContactPoint(j);
+            real depth = -pt.getDistance();
+            c[contact_idx] = make_vec3<real>(tau_star.data() + 3*contact_idx);
+            c[contact_idx].z -= beta/dt*glm::max<real>(depth - slop, 0);
+            contact_idx++;
+        }
+    }
+
+    dynmat<tsmat3x3<real>> M_contact_inv(num_contact_points, num_contact_points);
+
+    Eigen::Matrix<real, Dynamic, Dynamic> Minv_Jc_T(num_vel_dofs, 3*num_contact_points);
+    std::vector<real> zero_vec(num_vel_dofs, 0);
+    for (int c = 0; c < 3*num_contact_points; c++) {
+        featherstone_forward_dynamics(art, glm::tvec3<real>(0), dt, f_ext, q, zero_vec.data(), Jc.data() + c*num_vel_dofs,
+                                      OUT Minv_Jc_T.data() + c*num_vel_dofs);
+    }
+
+    for (int k = 0; k < num_contact_points; k++) {
+        Eigen::Matrix<real, Dynamic, 3> Minv_Jck_T = Minv_Jc_T.middleCols(3*k, 3);
+        for (int i = 0; i < num_contact_points; i++) {
+            Eigen::Matrix<real, 3, Dynamic> Jci = Jc.middleRows(3*i, 3);
+            Eigen::Matrix<real, 3, 3> M_contact_inv_eigen = Jci * Minv_Jck_T;
+            M_contact_inv(i, k) = tsmat3x3<real>(
+                    M_contact_inv_eigen(0, 0),
+                    M_contact_inv_eigen(1, 1),
+                    M_contact_inv_eigen(2, 2),
+                    M_contact_inv_eigen(1, 2),
+                    M_contact_inv_eigen(2, 0),
+                    M_contact_inv_eigen(0, 1));
+        }
+    }
+
+    iterative_solve(type, max_iters, dt, num_contact_points, M_contact_inv, INOUT c.data(), INOUT lambda.data());
+
+    contact_idx = 0;
+    for (int i = 0; i < num_manifolds; i++) {
+        btPersistentManifold* manifold = manifolds[i];
+        int num_contacts = manifold->getNumContacts();
+        for (int j = 0; j < num_contacts; j++) {
+            btManifoldPoint& pt = manifold->getContactPoint(j);
+            pt.m_appliedImpulseLateral1 = lambda[contact_idx].x;
+            pt.m_appliedImpulseLateral2 = lambda[contact_idx].y;
+            pt.m_appliedImpulse = lambda[contact_idx].z;
+            contact_idx++;
+        }
+    }
+
+    Eigen::Matrix<real, Dynamic, 1> lambda_vec = Map<Eigen::Matrix<real, Dynamic, 1>>((real*)lambda.data(), 3*num_contact_points);
+    Eigen::Matrix<real, Dynamic, 1> contact_forces = Jc.transpose() * lambda_vec / dt;
+
+    if (out_lambda) {
+        std::memcpy(out_lambda, lambda.data(), sizeof(tvec3<real>) * num_contact_points);
+    }
+    if (out_contact_forces) {
+        std::memcpy(out_contact_forces, contact_forces.data(), sizeof(real) * num_vel_dofs);
+    }
+}
+
+void solve_collision(ContactSolverType type, uint32_t max_iters,
                      const ArticulatedBody& art, const MaterialDB& material_db, glm::tvec3<real> gravity, real dt,
                      const real* q, const real* u, const real* udot_orig, const tscrew<real>* f_ext, const real* tau,
-                     const ContactPoint* contact_points, uint32_t num_contact_points, glm::tvec3<real>* out_lambda,
-                     real* out_contact_forces) {
+                     const ContactPoint* contact_points, uint32_t num_contact_points,
+                     glm::tvec3<real>* out_lambda, real* out_contact_forces) {
 
     using namespace Eigen;
 
@@ -651,10 +806,34 @@ void solve_collision(ContactSolverType type,
     const real beta = 0.1;
     const real slop = 1e-4;
 
-    const real mu = 1.0;
+    for (int i = 0; i < num_contact_points; i++) {
+        c[i] = make_vec3<real>(tau_star.data() + 3*i);
+        c[i].z -= beta/dt*glm::max<real>(contact_points[i].depth - slop, 0);
+    }
+
+    iterative_solve(type, max_iters, dt, num_contact_points, M_contact_inv, INOUT c.data(), INOUT lambda.data());
+
+    Eigen::Matrix<real, Dynamic, 1> lambda_vec = Map<Eigen::Matrix<real, Dynamic, 1>>((real*)lambda.data(), 3*num_contact_points);
+    Eigen::Matrix<real, Dynamic, 1> contact_forces = Jc.transpose() * lambda_vec / dt;
+
+    if (out_lambda) {
+        std::memcpy(out_lambda, lambda.data(), sizeof(tvec3<real>) * num_contact_points);
+    }
+    if (out_contact_forces) {
+        std::memcpy(out_contact_forces, contact_forces.data(), sizeof(real) * num_vel_dofs);
+    }
+}
+
+void iterative_solve(ContactSolverType type, uint32_t max_iters, real dt,
+                     uint32_t num_contact_points,
+                     const dynmat<tsmat3x3<real>>& M_contact_inv,
+                     INOUT tvec3<real>* c, INOUT tvec3<real>* lambda) {
 
     real alpha_min, gamma, lambda_sq_tol, ncp_error_sq_tol;
     real alpha, total_ncp_error_sq;
+
+    // TODO: Make friction coefficient changable
+    const real mu = 1.0;
 
     switch (type) {
         case ContactSolverType::PGS:
@@ -679,19 +858,13 @@ void solve_collision(ContactSolverType type,
             break;
     }
 
-    for (int i = 0; i < num_contact_points; i++) {
-        c[i] = make_vec3<real>(tau_star.data() + 3*i);
-        c[i].z -= beta/dt*glm::max<real>(contact_points[i].depth - slop, 0);
-    }
-
     real lambda_norm2;
     std::vector<tvec3<real>> lambda_old(num_contact_points);
     int iter;
     for (iter = 0; iter < max_iters; iter++) {
-        std::copy(lambda.begin(), lambda.end(), lambda_old.begin());
+        std::copy(lambda, lambda + num_contact_points, lambda_old.begin());
 
         for (int i = 0; i < num_contact_points; i++) {
-            const auto& contact_point = contact_points[i];
             if (c[i].z > 0) {
                 lambda[i] = (1 - alpha)*lambda[i];
             }
@@ -742,15 +915,6 @@ void solve_collision(ContactSolverType type,
         output_log("Contact solver converged in %d iters\n", iter);
     }
 
-    Eigen::Matrix<real, Dynamic, 1> lambda_vec = Map<Eigen::Matrix<real, Dynamic, 1>>((real*)lambda.data(), 3*num_contact_points);
-    Eigen::Matrix<real, Dynamic, 1> contact_forces = Jc.transpose() * lambda_vec / dt;
-
-    if (out_lambda) {
-        std::memcpy(out_lambda, lambda.data(), sizeof(tvec3<real>) * num_contact_points);
-    }
-    if (out_contact_forces) {
-        std::memcpy(out_contact_forces, contact_forces.data(), sizeof(real) * num_vel_dofs);
-    }
 }
 
 void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real* q, real* M) {
@@ -1044,5 +1208,41 @@ euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
 
         integrate_implicit_euler(art, dt, udot, INOUT q, INOUT u);
     }
+}
+
+void
+euler_step_with_collision_bullet(ContactSolverType type, uint32_t max_iters,
+                          const ArticulatedBody& art, const MaterialDB& material_db, glm::tvec3<real> gravity, real dt,
+                          const tscrew<real>* f_ext, const real* tau,
+                          real* q, real* u, real* udot, int& num_contact_points, glm::tvec3<real>* lambda) {
+
+    int num_vel_dofs = art.get_num_vel_dofs();
+    int num_joints = art.get_num_joints();
+
+    std::vector<real> udot_bar(num_vel_dofs);
+    featherstone_forward_dynamics(art, gravity, dt, f_ext, q, u, tau, OUT udot_bar.data());
+    // forward_dynamics_using_rnea(art, gravity, dt, f_ext, q, u, tau, OUT udot_bar.data());
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    std::vector<real> tau_contact(num_vel_dofs);
+    std::vector<real> tau_total(num_vel_dofs);
+
+    solve_collision_bullet(type, max_iters,
+                           art, material_db, gravity, dt,
+                           q, u, udot_bar.data(),
+                           f_ext, tau,
+                           OUT num_contact_points, OUT lambda, OUT tau_contact.data());
+
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
+    printf("Contact solver: %lld ns\n", duration.count());
+
+    for (int i = 0; i < num_vel_dofs; i++) {
+        tau_total[i] = tau[i] + tau_contact[i];
+    }
+    featherstone_forward_dynamics(art, gravity, dt, f_ext, q, u, tau_total.data(), OUT udot);
+    // forward_dynamics_using_rnea(art, gravity, f_ext, q, u, tau, OUT udot);
+
+    integrate_implicit_euler(art, dt, udot, INOUT q, INOUT u);
 }
 }

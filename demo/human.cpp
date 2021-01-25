@@ -135,7 +135,7 @@ artsim::ArticulatedBody load_human(const char* filename, std::vector<uint32_t>& 
         T_global_joint_map[name] = T_global_joint;
 
         ttransform<real> local_joint_pose;
-        if (link.parent_idx != -1) {
+        if (parent_name != "None") {
             local_joint_pose = T_global_joint / T_global_joint_map[parent_name];
         }
         else {
@@ -225,7 +225,7 @@ int main(int argc, char** argv) {
 
     float dt = 1.0f / 600.0f;
 
-    bool run_simulation = false;
+    bool run_simulation = true;
 
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key

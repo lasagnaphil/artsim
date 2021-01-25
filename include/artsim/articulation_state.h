@@ -124,6 +124,7 @@ struct ArticulationState {
     }
 
     void simulate(real dt) {
+#if 0
         if (enable_collision_with_ground) {
             contact_points = artsim::contact_points_between_art_links_and_ground(
                     *art, Id<ArticulatedBody>::null(),
@@ -136,6 +137,16 @@ struct ArticulationState {
                                           contact_points.data(), contact_points.size(),
                                           INOUT q.data(), INOUT u.data(),
                                           OUT udot.data(), OUT contact_normals.data());
+#else
+
+        contact_normals.resize(1000);
+        int num_contact_points;
+        artsim::euler_step_with_collision_bullet(solver_type, max_iters,
+                                                 *art, *material_db, gravity, dt, f_ext.data(), tau.data(),
+                                                 INOUT q.data(), INOUT u.data(),
+                                                 OUT udot.data(), OUT num_contact_points, OUT contact_normals.data());
+        contact_normals.resize(num_contact_points);
+#endif
 
         calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
     }

@@ -7,6 +7,8 @@
 
 #include "core/arena.h"
 
+#include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
+
 #include <glm/vec3.hpp>
 #include <glm/mat3x3.hpp>
 #include <artsim/math/se3.h>
@@ -24,8 +26,32 @@ namespace artsim {
 #ifdef ARTSIM_USE_DOUBLE
 using real = double;
 #else
-using real = real;
+using real = float;
 #endif
+
+inline btVector3 btconv(const glm::tvec3<real>& v) {
+    return btVector3(v.x, v.y, v.z);
+}
+
+inline btMatrix3x3 btconv(const glm::tmat3x3<real>& M) {
+    return btMatrix3x3(M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]);
+}
+
+inline btTransform btconv(const ttransform<real>& T) {
+    return btTransform(btconv(T.R), btconv(T.v));
+}
+
+inline glm::tvec3<real> glmconv(const btVector3& v) {
+    return {v.x(), v.y(), v.z()};
+}
+
+inline glm::tmat3x3<real> glmconv(const btMatrix3x3& M) {
+    return {glmconv(M.getColumn(0)), glmconv(M.getColumn(1)), glmconv(M.getColumn(2))};
+}
+
+inline ttransform<real> glmconv(const btTransform& T) {
+    return {glmconv(T.getOrigin()), glmconv(T.getBasis())};
+}
 
     enum JointType : int {
         JOINT_TYPE_REVOLUTE_X = 0,
@@ -118,7 +144,7 @@ using real = real;
             struct {
             } ground;
             struct {
-                glm::vec3 size;
+                glm::tvec3<real> size;
             } box;
             struct {
                 real radius;
@@ -154,10 +180,12 @@ using real = real;
         tsmat3x3<real> inertia;
         real mass;
         Shape shape;
+        btCollisionShape* bt_shape;
         ttransform<real> local_joint_pose;
         ttransform<real> local_link_pose;
         uint32_t parent_idx;
         Id<Material> mat_id;
+        btCollisionObject* bt_collision_object;
 
         static Link create(const tsmat3x3<real>& inertia, real mass, Shape shape,
                            ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
@@ -184,6 +212,8 @@ using real = real;
         std::vector<uint32_t> bfs_iteration_order;
 
         bool build_finished = false;
+
+        btCollisionWorld* bt_collision_world = nullptr;
 
         ArticulatedBody(bool floating = false) : floating(floating) {}
 

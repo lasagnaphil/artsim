@@ -26,7 +26,7 @@ std::vector<ContactPoint> contact_points_between_art_links_and_ground(
         uint32_t i = link_indices[li];
         switch (art.links[i].shape.type) {
             case artsim::Shape::Type::Box: {
-                glm::tvec3<T> ext = 0.5f * art.links[i].shape.box.size;
+                glm::tvec3<T> ext = real(0.5) * art.links[i].shape.box.size;
                 glm::tvec3<T> p = link_global_trans[i].v;
                 if (p.y*p.y > ext.x*ext.x + ext.y*ext.y + ext.z*ext.z) {
                     // early bailout for boxes that definitely doesn't collide with ground

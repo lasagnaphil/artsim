@@ -5,6 +5,12 @@
 #include "artsim/artsim.h"
 #include "artsim/math/se3.h"
 
+#include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
+#include <BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h>
+#include <BulletCollision/CollisionShapes/btStaticPlaneShape.h>
+#include <BulletCollision/CollisionShapes/btSphereShape.h>
+#include <BulletCollision/CollisionShapes/btBoxShape.h>
+
 #include <queue>
 
 using namespace artsim;
@@ -62,6 +68,15 @@ Link Link::create(const tsmat3x3<real>& inertia, real mass, Shape shape,
     link.local_link_pose = local_link_pose;
     link.parent_idx = parent_idx;
     link.mat_id = mat_id;
+    // TODO: Allocate these from a separate array!
+    switch (shape.type) {
+        case Shape::Type::Ground:
+            link.bt_shape = new btStaticPlaneShape(btVector3(0, 0, 0), 0); break;
+        case Shape::Type::Sphere:
+            link.bt_shape = new btSphereShape(shape.sphere.radius); break;
+        case Shape::Type::Box:
+            link.bt_shape = new btBoxShape(btconv(real(0.5) * shape.box.size)); break;
+    }
     return link;
 }
 
@@ -117,5 +132,30 @@ void ArticulatedBody::setup() {
         for (uint32_t c = 0; c < num_children; c++) {
             queue.push(i_children[c]);
         }
+    }
+
+    // TODO: initialize btCollisionWorld outside this function
+    auto bt_collision_config = new btDefaultCollisionConfiguration;
+    auto bt_dispatcher = new btCollisionDispatcher(bt_collision_config);
+    auto bt_broadphase = new btDbvtBroadphase;
+    bt_collision_world = new btCollisionWorld(bt_dispatcher, bt_broadphase, bt_collision_config);
+
+    auto bt_plane_col = new btCollisionObject;
+    bt_plane_col->setCollisionShape(new btStaticPlaneShape(btVector3(0, 1, 0), 0));
+    bt_plane_col->setWorldTransform(btTransform::getIdentity());
+    bt_plane_col->setUserIndex(0);
+    bt_plane_col->setUserIndex2(0);
+    bt_collision_world->addCollisionObject(bt_plane_col, btBroadphaseProxy::DefaultFilter, btBroadphaseProxy::AllFilter);
+
+    for (int i = 0; i < links.size(); i++) {
+        // TODO: Allocate these from a separate array!
+        // TODO: Set body_id with current articulation id
+        BodyId body_id = BodyId::from_articulation_link({}, i);
+        btCollisionObject* col_obj = new btCollisionObject;
+        col_obj->setCollisionShape(links[i].bt_shape);
+        col_obj->setUserIndex(body_id.index);
+        col_obj->setUserIndex2(body_id.generation);
+        bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);
+        links[i].bt_collision_object = col_obj;
     }
 }
