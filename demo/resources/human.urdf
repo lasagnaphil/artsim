@@ -2,553 +2,553 @@
     <link name="base"/>
     <link name="Pelvis">
         <inertial>
-            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <origin xyz="0 0 0" rpy="-0 0 -0"/>
             <mass value="15"/>
             <inertia ixx="0.0473569" iyy="0.0751666" izz="0.0806626" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <origin xyz="0 0 0" rpy="-0 0 -0"/>
             <geometry>
                 <box size="0.2083 0.1454 0.1294"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <origin xyz="0 0 0" rpy="-0 0 -0"/>
             <geometry>
                 <box size="0.2083 0.1454 0.1294"/>
             </geometry>
         </collision>
     </link>
     <joint name="Pelvis" type="floating">
-        <origin xyz="0 0.9809 -0.0308" rpy="0 0 0"/>
+        <origin xyz="0 0.9809 -0.0308" rpy="-0 0 -0"/>
         <parent link="base"/>
         <child link="Pelvis"/>
     </joint>
     <link name="FemurR">
         <inertial>
-            <origin xyz="-0.0056 -0.2096 -0.0111" rpy="3.1027 18.7244 -0.00901947"/>
+            <origin xyz="-0.0056 -0.2096 -0.0111" rpy="3.12439 -0.00240011 0.0138864"/>
             <mass value="7"/>
             <inertia ixx="0.106751" iyy="0.0208241" izz="0.104774" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="-0.0056 -0.2096 -0.0111" rpy="3.1027 18.7244 -0.00901947"/>
+            <origin xyz="-0.0056 -0.2096 -0.0111" rpy="3.12439 -0.00240011 0.0138864"/>
             <geometry>
                 <box size="0.1271 0.4043 0.1398"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="-0.0056 -0.2096 -0.0111" rpy="3.1027 18.7244 -0.00901947"/>
+            <origin xyz="-0.0056 -0.2096 -0.0111" rpy="3.12439 -0.00240011 0.0138864"/>
             <geometry>
                 <box size="0.1271 0.4043 0.1398"/>
             </geometry>
         </collision>
     </link>
     <joint name="FemurR" type="spherical">
-        <origin xyz="-0.0903 -0.0472 0.0192" rpy="0 0 0"/>
+        <origin xyz="-0.0903 -0.0472 0.0192" rpy="-0 0 -0"/>
         <parent link="Pelvis"/>
         <child link="FemurR"/>
     </joint>
     <link name="TibiaR">
         <inertial>
-            <origin xyz="0.0067 -0.2369 -0.0238" rpy="-3.05631 -0.0526043 0.00175344"/>
+            <origin xyz="0.0067 -0.2369 -0.0238" rpy="-3.05438 -0.00299997 -0.0347738"/>
             <mass value="3"/>
             <inertia ixx="0.0464355" iyy="0.00684271" izz="0.0467689" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0.0067 -0.2369 -0.0238" rpy="-3.05631 -0.0526043 0.00175344"/>
+            <origin xyz="0.0067 -0.2369 -0.0238" rpy="-3.05438 -0.00299997 -0.0347738"/>
             <geometry>
                 <box size="0.1198 0.4156 0.1141"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0.0067 -0.2369 -0.0238" rpy="-3.05631 -0.0526043 0.00175344"/>
+            <origin xyz="0.0067 -0.2369 -0.0238" rpy="-3.05438 -0.00299997 -0.0347738"/>
             <geometry>
                 <box size="0.1198 0.4156 0.1141"/>
             </geometry>
         </collision>
     </link>
     <joint name="TibiaR" type="spherical">
-        <origin xyz="-0.0092 -0.395 0.0013" rpy="0 0 0"/>
+        <origin xyz="-0.0092 -0.395 0.0013" rpy="-0 0 -0"/>
         <parent link="FemurR"/>
         <child link="TibiaR"/>
     </joint>
     <link name="TalusR">
         <inertial>
-            <origin xyz="-0.0026 -0.0373 0.0177" rpy="-3.19107 -0.0353252 -0.335592"/>
+            <origin xyz="-0.0026 -0.0373 0.0177" rpy="-3.11143 0.208823 -0.0261625"/>
             <mass value="1"/>
             <inertia ixx="0.00226075" iyy="0.00253036" izz="0.00068295" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="-0.0026 -0.0373 0.0177" rpy="-3.19107 -0.0353252 -0.335592"/>
+            <origin xyz="-0.0026 -0.0373 0.0177" rpy="-3.11143 0.208823 -0.0261625"/>
             <geometry>
                 <box size="0.0756 0.0498 0.157"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="-0.0026 -0.0373 0.0177" rpy="-3.19107 -0.0353252 -0.335592"/>
+            <origin xyz="-0.0026 -0.0373 0.0177" rpy="-3.11143 0.208823 -0.0261625"/>
             <geometry>
                 <box size="0.0756 0.0498 0.157"/>
             </geometry>
         </collision>
     </link>
     <joint name="TalusR" type="spherical">
-        <origin xyz="0.0195 -0.4611 -0.0316" rpy="0 0 0"/>
+        <origin xyz="0.0195 -0.4611 -0.0316" rpy="-0 0 -0"/>
         <parent link="TibiaR"/>
         <child link="TalusR"/>
     </joint>
     <link name="FootThumbR">
         <inertial>
-            <origin xyz="0.0016 0.0067 0.0246" rpy="-3.36427 0.0180379 -0.288623"/>
+            <origin xyz="0.0016 0.0067 0.0246" rpy="-3.12362 0.174791 0.00977562"/>
             <mass value="0.2"/>
             <inertia ixx="6.42688e-05" iyy="8.04363e-05" izz="3.90488e-05" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0.0016 0.0067 0.0246" rpy="-3.36427 0.0180379 -0.288623"/>
+            <origin xyz="0.0016 0.0067 0.0246" rpy="-3.12362 0.174791 0.00977562"/>
             <geometry>
                 <box size="0.0407 0.0262 0.0563"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0.0016 0.0067 0.0246" rpy="-3.36427 0.0180379 -0.288623"/>
+            <origin xyz="0.0016 0.0067 0.0246" rpy="-3.12362 0.174791 0.00977562"/>
             <geometry>
                 <box size="0.0407 0.0262 0.0563"/>
             </geometry>
         </collision>
     </link>
     <joint name="FootThumbR" type="revolute">
-        <origin xyz="0.00189999 -0.0575 0.1111" rpy="0 0 0"/>
+        <origin xyz="0.00189999 -0.0575 0.1111" rpy="-0 0 -0"/>
         <parent link="TalusR"/>
         <child link="FootThumbR"/>
     </joint>
     <link name="FootPinkyR">
         <inertial>
-            <origin xyz="-0.0017 0.0127 0.0316" rpy="-2.73138 -0.0221168 -0.475503"/>
+            <origin xyz="-0.0017 0.0127 0.0316" rpy="-3.12649 0.347435 -0.0134446"/>
             <mass value="0.2"/>
             <inertia ixx="5.60808e-05" iyy="7.63208e-05" izz="3.91213e-05" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="-0.0017 0.0127 0.0316" rpy="-2.73138 -0.0221168 -0.475503"/>
+            <origin xyz="-0.0017 0.0127 0.0316" rpy="-3.12649 0.347435 -0.0134446"/>
             <geometry>
                 <box size="0.0422 0.0238 0.0529"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="-0.0017 0.0127 0.0316" rpy="-2.73138 -0.0221168 -0.475503"/>
+            <origin xyz="-0.0017 0.0127 0.0316" rpy="-3.12649 0.347435 -0.0134446"/>
             <geometry>
                 <box size="0.0422 0.0238 0.0529"/>
             </geometry>
         </collision>
     </link>
     <joint name="FootPinkyR" type="revolute">
-        <origin xyz="-0.0427 -0.0634 0.0913" rpy="0 0 0"/>
+        <origin xyz="-0.0427 -0.0634 0.0913" rpy="-0 0 -0"/>
         <parent link="TalusR"/>
         <child link="FootPinkyR"/>
     </joint>
     <link name="FemurL">
         <inertial>
-            <origin xyz="0.0056 -0.2096 -0.0111" rpy="-0.017202 -0.106212 0.017452"/>
+            <origin xyz="0.0056 -0.2096 -0.0111" rpy="-0.0172017 -0.00240011 0.0138864"/>
             <mass value="7"/>
             <inertia ixx="0.106751" iyy="0.0208241" izz="0.104774" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0.0056 -0.2096 -0.0111" rpy="-0.017202 -0.106212 0.017452"/>
+            <origin xyz="0.0056 -0.2096 -0.0111" rpy="-0.0172017 -0.00240011 0.0138864"/>
             <geometry>
                 <box size="0.1271 0.4043 0.1398"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0.0056 -0.2096 -0.0111" rpy="-0.017202 -0.106212 0.017452"/>
+            <origin xyz="0.0056 -0.2096 -0.0111" rpy="-0.0172017 -0.00240011 0.0138864"/>
             <geometry>
                 <box size="0.1271 0.4043 0.1398"/>
             </geometry>
         </collision>
     </link>
     <joint name="FemurL" type="spherical">
-        <origin xyz="0.0903 -0.0472 0.0192" rpy="0 0 0"/>
+        <origin xyz="0.0903 -0.0472 0.0192" rpy="-0 0 -0"/>
         <parent link="Pelvis"/>
         <child link="FemurL"/>
     </joint>
     <link name="TibiaL">
         <inertial>
-            <origin xyz="-0.0067 -0.2369 -0.0238" rpy="0.087278 -0.0015022 -0.0349012"/>
+            <origin xyz="-0.0067 -0.2369 -0.0238" rpy="0.0872105 -0.00299997 -0.0347738"/>
             <mass value="3"/>
             <inertia ixx="0.0464355" iyy="0.00684271" izz="0.0467689" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="-0.0067 -0.2369 -0.0238" rpy="0.087278 -0.0015022 -0.0349012"/>
+            <origin xyz="-0.0067 -0.2369 -0.0238" rpy="0.0872105 -0.00299997 -0.0347738"/>
             <geometry>
                 <box size="0.1198 0.4156 0.1141"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="-0.0067 -0.2369 -0.0238" rpy="0.087278 -0.0015022 -0.0349012"/>
+            <origin xyz="-0.0067 -0.2369 -0.0238" rpy="0.0872105 -0.00299997 -0.0347738"/>
             <geometry>
                 <box size="0.1198 0.4156 0.1141"/>
             </geometry>
         </collision>
     </link>
     <joint name="TibiaL" type="spherical">
-        <origin xyz="0.0092 -0.395 0.0013" rpy="0 0 0"/>
+        <origin xyz="0.0092 -0.395 0.0013" rpy="-0 0 -0"/>
         <parent link="FemurL"/>
         <child link="TibiaL"/>
     </joint>
     <link name="TalusL">
         <inertial>
-            <origin xyz="0.0026 -0.0373 0.0177" rpy="0.0273046 0.209168 -0.0229218"/>
+            <origin xyz="0.0026 -0.0373 0.0177" rpy="0.0301606 0.208823 -0.0261625"/>
             <mass value="1"/>
             <inertia ixx="0.00226075" iyy="0.00253036" izz="0.00068295" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0.0026 -0.0373 0.0177" rpy="0.0273046 0.209168 -0.0229218"/>
+            <origin xyz="0.0026 -0.0373 0.0177" rpy="0.0301606 0.208823 -0.0261625"/>
             <geometry>
                 <box size="0.0756 0.0498 0.157"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0.0026 -0.0373 0.0177" rpy="0.0273046 0.209168 -0.0229218"/>
+            <origin xyz="0.0026 -0.0373 0.0177" rpy="0.0301606 0.208823 -0.0261625"/>
             <geometry>
                 <box size="0.0756 0.0498 0.157"/>
             </geometry>
         </collision>
     </link>
     <joint name="TalusL" type="spherical">
-        <origin xyz="-0.0195 -0.4611 -0.0316" rpy="0 0 0"/>
+        <origin xyz="-0.0195 -0.4611 -0.0316" rpy="-0 0 -0"/>
         <parent link="TibiaL"/>
         <child link="TalusL"/>
     </joint>
     <link name="FootThumbL">
         <inertial>
-            <origin xyz="-0.0016 0.0067 0.0246" rpy="0.0187466 0.174701 0.0113586"/>
+            <origin xyz="-0.0016 0.0067 0.0246" rpy="0.0179749 0.174791 0.00977562"/>
             <mass value="0.2"/>
             <inertia ixx="6.42688e-05" iyy="8.04363e-05" izz="3.90488e-05" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="-0.0016 0.0067 0.0246" rpy="0.0187466 0.174701 0.0113586"/>
+            <origin xyz="-0.0016 0.0067 0.0246" rpy="0.0179749 0.174791 0.00977562"/>
             <geometry>
                 <box size="0.0407 0.0262 0.0563"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="-0.0016 0.0067 0.0246" rpy="0.0187466 0.174701 0.0113586"/>
+            <origin xyz="-0.0016 0.0067 0.0246" rpy="0.0179749 0.174791 0.00977562"/>
             <geometry>
                 <box size="0.0407 0.0262 0.0563"/>
             </geometry>
         </collision>
     </link>
     <joint name="FootThumbL" type="revolute">
-        <origin xyz="-0.00189999 -0.0575 0.1111" rpy="0 0 0"/>
+        <origin xyz="-0.00189999 -0.0575 0.1111" rpy="-0 0 -0"/>
         <parent link="TalusL"/>
         <child link="FootThumbL"/>
     </joint>
     <link name="FootPinkyL">
         <inertial>
-            <origin xyz="0.0017 0.0127 0.0316" rpy="0.0126027 0.347568 -0.0106638"/>
+            <origin xyz="0.0017 0.0127 0.0316" rpy="0.0151036 0.347435 -0.0134446"/>
             <mass value="0.2"/>
             <inertia ixx="5.60808e-05" iyy="7.63208e-05" izz="3.91213e-05" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0.0017 0.0127 0.0316" rpy="0.0126027 0.347568 -0.0106638"/>
+            <origin xyz="0.0017 0.0127 0.0316" rpy="0.0151036 0.347435 -0.0134446"/>
             <geometry>
                 <box size="0.0422 0.0238 0.0529"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0.0017 0.0127 0.0316" rpy="0.0126027 0.347568 -0.0106638"/>
+            <origin xyz="0.0017 0.0127 0.0316" rpy="0.0151036 0.347435 -0.0134446"/>
             <geometry>
                 <box size="0.0422 0.0238 0.0529"/>
             </geometry>
         </collision>
     </link>
     <joint name="FootPinkyL" type="revolute">
-        <origin xyz="0.0427 -0.0634 0.0913" rpy="0 0 0"/>
+        <origin xyz="0.0427 -0.0634 0.0913" rpy="-0 0 -0"/>
         <parent link="TalusL"/>
         <child link="FootPinkyL"/>
     </joint>
     <link name="Spine">
         <inertial>
-            <origin xyz="0 0.0529 0.0033" rpy="0 0 0"/>
+            <origin xyz="0 0.0529 0.0033" rpy="-0 0 -0"/>
             <mass value="5"/>
             <inertia ixx="0.00800347" iyy="0.00973815" izz="0.00967282" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0 0.0529 0.0033" rpy="0 0 0"/>
+            <origin xyz="0 0.0529 0.0033" rpy="-0 0 -0"/>
             <geometry>
                 <box size="0.117 0.0976 0.0984"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0 0.0529 0.0033" rpy="0 0 0"/>
+            <origin xyz="0 0.0529 0.0033" rpy="-0 0 -0"/>
             <geometry>
                 <box size="0.117 0.0976 0.0984"/>
             </geometry>
         </collision>
     </link>
     <joint name="Spine" type="spherical">
-        <origin xyz="0 0.0866 -0.0126" rpy="0 0 0"/>
+        <origin xyz="0 0.0866 -0.0126" rpy="-0 0 -0"/>
         <parent link="Pelvis"/>
         <child link="Spine"/>
     </joint>
     <link name="Torso">
         <inertial>
-            <origin xyz="0 0.1271 0.01" rpy="0 0 0"/>
+            <origin xyz="0 0.1271 0.01" rpy="0.00919974 0 0"/>
             <mass value="10"/>
             <inertia ixx="0.0545361" iyy="0.0418364" izz="0.0665797" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0 0.1271 0.01" rpy="0 0 0"/>
+            <origin xyz="0 0.1271 0.01" rpy="0.00919974 0 0"/>
             <geometry>
                 <box size="0.1798 0.2181 0.1337"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0 0.1271 0.01" rpy="0 0 0"/>
+            <origin xyz="0 0.1271 0.01" rpy="0.00919974 0 0"/>
             <geometry>
                 <box size="0.1798 0.2181 0.1337"/>
             </geometry>
         </collision>
     </link>
     <joint name="Torso" type="spherical">
-        <origin xyz="0 0.1086 -0.0064" rpy="0 0 0"/>
+        <origin xyz="0 0.1086 -0.0064" rpy="-0 0 -0"/>
         <parent link="Spine"/>
         <child link="Torso"/>
     </joint>
     <link name="Neck">
         <inertial>
-            <origin xyz="0 0.0453 0.0186" rpy="0.232178 0 0"/>
+            <origin xyz="0 0.0453 0.0186" rpy="0.232173 0 0"/>
             <mass value="2"/>
             <inertia ixx="0.00159181" iyy="0.00175659" izz="0.00193139" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0 0.0453 0.0186" rpy="0.232178 0 0"/>
+            <origin xyz="0 0.0453 0.0186" rpy="0.232173 0 0"/>
             <geometry>
                 <box size="0.0793 0.0728 0.0652"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0 0.0453 0.0186" rpy="0.232178 0 0"/>
+            <origin xyz="0 0.0453 0.0186" rpy="0.232173 0 0"/>
             <geometry>
                 <box size="0.0793 0.0728 0.0652"/>
             </geometry>
         </collision>
     </link>
     <joint name="Neck" type="spherical">
-        <origin xyz="0 0.3083 0.0062" rpy="0 0 0"/>
+        <origin xyz="0 0.3083 0.0062" rpy="-0 0 -0"/>
         <parent link="Torso"/>
         <child link="Neck"/>
     </joint>
     <link name="Head">
         <inertial>
-            <origin xyz="0 0.0875 -0.0037" rpy="0.145209 0 0"/>
+            <origin xyz="0 0.0875 -0.0037" rpy="0.145206 0 0"/>
             <mass value="1"/>
             <inertia ixx="0.00222358" iyy="0.00219516" izz="0.00215281" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0 0.0875 -0.0037" rpy="0.145209 0 0"/>
+            <origin xyz="0 0.0875 -0.0037" rpy="0.145206 0 0"/>
             <geometry>
                 <box size="0.1129 0.1144 0.1166"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0 0.0875 -0.0037" rpy="0.145209 0 0"/>
+            <origin xyz="0 0.0875 -0.0037" rpy="0.145206 0 0"/>
             <geometry>
                 <box size="0.1129 0.1144 0.1166"/>
             </geometry>
         </collision>
     </link>
     <joint name="Head" type="revolute">
-        <origin xyz="0 0.0807999 0.035" rpy="0 0 0"/>
+        <origin xyz="0 0.0807999 0.035" rpy="-0 0 -0"/>
         <parent link="Neck"/>
         <child link="Head"/>
     </joint>
     <link name="ShoulderR">
         <inertial>
-            <origin xyz="-0.0834 0.0109 -0.000999998" rpy="2.43704e+13 0 1.28266e+12"/>
+            <origin xyz="-0.0834 0.0109 -0.000999998" rpy="3.14049 0.0549265 0.00476044"/>
             <mass value="1"/>
             <inertia ixx="0.000681651" iyy="0.00257437" izz="0.00256265" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="-0.0834 0.0109 -0.000999998" rpy="2.43704e+13 0 1.28266e+12"/>
+            <origin xyz="-0.0834 0.0109 -0.000999998" rpy="3.14049 0.0549265 0.00476044"/>
             <geometry>
                 <box size="0.1635 0.0634 0.0645"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="-0.0834 0.0109 -0.000999998" rpy="2.43704e+13 0 1.28266e+12"/>
+            <origin xyz="-0.0834 0.0109 -0.000999998" rpy="3.14049 0.0549265 0.00476044"/>
             <geometry>
                 <box size="0.1635 0.0634 0.0645"/>
             </geometry>
         </collision>
     </link>
     <joint name="ShoulderR" type="spherical">
-        <origin xyz="-0.0147 0.2774 0.0117" rpy="0 0 0"/>
+        <origin xyz="-0.0147 0.2774 0.0117" rpy="-0 0 -0"/>
         <parent link="Torso"/>
         <child link="ShoulderR"/>
     </joint>
     <link name="ArmR">
         <inertial>
-            <origin xyz="-0.1583 0.0172001 0.0118" rpy="1.86993 -0.0222622 -0.101014"/>
+            <origin xyz="-0.1583 0.0172001 0.0118" rpy="1.8698 -0.0812931 -0.0362047"/>
             <mass value="1"/>
             <inertia ixx="0.000452304" iyy="0.0094427" izz="0.00948" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="-0.1583 0.0172001 0.0118" rpy="1.86993 -0.0222622 -0.101014"/>
+            <origin xyz="-0.1583 0.0172001 0.0118" rpy="1.8698 -0.0812931 -0.0362047"/>
             <geometry>
                 <box size="0.3329 0.0542 0.0499"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="-0.1583 0.0172001 0.0118" rpy="1.86993 -0.0222622 -0.101014"/>
+            <origin xyz="-0.1583 0.0172001 0.0118" rpy="1.8698 -0.0812931 -0.0362047"/>
             <geometry>
                 <box size="0.3329 0.0542 0.0499"/>
             </geometry>
         </collision>
     </link>
     <joint name="ArmR" type="spherical">
-        <origin xyz="-0.1848 -0.0185001 0.0028" rpy="0 0 0"/>
+        <origin xyz="-0.1848 -0.0185001 0.0028" rpy="-0 0 -0"/>
         <parent link="ShoulderR"/>
         <child link="ArmR"/>
     </joint>
     <link name="ForeArmR">
         <inertial>
-            <origin xyz="-0.144 0.00919998 0.0046" rpy="1.92255 0.0219102 -0.137839"/>
+            <origin xyz="-0.144 0.00919998 0.0046" rpy="1.92163 -0.085707 -0.0827167"/>
             <mass value="0.5"/>
             <inertia ixx="0.000216335" iyy="0.0029917" izz="0.00298872" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="-0.144 0.00919998 0.0046" rpy="1.92255 0.0219102 -0.137839"/>
+            <origin xyz="-0.144 0.00919998 0.0046" rpy="1.92163 -0.085707 -0.0827167"/>
             <geometry>
                 <box size="0.263 0.0506 0.0513"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="-0.144 0.00919998 0.0046" rpy="1.92255 0.0219102 -0.137839"/>
+            <origin xyz="-0.144 0.00919998 0.0046" rpy="1.92163 -0.085707 -0.0827167"/>
             <geometry>
                 <box size="0.263 0.0506 0.0513"/>
             </geometry>
         </collision>
     </link>
     <joint name="ForeArmR" type="revolute">
-        <origin xyz="-0.3239 0.0257001 0.0248" rpy="0 0 0"/>
+        <origin xyz="-0.3239 0.0257001 0.0248" rpy="-0 0 -0"/>
         <parent link="ArmR"/>
         <child link="ForeArmR"/>
     </joint>
     <link name="HandR">
         <inertial>
-            <origin xyz="-0.0708 -0.0043 0.0121" rpy="2.92628 0.34494 -0.0868062"/>
+            <origin xyz="-0.0708 -0.0043 0.0121" rpy="2.94114 -0.0353068 -0.238099"/>
             <mass value="0.2"/>
             <inertia ixx="0.000121089" iyy="0.000403559" izz="0.000286075" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="-0.0708 -0.0043 0.0121" rpy="2.92628 0.34494 -0.0868062"/>
+            <origin xyz="-0.0708 -0.0043 0.0121" rpy="2.94114 -0.0353068 -0.238099"/>
             <geometry>
                 <box size="0.1306 0.0104 0.0846"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="-0.0708 -0.0043 0.0121" rpy="2.92628 0.34494 -0.0868062"/>
+            <origin xyz="-0.0708 -0.0043 0.0121" rpy="2.94114 -0.0353068 -0.238099"/>
             <geometry>
                 <box size="0.1306 0.0104 0.0846"/>
             </geometry>
         </collision>
     </link>
     <joint name="HandR" type="spherical">
-        <origin xyz="-0.2868 0.00829995 0.0299" rpy="0 0 0"/>
+        <origin xyz="-0.2868 0.00829995 0.0299" rpy="-0 0 -0"/>
         <parent link="ForeArmR"/>
         <child link="HandR"/>
     </joint>
     <link name="ShoulderL">
         <inertial>
-            <origin xyz="0.0834 0.0109 -0.000999998" rpy="-0.000950475 0.0549275 0.00475238"/>
+            <origin xyz="0.0834 0.0109 -0.000999998" rpy="-0.00110165 0.0549265 0.00476044"/>
             <mass value="1"/>
             <inertia ixx="0.000681651" iyy="0.00257437" izz="0.00256265" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0.0834 0.0109 -0.000999998" rpy="-0.000950475 0.0549275 0.00475238"/>
+            <origin xyz="0.0834 0.0109 -0.000999998" rpy="-0.00110165 0.0549265 0.00476044"/>
             <geometry>
                 <box size="0.1635 0.0634 0.0645"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0.0834 0.0109 -0.000999998" rpy="-0.000950475 0.0549275 0.00475238"/>
+            <origin xyz="0.0834 0.0109 -0.000999998" rpy="-0.00110165 0.0549265 0.00476044"/>
             <geometry>
                 <box size="0.1635 0.0634 0.0645"/>
             </geometry>
         </collision>
     </link>
     <joint name="ShoulderL" type="spherical">
-        <origin xyz="0.0147 0.2774 0.0117" rpy="0 0 0"/>
+        <origin xyz="0.0147 0.2774 0.0117" rpy="-0 0 -0"/>
         <parent link="Torso"/>
         <child link="ShoulderL"/>
     </joint>
     <link name="ArmL">
         <inertial>
-            <origin xyz="0.1583 0.0172001 0.0118" rpy="-1.26953 -0.093016 0.0205075"/>
+            <origin xyz="0.1583 0.0172001 0.0118" rpy="-1.2718 -0.0812931 -0.0362047"/>
             <mass value="1"/>
             <inertia ixx="0.000452304" iyy="0.0094427" izz="0.00948" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0.1583 0.0172001 0.0118" rpy="-1.26953 -0.093016 0.0205075"/>
+            <origin xyz="0.1583 0.0172001 0.0118" rpy="-1.2718 -0.0812931 -0.0362047"/>
             <geometry>
                 <box size="0.3329 0.0542 0.0499"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0.1583 0.0172001 0.0118" rpy="-1.26953 -0.093016 0.0205075"/>
+            <origin xyz="0.1583 0.0172001 0.0118" rpy="-1.2718 -0.0812931 -0.0362047"/>
             <geometry>
                 <box size="0.3329 0.0542 0.0499"/>
             </geometry>
         </collision>
     </link>
     <joint name="ArmL" type="spherical">
-        <origin xyz="0.1848 -0.0185001 0.0028" rpy="0 0 0"/>
+        <origin xyz="0.1848 -0.0185001 0.0028" rpy="-0 0 -0"/>
         <parent link="ShoulderL"/>
         <child link="ArmL"/>
     </joint>
     <link name="ForeArmL">
         <inertial>
-            <origin xyz="0.144 0.00919998 0.0046" rpy="-1.21484 -0.125124 -0.0198899"/>
+            <origin xyz="0.144 0.00919998 0.0046" rpy="-1.21997 -0.085707 -0.0827167"/>
             <mass value="0.5"/>
             <inertia ixx="0.000216335" iyy="0.0029917" izz="0.00298872" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0.144 0.00919998 0.0046" rpy="-1.21484 -0.125124 -0.0198899"/>
+            <origin xyz="0.144 0.00919998 0.0046" rpy="-1.21997 -0.085707 -0.0827167"/>
             <geometry>
                 <box size="0.263 0.0506 0.0513"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0.144 0.00919998 0.0046" rpy="-1.21484 -0.125124 -0.0198899"/>
+            <origin xyz="0.144 0.00919998 0.0046" rpy="-1.21997 -0.085707 -0.0827167"/>
             <geometry>
                 <box size="0.263 0.0506 0.0513"/>
             </geometry>
         </collision>
     </link>
     <joint name="ForeArmL" type="revolute">
-        <origin xyz="0.3239 0.0257001 0.0248" rpy="0 0 0"/>
+        <origin xyz="0.3239 0.0257001 0.0248" rpy="-0 0 -0"/>
         <parent link="ArmL"/>
         <child link="ForeArmL"/>
     </joint>
     <link name="HandL">
         <inertial>
-            <origin xyz="0.0711 -0.00540006 0.0121" rpy="-0.195265 -0.0588894 -0.233728"/>
+            <origin xyz="0.0711 -0.00540006 0.0121" rpy="-0.200457 -0.0353068 -0.238099"/>
             <mass value="0.2"/>
             <inertia ixx="0.000121089" iyy="0.000403559" izz="0.000286075" iyz="0" izx="0" ixy="0"/>
         </inertial>
         <visual>
-            <origin xyz="0.0711 -0.00540006 0.0121" rpy="-0.195265 -0.0588894 -0.233728"/>
+            <origin xyz="0.0711 -0.00540006 0.0121" rpy="-0.200457 -0.0353068 -0.238099"/>
             <geometry>
                 <box size="0.1306 0.0104 0.0846"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0.0711 -0.00540006 0.0121" rpy="-0.195265 -0.0588894 -0.233728"/>
+            <origin xyz="0.0711 -0.00540006 0.0121" rpy="-0.200457 -0.0353068 -0.238099"/>
             <geometry>
                 <box size="0.1306 0.0104 0.0846"/>
             </geometry>
         </collision>
     </link>
     <joint name="HandL" type="spherical">
-        <origin xyz="0.2868 0.00870001 0.0299" rpy="0 0 0"/>
+        <origin xyz="0.2868 0.00870001 0.0299" rpy="-0 0 -0"/>
         <parent link="ForeArmL"/>
         <child link="HandL"/>
     </joint>

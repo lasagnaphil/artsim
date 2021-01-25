@@ -4,6 +4,8 @@
 
 #include "artsim/utils/urdf.h"
 
+#include <glm/gtx/euler_angles.hpp>
+
 static std::string to_string(glm::vec3 v) {
     char s[30];
     sprintf(s, "%.6g %.6g %.6g", v[0], v[1], v[2]);
@@ -39,9 +41,13 @@ void artsim::export_to_urdf(const artsim::ArticulatedBody& art, const char* robo
         ttransform<real> joint_origin = link.local_joint_pose;
 
         glm::tvec3<real> link_origin_xyz = link_origin.v;
-        glm::tvec3<real> link_origin_rpy = log_mat(link_origin.R);
+        glm::tvec3<real> link_origin_rpy;
+        glm::extractEulerAngleXYZ(glm::tmat4x4<real>(link_origin.R),
+                link_origin_rpy.x, link_origin_rpy.y, link_origin_rpy.z);
         glm::tvec3<real> joint_origin_xyz = joint_origin.v;
-        glm::tvec3<real> joint_origin_rpy = log_mat(joint_origin.R);
+        glm::tvec3<real> joint_origin_rpy;
+        glm::extractEulerAngleXYZ(glm::tmat4x4<real>(joint_origin.R),
+                joint_origin_rpy.x, joint_origin_rpy.y, joint_origin_rpy.z);
 
         XMLElement* link_elem = doc.NewElement("link");
         link_elem->SetAttribute("name", name.c_str());
