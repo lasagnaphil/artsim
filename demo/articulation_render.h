@@ -52,11 +52,16 @@ void render_articulation(const artsim::ArticulationState& state, Color color = R
         rlPopMatrix();
     }
     for (int c = 0; c < state.contact_points.size(); c++) {
-        glm::vec3 normal = glm::vec3(state.contact_normals[c]);
-        const artsim::ContactPoint& cpoint = state.contact_points[c];
+        using namespace artsim;
+        auto normal = state.contact_normals[c];
+        const ContactPoint& cp = state.contact_points[c];
 
-        DrawLine3D(glm_to_ray(glm::vec3(cpoint.T_global.v)),
-                   glm_to_ray(glm::vec3(cpoint.T_global.v + 1.0f * (cpoint.T_global.R * normal))),
+        auto tangent_u = Ez<real>();
+        auto tangent_v = glm::cross(cp.normal, tangent_u);
+        auto contact_T = ttransform<real>(cp.pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp.normal));
+
+        DrawLine3D(glm_to_ray(glm::vec3(contact_T.v)),
+                   glm_to_ray(glm::vec3(contact_T.v + 1.0 * (contact_T.R * normal))),
                    GREEN);
     }
 }

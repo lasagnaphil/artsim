@@ -124,11 +124,22 @@ struct ArticulationState {
     }
 
     void simulate(real dt) {
-#if 1
         if (enable_collision_with_ground) {
+#if 0
             contact_points = artsim::contact_points_between_art_links_and_ground(
                     *art, Id<ArticulatedBody>::null(),
                     ground_col_enabled_links.data(), ground_col_enabled_links.size(), T_link_global.data());
+#else
+            calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
+            for (int i = 0; i < num_joints; i++) {
+                auto& link = art->links[i];
+                link.bt_collision_object->setWorldTransform(btconv(T_link_global[i]));
+            }
+            auto bt_world = art->bt_collision_world;
+            bt_world->performDiscreteCollisionDetection();
+
+            contact_points = artsim::get_contact_points_bullet(bt_world);
+#endif
             contact_normals.resize(contact_points.size());
         }
 
@@ -137,16 +148,6 @@ struct ArticulationState {
                                           contact_points.data(), contact_points.size(),
                                           INOUT q.data(), INOUT u.data(),
                                           OUT udot.data(), OUT contact_normals.data());
-#else
-
-        contact_normals.resize(1000);
-        int num_contact_points;
-        artsim::euler_step_with_collision_bullet(solver_type, max_iters,
-                                                 *art, *material_db, gravity, dt, f_ext.data(), tau.data(),
-                                                 INOUT q.data(), INOUT u.data(),
-                                                 OUT udot.data(), OUT num_contact_points, OUT contact_normals.data());
-        contact_normals.resize(num_contact_points);
-#endif
 
         calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
     }

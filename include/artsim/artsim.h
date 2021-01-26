@@ -350,6 +350,9 @@ inline ttransform<real> glmconv(const btTransform& T) {
         uint32_t index;
         uint32_t generation;
 
+        friend bool operator==(BodyId id1, BodyId id2);
+        friend bool operator!=(BodyId id1, BodyId id2);
+
         static BodyId from_articulation_link(Id<ArticulatedBody> id, uint16_t link_idx) {
             BodyId body_id;
             body_id.index = 0x80000000 | ((id.index & 0x0000ffff) << 16) | link_idx;
@@ -380,17 +383,22 @@ inline ttransform<real> glmconv(const btTransform& T) {
         }
     };
 
+    inline bool operator==(BodyId id1, BodyId id2) {
+        return id1.index == id2.index && id1.generation == id2.generation;
+    }
+    inline bool operator!=(BodyId id1, BodyId id2) {
+        return id1.index != id2.index || id1.generation != id2.generation;
+    }
+
+
     struct ContactPoint {
-        transform T_global;
+        btPersistentManifold* bt_manifold;
+        glm::tvec3<real> pos;
+        glm::tvec3<real> normal;
         real depth;
+        real area;
         BodyId body1_id;
         BodyId body2_id;
-
-        ContactPoint() = default;
-        ContactPoint(glm::vec3 pos, glm::vec3 normal, glm::vec3 tangent,
-                     real depth, BodyId body1_id, BodyId body2_id)
-              : T_global(pos, glm::mat3(tangent, glm::cross(normal, tangent), normal)),
-                depth(depth), body1_id(body1_id), body2_id(body2_id) {}
     };
 
     struct Frame {
