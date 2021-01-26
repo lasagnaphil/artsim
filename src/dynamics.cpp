@@ -584,7 +584,7 @@ void mass_matrix(const ArticulatedBody& art, real dt, const real* q, real* M_ptr
 
         if (art.floating) {
             if (i == 0) T_flink[i] = ttransform<real>();
-            else T_flink[i] = Tinv[i] * T_flink[art.parents[i]];
+            else T_flink[i] = T_flink[art.parents[i]] * Tinv[i];
         }
     }
 
@@ -603,7 +603,7 @@ void mass_matrix(const ArticulatedBody& art, real dt, const real* q, real* M_ptr
                 int ti = get_screw_idx(art.joints[i].type);
                 tscrew<real> Fi[1] = { I[i][ti] };
                 // CRBA_Ft_S(i, i, 0, 0);
-                M(vpos_i, vpos_i) = M(vpos_i, vpos_i) = Fi[0][ti] + kd*dt;
+                M(vpos_i, vpos_i) = Fi[0][ti] + kd*dt;
                 uint32_t j = i;
                 while (j != 0) {
                     Fi[0] = AdT(Tinv[j], Fi[0]);
@@ -621,7 +621,7 @@ void mass_matrix(const ArticulatedBody& art, real dt, const real* q, real* M_ptr
                     }
                 }
                 if (art.floating) {
-                    Fi[0] = AdT(T_flink[i], Fi[0]);
+                    Fi[0] = AdT(T_flink[j], Fi[0]);
                     CRBA_COPY_Fi_TO_M(0);
                 }
             } break;
@@ -661,7 +661,7 @@ void mass_matrix(const ArticulatedBody& art, real dt, const real* q, real* M_ptr
                 }
                 if (art.floating) {
                     for (int k = 0; k < 3; k++) {
-                        Fi[k] = AdT(T_flink[i], Fi[k]);
+                        Fi[k] = AdT(T_flink[j], Fi[k]);
                         CRBA_COPY_Fi_TO_M(k);
                     }
                 }

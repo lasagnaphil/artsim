@@ -111,6 +111,7 @@ TEST_CASE("Various kinds of pendulums") {
     MaterialDB material_db;
     for (auto& [name, art] : articulations) {
         SUBCASE(name.c_str()) {
+
             std::string art_name = name;
             MESSAGE("Articulation name: " << art_name);
             ArticulationState state(&art, &material_db);
@@ -129,7 +130,7 @@ TEST_CASE("Various kinds of pendulums") {
             std::vector<real> h(state.num_vel_dofs, 0.0f);
 
             // Performance comparison
-            int num_iters = 10000;
+            int num_iters = 100;
             {
                 auto t1 = std::chrono::high_resolution_clock::now();
                 for (int i = 0; i < num_iters; i++) {
@@ -140,6 +141,7 @@ TEST_CASE("Various kinds of pendulums") {
                 MESSAGE(num_iters << " iters of featherstone forward dynamics: " << duration.count() << " microsecs");
             }
 
+            /*
             {
                 auto t1 = std::chrono::high_resolution_clock::now();
                 for (int i = 0; i < num_iters; i++) {
@@ -149,43 +151,44 @@ TEST_CASE("Various kinds of pendulums") {
                 auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
                 MESSAGE(num_iters << " iters of rnea forward dynamics: " << duration.count() << " microsecs");
             }
+             */
 
             for (int i = 0; i < 100; i++) {
-                // Check if the mass matrix obtained by CRBA and RNEA are the same
                 mass_matrix(art, dt, state.q.data(), OUT M1.data());
-                mass_matrix_using_rnea(art, dt, state.q.data(), OUT M2.data());
-
-                SUBCASE("Mass matrix obtained by CRBA and RNEA are the same") {
-                    for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
-                        for (int k2 = 0; k2 < state.num_vel_dofs; k2++) {
-                            CHECK(M1[k1 * state.num_vel_dofs + k2] ==
-                                  doctest::Approx(M2[k1 * state.num_vel_dofs + k2]).epsilon(1e-4));
-                            INFO("Iteration " << i << ", DOF (" << k1 << ", " << k2 << ")");
-                        }
-                    }
-                }
-
-                // Print the two mass matrices
                 Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> M1_eigen(
                         M1.data(), state.num_vel_dofs, state.num_vel_dofs);
-                Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> M2_eigen(
-                        M2.data(), state.num_vel_dofs, state.num_vel_dofs);
 
-                // std::cout << M1_eigen << std::endl;
-                // std::cout << M2_eigen << std::endl;
+                // Only perform these tests on non-floating articulations
+                if (!art.floating) {
+                    // Check if the mass matrix obtained by CRBA and RNEA are the same
+                    mass_matrix_using_rnea(art, dt, state.q.data(), OUT M2.data());
 
-                // Evaluate Coriolis force
-                rne_inverse_dynamics(art, gravity, dt, state.q.data(), state.u.data(), q2dot_empty.data(),
-                                     state.f_ext.data(), OUT h.data());
+                    SUBCASE("Mass matrix obtained by CRBA and RNEA are the same") {
+                        for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
+                            for (int k2 = 0; k2 < state.num_vel_dofs; k2++) {
+                                CHECK(M1[k1 * state.num_vel_dofs + k2] ==
+                                      doctest::Approx(M2[k1 * state.num_vel_dofs + k2]).epsilon(1e-4));
+                                INFO("Iteration " << i << ", DOF (" << k1 << ", " << k2 << ")");
+                            }
+                        }
+                    }
 
-                // Perform one step of forward dynamics using Featherstone and RNEA
-                featherstone_forward_dynamics(art, gravity, dt, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
-                forward_dynamics_using_rnea(art, gravity, dt, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
+                    Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> M2_eigen(
+                            M2.data(), state.num_vel_dofs, state.num_vel_dofs);
 
-                // Compare forward dynamics result between Featherstone and RNEA results
-                SUBCASE("Forward dynamics results obtained by Featherstone and RNEA are the same") {
-                    for (int d = 0; d < state.num_vel_dofs; d++) {
-                        CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
+                    // Evaluate Coriolis force
+                    rne_inverse_dynamics(art, gravity, dt, state.q.data(), state.u.data(), q2dot_empty.data(),
+                                         state.f_ext.data(), OUT h.data());
+
+                    // Perform one step of forward dynamics using Featherstone and RNEA
+                    featherstone_forward_dynamics(art, gravity, dt, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_1.data());
+                    forward_dynamics_using_rnea(art, gravity, dt, state.f_ext.data(), state.q.data(), state.u.data(), state.tau.data(), OUT q2dot_2.data());
+
+                    // Compare forward dynamics result between Featherstone and RNEA results
+                    SUBCASE("Forward dynamics results obtained by Featherstone and RNEA are the same") {
+                        for (int d = 0; d < state.num_vel_dofs; d++) {
+                            CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
+                        }
                     }
                 }
 
@@ -208,13 +211,19 @@ TEST_CASE("Various kinds of pendulums") {
                 }
 
                 Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic> M1_eigen_inv = M1_eigen.inverse();
+                // std::cout << "Featherstone Minv:" << std::endl;
+                // std::cout << M1_eigen_inv << std::endl;
+
+                Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> M2_eigen_inv(
+                        Minv_using_fs.data(), state.num_vel_dofs, state.num_vel_dofs);
+                // std::cout << "CRBA Minv:" << std::endl;
+                // std::cout << M2_eigen_inv << std::endl << std::endl;
 
                 SUBCASE("Mass matrix inverse obtained by Featherstone and CRBA are the same") {
                     for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
                         for (int k2 = 0; k2 < state.num_vel_dofs; k2++) {
                             INFO("Iteration " << i << ", DOF (" << k1 << ", " << k2 << ")");
-                            CHECK(Minv_using_fs[k2 * state.num_vel_dofs + k1] ==
-                                  doctest::Approx(M1_eigen_inv(k1,k2)).epsilon(1e-4));
+                            CHECK(M1_eigen_inv(k1,k2) == doctest::Approx(M2_eigen_inv(k1,k2)).epsilon(1e-4));
                         }
                     }
                 }
