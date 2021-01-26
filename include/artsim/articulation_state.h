@@ -124,7 +124,7 @@ struct ArticulationState {
     }
 
     void simulate(real dt) {
-#if 0
+#if 1
         if (enable_collision_with_ground) {
             contact_points = artsim::contact_points_between_art_links_and_ground(
                     *art, Id<ArticulatedBody>::null(),

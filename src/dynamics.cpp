@@ -432,9 +432,8 @@ inline real compute_r(real theta, glm::tvec3<real> Minv_r3, real c_z, real mu) {
 }
 
 inline real bisection_gradient(const tsmat3x3<real>& Minv, tvec3<real> c, tvec3<real> lambda, real mu) {
-    tsmat3x3<real> M = inverse(Minv);
-    glm::tvec3<real> M_r3 = tvec3<real>(M.zx, M.yz, M.zz);
-    glm::tvec3<real> eta = glm::cross(M_r3, glm::tvec3<real>(lambda.x, lambda.y, -mu*mu*lambda.z));
+    glm::tvec3<real> Minv_r3 = tvec3<real>(Minv.zx, Minv.yz, Minv.zz);
+    glm::tvec3<real> eta = glm::cross(Minv_r3, glm::tvec3<real>(lambda.x, lambda.y, -mu*mu*lambda.z));
     return glm::dot(Minv * lambda + c, eta);
 }
 
@@ -469,7 +468,7 @@ static glm::tvec3<real> contact_bisection_solver(tvec3<real> lambda_v0, const ts
         if (grad * D0 > 0) { theta_p = theta_b; }
         else { theta = theta_b; }
         iter++;
-        if (iter == 100) {
+        if (iter == 20) {
             output_log("Bisection solver: bisection cannot find root!\n");
             exit(EXIT_FAILURE);
         }
@@ -486,6 +485,7 @@ static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tsmat3x3<
     real r_t = alpha / max(Minv.xx, Minv.yy);
     tvec3<real> v = c + Minv*lambda;
     real lambda_z = max(real(0), lambda.z - r_z*v.z);
+    // TODO: Do real euclidean projection on conic disk
     tvec2<real> lambda_t = tvec2<real>(lambda.x - r_t*v.x, lambda.y - r_t*v.y);
     real lambda_t_len = length(lambda_t);
     if (lambda_t_len > mu*lambda_z) {
@@ -684,8 +684,8 @@ void solve_collision_bullet(ContactSolverType type, uint32_t max_iters,
 
     Eigen::Matrix<real, Dynamic, 1> tau_star = Jc * u_bar;
 
-    const real beta = 0.05;
-    const real slop = 1e-4;
+    const real beta = 0.01;
+    const real slop = 5e-5;
 
     for (int i = 0; i < num_contact_points; i++) {
         auto& cp = contact_points[i];
@@ -783,8 +783,8 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
 
     Eigen::Matrix<real, Dynamic, 1> tau_star = Jc * u_bar;
 
-    const real beta = 0.1;
-    const real slop = 1e-4;
+    const real beta = 0.01;
+    const real slop = 5e-5;
 
     for (int i = 0; i < num_contact_points; i++) {
         c[i] = make_vec3<real>(tau_star.data() + 3*i);
