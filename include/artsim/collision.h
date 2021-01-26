@@ -64,6 +64,7 @@ std::vector<ContactPoint> contact_points_between_art_links_and_ground(
                 if (p.y <= epsilon) {
                     cpos.push_back(p);
                 }
+#if 1
                 if (!cpos.empty()) {
                     glm::tvec3<T> cpos_avg = glm::tvec3<T>(0);
                     for (auto& pos : cpos) {
@@ -75,6 +76,14 @@ std::vector<ContactPoint> contact_points_between_art_links_and_ground(
                             BodyId::from_articulation_link(art_id, i),
                             BodyId::from_rigid_body(Id<RigidBody>::null()));
                 }
+#else
+                for (auto& pos : cpos) {
+                    contact_points.emplace_back(
+                            glm::vec3(pos.x, 0, pos.z), Ey<T>(), Ez<T>(), -pos.y,
+                            BodyId::from_articulation_link(art_id, i),
+                            BodyId::from_rigid_body(Id<RigidBody>::null()));
+                }
+#endif
             } break;
             case artsim::Shape::Type::Sphere: {
                 glm::vec3 p = link_global_trans[i].v;

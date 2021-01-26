@@ -19,6 +19,7 @@
 #include <artsim/utils/urdf.h>
 
 #include "articulation_render.h"
+#include "raylib_bullet_renderer.h"
 
 using namespace tinyxml2;
 using namespace artsim;
@@ -211,10 +212,12 @@ int main(int argc, char** argv) {
     export_to_urdf(art, "human", "demo/resources/human.urdf");
     MaterialDB material_db;
 
+    art.bt_collision_world->setDebugDrawer(new RaylibBulletRenderer);
+
     ArticulationState state(&art, &material_db, ContactSolverType::PGS);
 
     auto reset = [&]() {
-        state = ArticulationState(&art, &material_db, ContactSolverType::PGS, 8);
+        state = ArticulationState(&art, &material_db, ContactSolverType::PGS, 16);
         state.enable_collision_with_ground = true;
         // state.ground_col_enabled_links = contact_indices;
         state.set_root_transform(ttransform<real>(tvec3<real>(0.0f, 1.3f, 0.0f)));
@@ -263,10 +266,11 @@ int main(int argc, char** argv) {
         //----------------------------------------------------------------------------------
         BeginDrawing();
         {
-            ClearBackground(RAYWHITE);
+            ClearBackground(BLACK);
             BeginMode3D(camera);
             {
                 render_articulation(state, RED);
+                DrawPlane(Vector3 {0, 0, 0}, Vector2{10, 10}, RAYWHITE);
                 DrawGrid(10, 1.0f);        // Draw a grid
             }
             EndMode3D();
