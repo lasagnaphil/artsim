@@ -41,7 +41,7 @@ void calc_S(const ArticulatedBody &art, const real *q, tscrew<real> *S) {
 ttransform<real> calc_Tinv(const Joint& joint, const Link& link, const real* q) {
     auto inv_linkT = ttransform<real>(inverse(link.local_joint_pose));
     switch (joint.type) {
-        case JOINT_TYPE_FLOATING: return ttransform<real>();
+        case JOINT_TYPE_FLOATING: return ttransform<real>(IDENTITY);
         case JOINT_TYPE_REVOLUTE_X: return Rx(-q[0]) * inv_linkT;
         case JOINT_TYPE_REVOLUTE_Y: return Ry(-q[0]) * inv_linkT;
         case JOINT_TYPE_REVOLUTE_Z: return Rz(-q[0]) * inv_linkT;
@@ -52,7 +52,7 @@ ttransform<real> calc_Tinv(const Joint& joint, const Link& link, const real* q) 
             glm::tquat<real> q_inv = glm::inverse(glm::make_quat<real>(q));
             return mat3_cast<real>(q_inv) * inv_linkT;
         }
-        default: return ttransform<real>();
+        default: return ttransform<real>(IDENTITY);
     }
 }
 
@@ -66,7 +66,7 @@ tscrew<real> calc_v0(const Joint& joint, const real* u) {
         case JOINT_TYPE_PRISMATIC_Y: return tscrew<real>(0, 0, 0, 0, u[0], 0);
         case JOINT_TYPE_PRISMATIC_Z: return tscrew<real>(0, 0, 0, 0, 0, u[0]);
         case JOINT_TYPE_SPHERICAL: return tscrew<real>(u[0], u[1], u[2], 0, 0, 0);
-        default: return tscrew<real>();
+        default: return tscrew<real>(IDENTITY);
     }
 }
 
@@ -77,7 +77,7 @@ calculate_jacobian_for_local_frame(const ArticulatedBody& art, uint32_t link_idx
     int num_vel_dofs = art.get_num_vel_dofs();
     int num_joints = art.get_num_joints();
 
-    std::fill_n(J_local, num_vel_dofs, tscrew<real>());
+    std::fill_n(J_local, num_vel_dofs, tscrew<real>(IDENTITY));
 
     int i = link_idx;
 
@@ -156,7 +156,7 @@ void rne_inverse_dynamics(const ArticulatedBody& art, glm::tvec3<real> gravity, 
                           real* tau) {
 
     int num_joints = art.get_num_joints();
-    std::vector<RecursiveNewtonEulerData> data(num_joints);
+    auto data = new RecursiveNewtonEulerData[num_joints];
 
     for (int i = 0; i < num_joints; i++) {
         auto& joint = art.joints[i];
@@ -185,16 +185,16 @@ void rne_inverse_dynamics(const ArticulatedBody& art, glm::tvec3<real> gravity, 
         if (i == 0) {
             if (art.floating) {
                 ttransform<real> T_root = ttransform<real>(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
-                data[0].T_global_inv = ttransform<real>();
+                data[0].T_global_inv = ttransform<real>(IDENTITY);
                 data[0].v = make_tscrew(u);
                 data[0].a = Ad(inverse(T_root), tscrew<real>(tvec3<real>(0), -gravity));
                 data[0].f = data[0].I * data[0].a - adT(data[0].v, data[0].I * data[0].v) - data[0].f_ext;
                 continue;
             }
             else {
-                data[0].v = tscrew<real>();
+                data[0].v = tscrew<real>(IDENTITY);
                 data[0].a = tscrew<real>(tvec3<real>(0), -gravity);
-                data[0].T_global_inv = ttransform<real>();
+                data[0].T_global_inv = ttransform<real>(IDENTITY);
             }
         }
         else {
@@ -231,6 +231,8 @@ void rne_inverse_dynamics(const ArticulatedBody& art, glm::tvec3<real> gravity, 
             }
         }
     }
+
+    delete [] data;
 }
 
 struct FeatherstoneData {
@@ -333,7 +335,7 @@ void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> 
                                    real* udot) {
 
     int num_joints = art.get_num_joints();
-    std::vector<FeatherstoneData> data(num_joints);
+    auto data = new FeatherstoneData[num_joints];
 
     for (int i = 0; i < num_joints; i++) {
         auto& joint = art.joints[i];
@@ -360,14 +362,14 @@ void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> 
     for (int i : art.bfs_iteration_order) {
         if (i == 0) {
             if (art.floating) {
-                data[0].T_global_inv = ttransform<real>();
+                data[0].T_global_inv = ttransform<real>(IDENTITY);
                 data[0].v = make_tscrew(u);
                 data[0].p_a = -adT(data[0].v, data[0].I_a * data[0].v) - data[0].f_ext - make_tscrew(tau);
                 continue;
             }
             else {
-                data[i].T_global_inv = ttransform<real>();
-                data[i].v = tscrew<real>();
+                data[i].T_global_inv = ttransform<real>(IDENTITY);
+                data[i].v = tscrew<real>(IDENTITY);
             }
         }
         else {
@@ -419,6 +421,8 @@ void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> 
             }
         }
     }
+
+    delete [] data;
 }
 
 
@@ -426,7 +430,7 @@ void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real* q, 
     uint32_t dof = art.get_num_vel_dofs();
     std::vector<real> u(dof, 0);
     std::vector<real> udot(dof, 0);
-    std::vector<tscrew<real>> f_ext(art.get_num_joints(), tscrew<real>());
+    std::vector<tscrew<real>> f_ext(art.get_num_joints(), tscrew<real>(IDENTITY));
     std::vector<real> tau(dof, 0);
 
     udot[0] = 1;
@@ -508,7 +512,7 @@ void calc_transforms(const ArticulatedBody& art, const real* q, ttransform<real>
         auto& link = art.links[i];
         ttransform<real> T_joint_global_parent;
         if (i == 0) {
-            T_joint_global_parent = ttransform<real>();
+            T_joint_global_parent = ttransform<real>(IDENTITY);
         }
         else {
             T_joint_global_parent = T_joint_globals[art.parents[i]];
@@ -583,7 +587,7 @@ void mass_matrix(const ArticulatedBody& art, real dt, const real* q, real* M_ptr
         I[i] = tsmat6x6<real>(inv_transform(I0, ttransform<real>(inverse(art.links[i].local_link_pose))));
 
         if (art.floating) {
-            if (i == 0) T_flink[i] = ttransform<real>();
+            if (i == 0) T_flink[i] = ttransform<real>(IDENTITY);
             else T_flink[i] = T_flink[art.parents[i]] * Tinv[i];
         }
     }

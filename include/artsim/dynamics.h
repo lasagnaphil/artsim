@@ -24,7 +24,7 @@ namespace artsim {
     }
 
     inline tscrew<real> get_joint_screw(JointType joint_type) {
-        tscrew<real> V;
+        tscrew<real> V(IDENTITY);
         V[get_screw_idx(joint_type)] = real(1);
         return V;
     }

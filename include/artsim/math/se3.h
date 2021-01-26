@@ -15,12 +15,16 @@
 #include <glm/gtx/norm.hpp>
 
 namespace artsim {
+    enum Identity {
+        IDENTITY
+    };
     template <class T>
     struct ttransform {
         glm::tvec3<T> v;
         glm::tmat3x3<T> R;
 
-        ttransform() : v(0), R(glm::identity<glm::tmat3x3<T>>()) {}
+        ttransform() = default;
+        ttransform(Identity identity) : v(0), R(glm::identity<glm::tmat3x3<T>>()) {}
         explicit ttransform(glm::tvec3<T> v) : v(v), R(glm::identity<glm::tmat3x3<T>>()) {}
         explicit ttransform(glm::tquat<T> q) : v(0), R(glm::mat3_cast(q)) {}
         explicit ttransform(glm::tmat3x3<T> R) : v(0), R(R) {}
@@ -79,7 +83,8 @@ namespace artsim {
     struct tscrew {
         glm::tvec3<T> w, v;
 
-        tscrew() : w(0), v(0) {}
+        tscrew() = default;
+        tscrew(Identity identity) : w(0), v(0) {}
         tscrew(glm::tvec3<T> w, glm::tvec3<T> v) : w(w), v(v) {}
         tscrew(T wx, T wy, T wz, T vx, T vy, T vz) : w(wx, wy, wz), v(vx, vy, vz) {}
 
@@ -166,7 +171,7 @@ namespace artsim {
         if (v2 >= glm::epsilon<T>()) {
             return V / glm::sqrt(v2);
         }
-        return tscrew<T>();
+        return tscrew<T>(IDENTITY);
     }
 
     // Calculates exp([V] * theta).
@@ -221,6 +226,7 @@ namespace artsim {
         T xx, yy, zz, yz, zx, xy;
 
         tsmat3x3() = default;
+        tsmat3x3(Identity identity) : xx(1), yy(1), zz(1), yz(0), zx(0), xy(0) {}
         tsmat3x3(T k) : xx(k), yy(k), zz(k), yz(0), zx(0), xy(0) {}
         tsmat3x3(T xx, T yy, T zz, T yz, T zx, T xy) : xx(xx), yy(yy), zz(zz), yz(yz), zx(zx), xy(xy) {}
 

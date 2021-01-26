@@ -63,8 +63,8 @@ artsim::ArticulatedBody load_human(const char* filename, std::vector<uint32_t>& 
     std::unordered_map<std::string, ttransform<real>> T_global_joint_map;
     std::unordered_map<std::string, int> idx_map;
 
-    T_global_body_map["None"] = ttransform<real>();
-    T_global_joint_map["None"] = ttransform<real>();
+    T_global_body_map["None"] = ttransform<real>(IDENTITY);
+    T_global_joint_map["None"] = ttransform<real>(IDENTITY);
     idx_map["None"] = -1;
 
     XMLDocument doc;
@@ -140,7 +140,7 @@ artsim::ArticulatedBody load_human(const char* filename, std::vector<uint32_t>& 
             local_joint_pose = T_global_joint / T_global_joint_map[parent_name];
         }
         else {
-            local_joint_pose = ttransform<real>();
+            local_joint_pose = ttransform<real>(IDENTITY);
         }
         ttransform<real> local_link_pose = T_global_body / T_global_joint;
 

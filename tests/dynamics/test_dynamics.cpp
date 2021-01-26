@@ -196,7 +196,7 @@ TEST_CASE("Various kinds of pendulums") {
                 std::vector<real> Minv_using_fs(state.num_vel_dofs*state.num_vel_dofs);
                 std::vector<real> tau_trial(state.num_vel_dofs, 0);
                 std::vector<real> empty_vec(state.num_vel_dofs, 0);
-                std::vector<tscrew<real>> empty_f_ext(state.num_vel_dofs, tscrew<real>());
+                std::vector<tscrew<real>> empty_f_ext(state.num_vel_dofs, tscrew<real>(IDENTITY));
 
                 tau_trial[0] = 1;
                 featherstone_forward_dynamics(art, tvec3<real>(0), dt,

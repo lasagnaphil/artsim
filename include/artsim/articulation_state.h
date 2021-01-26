@@ -46,9 +46,9 @@ struct ArticulationState {
             : art(artPtr), material_db(material_db),
               num_pos_dofs(art->get_num_pos_dofs()), num_vel_dofs(art->get_num_vel_dofs()), num_joints(art->get_num_joints()),
               q(num_pos_dofs, 0), u(num_vel_dofs, 0), udot(num_vel_dofs, 0), tau(num_vel_dofs, 0),
-              f_ext(num_joints, tscrew<real>()),
-              T_link_global(num_joints, ttransform<real>()),
-              T_joint_global(num_joints, ttransform<real>()),
+              f_ext(num_joints, tscrew<real>(IDENTITY)),
+              T_link_global(num_joints, ttransform<real>(IDENTITY)),
+              T_joint_global(num_joints, ttransform<real>(IDENTITY)),
               solver_type(solverType), max_iters(max_iters)
     {
         reset_positions();
@@ -125,7 +125,7 @@ struct ArticulationState {
 
     void simulate(real dt) {
         if (enable_collision_with_ground) {
-#if 0
+#if 1
             contact_points = artsim::contact_points_between_art_links_and_ground(
                     *art, Id<ArticulatedBody>::null(),
                     ground_col_enabled_links.data(), ground_col_enabled_links.size(), T_link_global.data());
