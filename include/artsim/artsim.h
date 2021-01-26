@@ -23,11 +23,21 @@
 #define INOUT
 
 namespace artsim {
+
 #ifdef ARTSIM_USE_DOUBLE
 using real = double;
 #else
 using real = float;
 #endif
+
+#define SHOW_LOG
+
+#ifdef SHOW_LOG
+#define output_log(...) printf(__VA_ARGS__)
+#else
+#define output_log(...)
+#endif
+
 
 inline btVector3 btconv(const glm::tvec3<real>& v) {
     return btVector3(v.x, v.y, v.z);

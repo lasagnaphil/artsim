@@ -7,7 +7,7 @@
 
 #include <artsim/artsim.h>
 #include <artsim/dynamics.h>
-#include <artsim/collision.h>
+#include <artsim/contacts.h>
 
 #include <random>
 

@@ -219,7 +219,7 @@ int main(int argc, char** argv) {
     auto reset = [&]() {
         state = ArticulationState(&art, &material_db, ContactSolverType::PGS, 16);
         state.enable_collision_with_ground = true;
-        // state.ground_col_enabled_links = contact_indices;
+        state.ground_col_enabled_links = contact_indices;
         state.set_root_transform(ttransform<real>(tvec3<real>(0.0f, 1.3f, 0.0f)));
         state.update_transforms();
     };
@@ -229,6 +229,8 @@ int main(int argc, char** argv) {
     float dt = 1.0f / 600.0f;
 
     bool run_simulation = true;
+
+    std::deque<float> prev_sim_times;
 
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
@@ -253,8 +255,19 @@ int main(int argc, char** argv) {
             state.simulate(dt, 10);
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-            printf("Duration: %lld microsecs\n", duration.count());
+            float sim_time = 0.001f * duration.count() / 10;
+            if (prev_sim_times.size() == 60) {
+                prev_sim_times.pop_front();
+            }
+            prev_sim_times.push_back(sim_time);
+
         }
+
+        float avg_sim_time = 0.0f;
+        for (auto& t : prev_sim_times) {
+            avg_sim_time += t;
+        }
+        avg_sim_time /= prev_sim_times.size();
 
         //----------------------------------------------------------------------------------
         ImGui_ImplOpenGL3_NewFrame();
@@ -276,6 +289,9 @@ int main(int argc, char** argv) {
             EndMode3D();
 
             DrawFPS(10, 10);
+            char sim_time_text[30];
+            sprintf(sim_time_text, "Sim: %.6f ms", avg_sim_time);
+            DrawText(sim_time_text, 10, 30, 16, GREEN);
             // ImGui::ShowDemoWindow();
             // ImPlot::ShowDemoWindow();
             ImGui::Render();

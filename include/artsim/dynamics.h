@@ -9,13 +9,10 @@
 #include "artsim/math/se3.h"
 #include "artsim/math/dynmat.h"
 
-#include "artsim/collision.h"
-
 #include <queue>
 #include <iostream>
 #include <chrono>
 
-#include <Eigen/Dense>
 #include <glm/gtc/type_ptr.hpp>
 
 namespace artsim {
@@ -57,24 +54,6 @@ namespace artsim {
                                        const real*__restrict q, const real*__restrict u, const real*__restrict tau,
                                        OUT real*__restrict udot);
 
-    enum class ContactSolverType {
-        PGS, Bisection, NCP
-    };
-
-    void solve_collision(ContactSolverType type,
-                         const ArticulatedBody& art,
-                         const MaterialDB& material_db,
-                         glm::tvec3<real> gravity, real dt,
-                         const real*__restrict q, const real*__restrict u, const real*__restrict udot_orig,
-                         const tscrew<real>*__restrict f_ext, const real* tau,
-                         const ContactPoint*__restrict contact_points, uint32_t num_contact_points,
-                         OUT glm::tvec3<real>*__restrict out_lambda, OUT real*__restrict out_contact_forces);
-
-    void iterative_solve(ContactSolverType type, uint32_t max_iters, real dt,
-                         uint32_t num_contact_points,
-                         const dynmat<tsmat3x3<real>>& M_contact_inv,
-                         INOUT tvec3<real>* c, INOUT tvec3<real>* lambda);
-
     void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real*__restrict q, OUT real*__restrict M);
 
     void all_forces(const ArticulatedBody& art,
@@ -101,24 +80,6 @@ namespace artsim {
     // Mass matrix calculation using the composite-rigid-body algorithm.
     void mass_matrix(const ArticulatedBody& art, real dt, const real*__restrict q, OUT real*__restrict M_ptr);
 
-    void euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
-                                   const ArticulatedBody& art,
-                                   const MaterialDB& material_db,
-                                   glm::tvec3<real> gravity, real dt,
-                                   const tscrew<real>*__restrict f_ext,
-                                   const real*__restrict tau,
-                                   const ContactPoint* contact_points, uint32_t num_contact_points,
-                                   INOUT real*__restrict q, INOUT real*__restrict u,
-                                   OUT real*__restrict udot, OUT glm::tvec3<real>* lambda);
-
-    void euler_step_with_collision_bullet(ContactSolverType type, uint32_t max_iters,
-                                   const ArticulatedBody& art,
-                                   const MaterialDB& material_db,
-                                   glm::tvec3<real> gravity, real dt,
-                                   const tscrew<real>*__restrict f_ext,
-                                   const real*__restrict tau,
-                                   INOUT real*__restrict q, INOUT real*__restrict u,
-                                   OUT real*__restrict udot, OUT int& num_contact_points, OUT glm::tvec3<real>* lambda);
 
 }
 
