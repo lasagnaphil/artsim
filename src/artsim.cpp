@@ -77,6 +77,8 @@ Link Link::create(const tsmat3x3<real>& inertia, real mass, Shape shape,
         case Shape::Type::Box:
             link.bt_shape = new btBoxShape(btconv(real(0.5) * shape.box.size)); break;
     }
+    auto I0 = tspmat<real>(tsmat3x3<real>(link.inertia), glm::tvec3<real>(0), link.mass);
+    link.I_j = inv_transform(I0, ttransform<real>(inverse(link.local_link_pose)));
     return link;
 }
 

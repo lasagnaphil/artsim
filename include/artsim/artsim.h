@@ -187,7 +187,8 @@ inline ttransform<real> glmconv(const btTransform& T) {
     };
 
     struct Link {
-        tsmat3x3<real> inertia;
+        tsmat3x3<real> inertia; // inertia from link frame
+        tspmat<real> I_j; // Spatial mass matrix from joint frame
         real mass;
         Shape shape;
         btCollisionShape* bt_shape;

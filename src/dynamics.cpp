@@ -169,8 +169,7 @@ void rne_inverse_dynamics(const ArticulatedBody& art, glm::tvec3<real> gravity, 
         data[i].has_parent = i != 0;
         data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
         data[i].v0 = calc_v0(joint, u + cur_vel_dof);
-        auto I0 = tspmat<real>(tsmat3x3<real>(art.links[i].inertia), glm::tvec3<real>(0), art.links[i].mass);
-        data[i].I = inv_transform(I0, ttransform<real>(inverse(art.links[i].local_link_pose)));
+        data[i].I = link.I_j;
         if (f_ext) data[i].f_ext = f_ext[i];
         if (!art.floating || i != 0) {
             for (int j = 0; j < num_vel_dofs; j++) {
@@ -347,8 +346,7 @@ void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> 
         data[i].has_parent = i != 0;
         data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
         data[i].v0 = calc_v0(joint, u + cur_vel_dof);
-        auto I0 = tspmat<real>(tsmat3x3<real>(link.inertia), glm::tvec3<real>(0), link.mass);
-        data[i].I_a = tsmat6x6<real>(inv_transform(I0, ttransform<real>(inverse(link.local_link_pose))));
+        data[i].I_a = tsmat6x6<real>(link.I_j);
         if (f_ext) data[i].f_ext = f_ext[i];
         if (!(i == 0 && art.floating)) {
             for (int j = 0; j < num_vel_dofs; j++) {
@@ -584,7 +582,7 @@ void mass_matrix(const ArticulatedBody& art, real dt, const real* q, real* M_ptr
         uint32_t vpos = art.joint_vel_dof_starts[i];
         Tinv[i] = calc_Tinv(art.joints[i], art.links[i], q + ppos);
         auto I0 = tspmat<real>(tsmat3x3<real>(art.links[i].inertia), glm::tvec3<real>(0), art.links[i].mass);
-        I[i] = tsmat6x6<real>(inv_transform(I0, ttransform<real>(inverse(art.links[i].local_link_pose))));
+        I[i] = tsmat6x6<real>(art.links[i].I_j);
 
         if (art.floating) {
             if (i == 0) T_flink[i] = ttransform<real>(IDENTITY);
