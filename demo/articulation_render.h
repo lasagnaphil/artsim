@@ -61,7 +61,7 @@ void render_articulation(const artsim::ArticulationState& state, Color color = R
         auto contact_T = ttransform<real>(cp.pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp.normal));
 
         DrawLine3D(glm_to_ray(glm::vec3(contact_T.v)),
-                   glm_to_ray(glm::vec3(contact_T.v + 1.0 * (contact_T.R * normal))),
+                   glm_to_ray(glm::vec3(contact_T.v + real(1.0) * (contact_T.R * normal))),
                    GREEN);
     }
 }
