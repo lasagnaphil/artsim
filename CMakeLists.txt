@@ -13,6 +13,11 @@ find_package(Eigen3 CONFIG REQUIRED)
 find_package(TinyXML2 REQUIRED)
 
 option(ARTSIM_USE_DOUBLE "Use double instead of float" ON)
+option(ARTSIM_USE_ASAN "Use Address Sanitizer" OFF)
+
+if (ARTSIM_USE_ASAN)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -O1")
+endif()
 
 add_subdirectory(libs/bullet_collision)
 

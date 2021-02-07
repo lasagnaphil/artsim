@@ -252,15 +252,17 @@ struct FeatherstoneData {
     tscrew<real> p_a;
     tscrew<real> v;
     tscrew<real> c;
-    struct {
-        tscrew<real> D;
-        real H;
-    } j1dof;
-    struct {
-        tsmat3x3<real> Dinv;
-        tsmat3x3<real> I_Dinv;
-        tmat3x3<real> Ct_Dinv;
-    } j3dof;
+    union {
+        struct {
+            tscrew<real> D;
+            real H;
+        } j1dof;
+        struct {
+            tsmat3x3<real> Dinv;
+            tsmat3x3<real> I_Dinv;
+            tmat3x3<real> Ct_Dinv;
+        } j3dof;
+    };
     tvec3<real> u; // dof
     tscrew<real> a;
 
@@ -268,14 +270,31 @@ struct FeatherstoneData {
     tvec3<real> udot;         // dof
 
     // kin must be calculated using jcalc() before this call
-    inline void featherstone_pass1() {
+    inline void forward_pass1() {
         if (has_parent) T_global_inv = T_global_inv * Tinv;
         v = Ad(Tinv, v) + v0;
         c = ad(v, v0); // + c0; (c0 is zero for all joints)
         p_a = -adT(v, I_a * v) - AdT(T_global_inv, f_ext);
     }
 
-    inline void featherstone_pass2() {
+    inline void forward_pass2() {
+        tscrew<real> a_p = Ad(Tinv, a) + c;
+        switch (joint_type) {
+            JOINT_DOF_1_CASE {
+                int k = get_screw_idx(joint_type);
+                udot[0] = (u[0] - dot(j1dof.D, a_p)) / j1dof.H;
+                a = a_p;
+                a[k] += udot[0];
+            } break;
+            case JOINT_TYPE_SPHERICAL: {
+                udot = j3dof.Dinv * u - j3dof.I_Dinv * a_p.w - glm::transpose(j3dof.Ct_Dinv) * a_p.v;
+                a = a_p;
+                a.w += udot;
+            } break;
+        }
+    }
+
+    inline void backward_pass() {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
@@ -284,7 +303,7 @@ struct FeatherstoneData {
                 u[0] = tau[0] - p_a[k];
                 if (has_parent) {
                     tsmat6x6<real> I_prime = I_a - symmetric_cartesian_product(j1dof.D) / j1dof.H;
-                    tscrew<real> p_prime = p_a + I_prime * c + ((tau[0] - kd * v0[k] - p_a[k]) / j1dof.H) * j1dof.D;
+                    tscrew<real> p_prime = p_a + I_prime * c + ((u[0] - kd * v0[k]) / j1dof.H) * j1dof.D;
                     I_a = inv_transform(I_prime, Tinv);
                     p_a = AdT(Tinv, p_prime);
                 }
@@ -299,7 +318,7 @@ struct FeatherstoneData {
                             I_a.I - j3dof.I_Dinv * I_a.I,
                             I_a.C - mat3_cast(j3dof.I_Dinv) * I_a.C,
                             I_a.M - smat3_cast(j3dof.Ct_Dinv * I_a.C));
-                    tvec3<real> tau_prime = tau - kd * v0.w - p_a.w;
+                    tvec3<real> tau_prime = u - kd * v0.w;
                     tscrew<real> p_prime = p_a;
                     p_prime += I_prime * c;
                     p_prime.w += j3dof.I_Dinv * tau_prime;
@@ -311,8 +330,58 @@ struct FeatherstoneData {
         }
     }
 
-    inline void featherstone_pass3() {
-        tscrew<real> a_p = Ad(Tinv, a) + c;
+
+    inline void invmass_backward_pass1() {
+        switch (joint_type) {
+            JOINT_DOF_1_CASE {
+                int k = get_screw_idx(joint_type);
+                j1dof.D = I_a[k];
+                j1dof.H = j1dof.D[k] + kd * dt;
+                if (has_parent) {
+                    tsmat6x6<real> I_prime = I_a - symmetric_cartesian_product(j1dof.D) / j1dof.H;
+                    I_a = inv_transform(I_prime, Tinv);
+                }
+            } break;
+            case JOINT_TYPE_SPHERICAL: {
+                j3dof.Dinv = inverse(I_a.I + tsmat3x3<real>(kd * dt));
+                j3dof.I_Dinv = I_a.I * j3dof.Dinv;
+                j3dof.Ct_Dinv = glm::transpose(I_a.C) * mat3_cast(j3dof.Dinv);
+                if (has_parent) {
+                    auto I_prime = tsmat6x6<real>(
+                            I_a.I - j3dof.I_Dinv * I_a.I,
+                            I_a.C - mat3_cast(j3dof.I_Dinv) * I_a.C,
+                            I_a.M - smat3_cast(j3dof.Ct_Dinv * I_a.C));
+                    I_a = inv_transform(I_prime, Tinv);
+                }
+            } break;
+        }
+    }
+
+    inline void invmass_backward_pass2() {
+        switch (joint_type) {
+            JOINT_DOF_1_CASE {
+                int k = get_screw_idx(joint_type);
+                u[0] = tau[0] - p_a[k];
+                if (has_parent) {
+                    tscrew<real> p_prime = p_a + (u[0] / j1dof.H) * j1dof.D;
+                    p_a = AdT(Tinv, p_prime);
+                }
+            } break;
+            case JOINT_TYPE_SPHERICAL: {
+                u = tau - p_a.w;
+                if (has_parent) {
+                    tvec3<real> tau_prime = u;
+                    tscrew<real> p_prime = p_a;
+                    p_prime.w += j3dof.I_Dinv * tau_prime;
+                    p_prime.v += j3dof.Ct_Dinv * tau_prime;
+                    p_a = AdT(Tinv, p_prime);
+                }
+            } break;
+        }
+    }
+
+    inline void invmass_forward_pass() {
+        tscrew<real> a_p = Ad(Tinv, a);
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
@@ -329,7 +398,8 @@ struct FeatherstoneData {
     }
 };
 
-void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> gravity, real dt,
+void featherstone_forward_dynamics(const ArticulatedBody& art,
+                                   glm::tvec3<real> gravity, real dt,
                                    const tscrew<real>* f_ext, const real* q, const real* u, const real* tau,
                                    real* udot) {
 
@@ -347,7 +417,12 @@ void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> 
         data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
         data[i].v0 = calc_v0(joint, u + cur_vel_dof);
         data[i].I_a = tsmat6x6<real>(link.I_j);
-        if (f_ext) data[i].f_ext = f_ext[i];
+        if (f_ext) {
+            data[i].f_ext = f_ext[i];
+        }
+        else {
+            data[i].f_ext = tscrew<real>(IDENTITY);
+        }
         if (!(i == 0 && art.floating)) {
             for (int j = 0; j < num_vel_dofs; j++) {
                 data[i].tau[j] = tau[cur_vel_dof + j];
@@ -359,14 +434,13 @@ void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> 
 
     for (int i : art.bfs_iteration_order) {
         if (i == 0) {
+            data[0].T_global_inv = ttransform<real>(IDENTITY);
             if (art.floating) {
-                data[0].T_global_inv = ttransform<real>(IDENTITY);
                 data[0].v = make_tscrew(u);
                 data[0].p_a = -adT(data[0].v, data[0].I_a * data[0].v) - data[0].f_ext - make_tscrew(tau);
                 continue;
             }
             else {
-                data[i].T_global_inv = ttransform<real>(IDENTITY);
                 data[i].v = tscrew<real>(IDENTITY);
             }
         }
@@ -374,12 +448,12 @@ void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> 
             data[i].T_global_inv = data[art.parents[i]].T_global_inv;
             data[i].v = data[art.parents[i]].v;
         }
-        data[i].featherstone_pass1();
+        data[i].forward_pass1();
     }
     int j_limit = art.floating? 1 : 0;
     for (int j = num_joints - 1; j >= j_limit; j--) {
         int i = art.bfs_iteration_order[j];
-        data[i].featherstone_pass2();
+        data[i].backward_pass();
         if (i != 0) {
             data[art.parents[i]].I_a += data[i].I_a;
             data[art.parents[i]].p_a += data[i].p_a;
@@ -398,24 +472,117 @@ void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> 
         else {
             data[i].a = data[art.parents[i]].a;
         }
-        data[i].featherstone_pass3();
+        data[i].forward_pass2();
     }
-    for (int i = 0; i < num_joints; i++) {
+    int i_start = art.floating? 1 : 0;
+    if (art.floating) {
+        ttransform<real> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
+        data[0].a += Ad(inverse(T_root), tscrew<real>(tvec3<real>(0), gravity));
+        udot[0] = data[0].a.w[0];
+        udot[1] = data[0].a.w[1];
+        udot[2] = data[0].a.w[2];
+        udot[3] = data[0].a.v[0];
+        udot[4] = data[0].a.v[1];
+        udot[5] = data[0].a.v[2];
+    }
+    for (int i = i_start; i < num_joints; i++) {
         uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
         int num_vel_dofs = art.joint_vel_dofs[i];
-        if (i == 0 && art.floating) {
-            ttransform<real> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
-            data[i].a += Ad(inverse(T_root), tscrew<real>(tvec3<real>(0), gravity));
-            udot[0] = data[0].a.w[0];
-            udot[1] = data[0].a.w[1];
-            udot[2] = data[0].a.w[2];
-            udot[3] = data[0].a.v[0];
-            udot[4] = data[0].a.v[1];
-            udot[5] = data[0].a.v[2];
+        for (int j = 0; j < num_vel_dofs; j++) {
+            udot[cur_vel_dof + j] = data[i].udot[j];
         }
-        else {
+    }
+
+    delete [] data;
+}
+
+// Solves M^{-1} X, using Featherstone's algorithm, where M is the mass matrix.
+
+void multiply_inverse_mass_matrix(const ArticulatedBody& art, real dt,
+                                  const real* q, dynmat_view<real> X,
+                                  OUT dynmat_view<real> Minv_X) {
+
+    assert(X.cols == art.num_vel_dofs);
+    assert(Minv_X.cols == art.num_vel_dofs);
+    assert(X.rows == Minv_X.rows);
+
+    int num_joints = art.get_num_joints();
+    auto data = new FeatherstoneData[num_joints];
+
+    for (int i = 0; i < num_joints; i++) {
+        auto& joint = art.joints[i];
+        auto& link = art.links[i];
+        uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
+        uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+        data[i].joint_type = joint.type;
+        data[i].has_parent = i != 0;
+        data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
+        data[i].I_a = tsmat6x6<real>(link.I_j);
+        data[i].kd = joint.kd;
+        data[i].dt = dt;
+    }
+
+    int j_limit = art.floating? 1 : 0;
+    for (int j = num_joints - 1; j >= j_limit; j--) {
+        int i = art.bfs_iteration_order[j];
+        data[i].invmass_backward_pass1();
+        if (i != 0) {
+            data[art.parents[i]].I_a += data[i].I_a;
+        }
+    }
+
+    for (int b = 0; b < X.rows; b++) {
+        if (art.floating) {
+            auto tau_root = tscrew<real>(X(b, 0), X(b, 1), X(b, 2), X(b, 3), X(b, 4), X(b, 5));
+            data[0].p_a = -tau_root;
+        }
+        int i_start = art.floating? 1 : 0;
+        for (int i = i_start; i < num_joints; i++) {
+            data[i].p_a = tscrew<real>(IDENTITY);
+            int num_vel_dofs = art.joint_vel_dofs[i];
+            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             for (int j = 0; j < num_vel_dofs; j++) {
-                udot[cur_vel_dof + j] = data[i].udot[j];
+                data[i].tau[j] = X(b, cur_vel_dof + j);
+            }
+        }
+        for (int j = num_joints - 1; j >= j_limit; j--) {
+            int i = art.bfs_iteration_order[j];
+            data[i].invmass_backward_pass2();
+            if (i != 0) {
+                data[art.parents[i]].p_a += data[i].p_a;
+            }
+        }
+
+        for (int i : art.bfs_iteration_order) {
+            if (i == 0) {
+                if (art.floating) {
+                    data[0].a = inverse(data[0].I_a) * (-data[0].p_a);
+                    continue;
+                }
+                else {
+                    data[i].a = tscrew<real>(IDENTITY);
+                }
+            }
+            else {
+                data[i].a = data[art.parents[i]].a;
+            }
+            data[i].invmass_forward_pass();
+        }
+        if (art.floating) {
+            ttransform<real> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
+            data[0].a += Ad(inverse(T_root), tscrew<real>(IDENTITY));
+            Minv_X(b, 0) = data[0].a.w[0];
+            Minv_X(b, 1) = data[0].a.w[1];
+            Minv_X(b, 2) = data[0].a.w[2];
+            Minv_X(b, 3) = data[0].a.v[0];
+            Minv_X(b, 4) = data[0].a.v[1];
+            Minv_X(b, 5) = data[0].a.v[2];
+        }
+        for (int i = i_start; i < num_joints; i++) {
+            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+            int num_vel_dofs = art.joint_vel_dofs[i];
+            for (int j = 0; j < num_vel_dofs; j++) {
+                Minv_X(b, cur_vel_dof + j) = data[i].udot[j];
             }
         }
     }
@@ -423,8 +590,10 @@ void featherstone_forward_dynamics(const ArticulatedBody& art, glm::tvec3<real> 
     delete [] data;
 }
 
+void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real* q, dynmat<real>& M) {
+    assert(M.rows == art.num_vel_dofs);
+    assert(M.cols == art.num_vel_dofs);
 
-void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real* q, real* M) {
     uint32_t dof = art.get_num_vel_dofs();
     std::vector<real> u(dof, 0);
     std::vector<real> udot(dof, 0);
@@ -432,11 +601,11 @@ void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real* q, 
     std::vector<real> tau(dof, 0);
 
     udot[0] = 1;
-    rne_inverse_dynamics(art, glm::tvec3<real>(0), dt, q, u.data(), udot.data(), f_ext.data(), OUT M);
+    rne_inverse_dynamics(art, glm::tvec3<real>(0), dt, q, u.data(), udot.data(), f_ext.data(), M.data());
     for (int i = 1; i < dof; i++) {
         udot[i-1] = 0;
         udot[i] = 1;
-        rne_inverse_dynamics(art, glm::tvec3<real>(0), dt, q, u.data(), udot.data(), f_ext.data(), OUT M + i*dof);
+        rne_inverse_dynamics(art, glm::tvec3<real>(0), dt, q, u.data(), udot.data(), f_ext.data(), M.data() + i*dof);
     }
 }
 
@@ -453,15 +622,16 @@ void forward_dynamics_using_rnea(const ArticulatedBody& art, glm::tvec3<real> gr
     using Vector = Eigen::Matrix<real, Eigen::Dynamic, 1>;
 
     int dof = art.get_num_vel_dofs();
-    Matrix M(dof, dof);
+    dynmat<real> M(dof, dof);
+    Eigen::Map<Matrix> M_eigen(M.data(), dof, dof);
     Vector h(dof);
     Vector b(dof);
     Vector tau_ext = Eigen::Map<const Vector>(tau, dof);
-    mass_matrix_using_rnea(art, dt, q, M.data());
+    mass_matrix_using_rnea(art, dt, q, M);
     all_forces(art, gravity, dt, f_ext, q, u, OUT h.data());
     b.noalias() = tau_ext - h;
     Eigen::Map<Vector> x = Eigen::Map<Vector>(udot, dof);
-    x.noalias() = M.llt().solve(b);
+    x.noalias() = M_eigen.llt().solve(b);
 }
 
 void integrate_implicit_euler(const ArticulatedBody& art, real dt, const real* udot, real* q, real* u) {
@@ -556,12 +726,42 @@ Eigen::Matrix<real, 6, 6> glm_to_eigen(const tsmat6x6<real>& I) {
     return M;
 }
 
-void mass_matrix(const ArticulatedBody& art, real dt, const real* q, real* M_ptr) {
+void glm_to_dynmat(const tsmat3x3<real>& I, OUT dynmat_view<real> M) {
+    M(0, 0) = I.xx;
+    M(1, 1) = I.yy;
+    M(2, 2) = I.zz;
+    M(1, 2) = M(2, 1) = I.yz;
+    M(0, 2) = M(2, 0) = I.zx;
+    M(0, 1) = M(1, 0) = I.xy;
+}
+
+void glm_to_dynmat(const tmat3x3<real>& C, OUT dynmat_view<real> M) {
+    M(0, 0) = C[0][0];
+    M(0, 1) = C[0][1];
+    M(0, 2) = C[0][2];
+    M(1, 0) = C[1][0];
+    M(1, 1) = C[1][1];
+    M(1, 2) = C[1][2];
+    M(2, 0) = C[2][0];
+    M(2, 1) = C[2][1];
+    M(2, 2) = C[2][2];
+}
+
+void glm_to_dynmat(const tsmat6x6<real>& I, OUT dynmat_view<real> M) {
+    glm_to_dynmat(I.I, M.slice(0, 3, 0, 3));
+    glm_to_dynmat(I.C, M.slice(3, 3, 0, 3));
+    glm_to_dynmat(glm::transpose(I.C), M.slice(0, 3, 3, 3));
+    glm_to_dynmat(I.M, M.slice(3, 3, 3, 3));
+}
+
+void mass_matrix(const ArticulatedBody& art, real dt, const real* q, dynmat_view<real> M) {
+    assert(M.rows == art.num_vel_dofs);
+    assert(M.cols == art.num_vel_dofs);
+
     using namespace Eigen;
     uint32_t vdof = art.get_num_vel_dofs();
     uint32_t num_joints = art.get_num_joints();
-    Eigen::Map<Eigen::Matrix<real, Dynamic, Dynamic>> M(M_ptr, vdof, vdof);
-    M.setZero();
+    M.clear_zero();
 
     std::vector<tsmat6x6<real>> I(num_joints);
 
@@ -672,8 +872,14 @@ void mass_matrix(const ArticulatedBody& art, real dt, const real* q, real* M_ptr
         }
     }
     if (art.floating) {
-        M.block<6,6>(0, 0) = glm_to_eigen(I[0]);
+        glm_to_dynmat(I[0], M.slice(0, 6, 0, 6));
     }
+}
+
+void calc_reduced_to_maximal_jacobian(
+        const ArticulatedBody& art,
+        const tscrew<real>* J,
+        OUT dynmat_view<real> J_mr, OUT dynmat_view<real> J_mr_dot) {
 }
 
 }

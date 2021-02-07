@@ -35,8 +35,10 @@ TEST_CASE("Double pendulum") {
     real dt = 1.0f / 1000.0f;
     tvec3<real> gravity = {0, -g, 0};
 
-    std::vector<real> M1(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
-    std::vector<real> M2(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
+    dynmat<real> M1(state.num_vel_dofs, state.num_vel_dofs);
+    dynmat<real> M2(state.num_vel_dofs, state.num_vel_dofs);
+    M1.clear_zero();
+    M2.clear_zero();
     std::vector<real> h(state.num_vel_dofs, 0.0f);
 
     state.q[0] = 0.25f * glm::pi<real>();
@@ -44,11 +46,11 @@ TEST_CASE("Double pendulum") {
     state.u[0] = 0.0f;
     state.u[1] = 0.0f;
 
-    auto check_dp_M = [m1, m2, l1, l2](real* M, real theta1, real theta2) {
-        CHECK(M[0] == doctest::Approx((m1+m2)*l1*l1 + m2*l2*l2 + 2*m2*l1*l2*cos(theta2)).epsilon(1e-6));
-        CHECK(M[1] == doctest::Approx(m2*l2*l2 + m2*l1*l2*cos(theta2)).epsilon(1e-6));
-        CHECK(M[2] == doctest::Approx(m2*l2*l2 + m2*l1*l2*cos(theta2)).epsilon(1e-6));
-        CHECK(M[3] == doctest::Approx(m2*l2*l2).epsilon(1e-6));
+    auto check_dp_M = [m1, m2, l1, l2](const dynmat<real>& M, real theta1, real theta2) {
+        CHECK(M(0,0) == doctest::Approx((m1+m2)*l1*l1 + m2*l2*l2 + 2*m2*l1*l2*cos(theta2)).epsilon(1e-6));
+        CHECK(M(0,1) == doctest::Approx(m2*l2*l2 + m2*l1*l2*cos(theta2)).epsilon(1e-6));
+        CHECK(M(1,0) == doctest::Approx(m2*l2*l2 + m2*l1*l2*cos(theta2)).epsilon(1e-6));
+        CHECK(M(1,1) == doctest::Approx(m2*l2*l2).epsilon(1e-6));
     };
     auto check_dp_b = [m1, m2, l1, l2, g](real h1, real h2, real q1, real q2, real q1d, real q2d) {
         CHECK(h1 == doctest::Approx(
@@ -61,10 +63,10 @@ TEST_CASE("Double pendulum") {
     };
 
     for (int i = 0; i < 1000; i++) {
-        mass_matrix_using_rnea(art, dt, state.q.data(), OUT M1.data());
-        check_dp_M(M1.data(), state.q[0], state.q[1]);
-        mass_matrix(art, dt, state.q.data(), OUT M2.data());
-        check_dp_M(M2.data(), state.q[0], state.q[1]);
+        mass_matrix_using_rnea(art, dt, state.q.data(), OUT M1);
+        check_dp_M(M1, state.q[0], state.q[1]);
+        mass_matrix(art, dt, state.q.data(), OUT M2.to_view());
+        check_dp_M(M2, state.q[0], state.q[1]);
 
         rne_inverse_dynamics(art, gravity, dt, state.q.data(), state.u.data(), q2dot_empty.data(),
                              state.f_ext.data(), OUT h.data());
@@ -125,8 +127,15 @@ TEST_CASE("Various kinds of pendulums") {
             real dt = 1.0f / 1000.0f;
             tvec3<real> gravity = {0, -g, 0};
 
-            std::vector<real> M1(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
-            std::vector<real> M2(state.num_vel_dofs*state.num_vel_dofs, 0.0f);
+            dynmat<real> M1(state.num_vel_dofs, state.num_vel_dofs);
+            dynmat<real> M2(state.num_vel_dofs, state.num_vel_dofs);
+            M1.clear_zero();
+            M2.clear_zero();
+            Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> M1_eigen(
+                    M1.data(), state.num_vel_dofs, state.num_vel_dofs);
+            Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> M2_eigen(
+                    M2.data(), state.num_vel_dofs, state.num_vel_dofs);
+
             std::vector<real> h(state.num_vel_dofs, 0.0f);
 
             // Performance comparison
@@ -154,27 +163,22 @@ TEST_CASE("Various kinds of pendulums") {
              */
 
             for (int i = 0; i < 100; i++) {
-                mass_matrix(art, dt, state.q.data(), OUT M1.data());
-                Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> M1_eigen(
-                        M1.data(), state.num_vel_dofs, state.num_vel_dofs);
+                mass_matrix(art, dt, state.q.data(), OUT M1.to_view());
 
                 // Only perform these tests on non-floating articulations
                 if (!art.floating) {
                     // Check if the mass matrix obtained by CRBA and RNEA are the same
-                    mass_matrix_using_rnea(art, dt, state.q.data(), OUT M2.data());
+                    mass_matrix_using_rnea(art, dt, state.q.data(), OUT M2);
 
                     SUBCASE("Mass matrix obtained by CRBA and RNEA are the same") {
                         for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
                             for (int k2 = 0; k2 < state.num_vel_dofs; k2++) {
-                                CHECK(M1[k1 * state.num_vel_dofs + k2] ==
-                                      doctest::Approx(M2[k1 * state.num_vel_dofs + k2]).epsilon(1e-4));
-                                INFO("Iteration " << i << ", DOF (" << k1 << ", " << k2 << ")");
+                                CAPTURE(k1);
+                                CAPTURE(k2);
+                                CHECK(M1(k1, k2) == doctest::Approx(M2(k1, k2)).epsilon(1e-4));
                             }
                         }
                     }
-
-                    Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> M2_eigen(
-                            M2.data(), state.num_vel_dofs, state.num_vel_dofs);
 
                     // Evaluate Coriolis force
                     rne_inverse_dynamics(art, gravity, dt, state.q.data(), state.u.data(), q2dot_empty.data(),
@@ -187,13 +191,14 @@ TEST_CASE("Various kinds of pendulums") {
                     // Compare forward dynamics result between Featherstone and RNEA results
                     SUBCASE("Forward dynamics results obtained by Featherstone and RNEA are the same") {
                         for (int d = 0; d < state.num_vel_dofs; d++) {
+                            CAPTURE(d);
                             CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
                         }
                     }
                 }
 
                 // Check if the mass matrix inverse obtained by Featherstone are consistent with CRBA
-                std::vector<real> Minv_using_fs(state.num_vel_dofs*state.num_vel_dofs);
+                dynmat<real> Minv_using_fs(state.num_vel_dofs, state.num_vel_dofs);
                 std::vector<real> tau_trial(state.num_vel_dofs, 0);
                 std::vector<real> empty_vec(state.num_vel_dofs, 0);
                 std::vector<tscrew<real>> empty_f_ext(state.num_vel_dofs, tscrew<real>(IDENTITY));
@@ -210,20 +215,41 @@ TEST_CASE("Various kinds of pendulums") {
                                                   OUT Minv_using_fs.data() + d * state.num_vel_dofs);
                 }
 
-                Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic> M1_eigen_inv = M1_eigen.inverse();
-                // std::cout << "Featherstone Minv:" << std::endl;
-                // std::cout << M1_eigen_inv << std::endl;
+                dynmat<real> Minv(state.num_vel_dofs, state.num_vel_dofs);
+                dynmat<real> identity(state.num_vel_dofs, IDENTITY);
+                multiply_inverse_mass_matrix(art, dt, state.q.data(), identity.to_view(), OUT Minv.to_view());
 
-                Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> M2_eigen_inv(
+                /*
+                Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> Minv_eigen_view(
                         Minv_using_fs.data(), state.num_vel_dofs, state.num_vel_dofs);
-                // std::cout << "CRBA Minv:" << std::endl;
-                // std::cout << M2_eigen_inv << std::endl << std::endl;
+                Eigen::Map<Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>> Minv_eigen_view2(
+                        Minv.data(), state.num_vel_dofs, state.num_vel_dofs);
+
+                std::cout << "FS" << std::endl;
+                std::cout << Minv_eigen_view << std::endl;
+                std::cout << "FS batch" << std::endl;
+                std::cout << Minv_eigen_view2 << std::endl;
+                 */
+
+                SUBCASE("Mass matrix inverse obtained by Featherstone and Batch Featherstone are the same") {
+                    INFO("Current ieration of loop:");
+                    for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
+                        for (int k2 = 0; k2 < state.num_vel_dofs; k2++) {
+                            CAPTURE(k1);
+                            CAPTURE(k2);
+                            CHECK(Minv_using_fs(k1,k2) == doctest::Approx(Minv(k1,k2)).epsilon(1e-4));
+                        }
+                    }
+                }
+
+                Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic> M_eigen_inv = M1_eigen.inverse();
 
                 SUBCASE("Mass matrix inverse obtained by Featherstone and CRBA are the same") {
                     for (int k1 = 0; k1 < state.num_vel_dofs; k1++) {
                         for (int k2 = 0; k2 < state.num_vel_dofs; k2++) {
-                            INFO("Iteration " << i << ", DOF (" << k1 << ", " << k2 << ")");
-                            CHECK(M1_eigen_inv(k1,k2) == doctest::Approx(M2_eigen_inv(k1,k2)).epsilon(1e-4));
+                            CAPTURE(k1);
+                            CAPTURE(k2);
+                            CHECK(Minv_using_fs(k1,k2) == doctest::Approx(M_eigen_inv(k1,k2)).epsilon(1e-4));
                         }
                     }
                 }

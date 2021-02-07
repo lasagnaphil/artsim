@@ -35,8 +35,8 @@ int main(void)
     camera.up = Vector3 { 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
     camera.type = CAMERA_PERSPECTIVE;
-    SetCameraMode(camera, CAMERA_THIRD_PERSON);
-    // SetCameraMode(camera, CAMERA_PERSPECTIVE);
+    // SetCameraMode(camera, CAMERA_THIRD_PERSON);
+    SetCameraMode(camera, CAMERA_PERSPECTIVE);
 
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
 

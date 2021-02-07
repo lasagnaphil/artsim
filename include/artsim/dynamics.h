@@ -53,8 +53,11 @@ namespace artsim {
                                        const tscrew<real>*__restrict f_ext,
                                        const real*__restrict q, const real*__restrict u, const real*__restrict tau,
                                        OUT real*__restrict udot);
+    void multiply_inverse_mass_matrix(const ArticulatedBody& art, real dt,
+                                      const real* q, dynmat_view<real> X,
+                                      OUT dynmat_view<real> Minv_X);
 
-    void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real*__restrict q, OUT real*__restrict M);
+    void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real*__restrict q, OUT dynmat<real>& M);
 
     void all_forces(const ArticulatedBody& art,
                     glm::tvec3<real> gravity, real dt,
@@ -78,7 +81,7 @@ namespace artsim {
                          OUT ttransform<real>* T_joint_globals);
 
     // Mass matrix calculation using the composite-rigid-body algorithm.
-    void mass_matrix(const ArticulatedBody& art, real dt, const real*__restrict q, OUT real*__restrict M_ptr);
+    void mass_matrix(const ArticulatedBody& art, real dt, const real*__restrict q, OUT dynmat_view<real> M);
 
 
 }

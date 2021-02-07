@@ -185,7 +185,7 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
     std::vector<ttransform<real>> T_link_global(num_joints), T_joint_global(num_joints);
     calc_transforms(art, q, OUT T_link_global.data(), OUT T_joint_global.data());
 
-    Eigen::Matrix<real, Dynamic, Dynamic, RowMajor> Jc(3 * num_contact_points, num_vel_dofs);
+    Eigen::Matrix<real, Dynamic, Dynamic> Jc_T(num_vel_dofs, 3*num_contact_points);
     std::vector<tscrew<real>> J_local(num_vel_dofs);
 
     std::vector<tvec3<real>> c(num_contact_points);
@@ -202,14 +202,14 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
                                                contact_T, T_joint_global.data(), S.data(),
                                                OUT J_local.data());
             for (int i = 0; i < num_vel_dofs; i++) {
-                Jc(3*c + 0, i) = J_local[i].v[0];
-                Jc(3*c + 1, i) = J_local[i].v[1];
-                Jc(3*c + 2, i) = J_local[i].v[2];
+                Jc_T(i, 3*c + 0) = J_local[i].v[0];
+                Jc_T(i, 3*c + 1) = J_local[i].v[1];
+                Jc_T(i, 3*c + 2) = J_local[i].v[2];
             }
         }
     }
 
-    Eigen::Matrix<real, Dynamic, 1> tau_star = Jc * u_bar;
+    Eigen::Matrix<real, Dynamic, 1> tau_star = Jc_T.transpose() * u_bar;
 
     const real beta = 0.01;
     const real slop = 5e-5;
@@ -223,15 +223,23 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
 
     Eigen::Matrix<real, Dynamic, Dynamic> Minv_Jc_T(num_vel_dofs, 3*num_contact_points);
     std::vector<real> zero_vec(num_vel_dofs, 0);
+
+    dynmat_view<real> Minv_Jc_T_view(Minv_Jc_T.data(), 3*num_contact_points, num_vel_dofs);
+    dynmat_view<real> Jc_T_view(Jc_T.data(), 3*num_contact_points, num_vel_dofs);
+
+    multiply_inverse_mass_matrix(art, dt, q, Jc_T_view, OUT Minv_Jc_T_view);
+
+    /*
     for (int k = 0; k < 3*num_contact_points; k++) {
-        featherstone_forward_dynamics(art, glm::tvec3<real>(0), dt, f_ext, q, zero_vec.data(), Jc.data() + k*num_vel_dofs,
+        featherstone_forward_dynamics(art, glm::tvec3<real>(0), dt, nullptr, q, zero_vec.data(), Jc_T.data() + k*num_vel_dofs,
                                       OUT Minv_Jc_T.data() + k*num_vel_dofs);
     }
+     */
 
     for (int k = 0; k < num_contact_points; k++) {
-        Eigen::Matrix<real, Dynamic, 3> Minv_Jck_T = Minv_Jc_T.middleCols(3*k, 3);
+        Eigen::Matrix<real, Dynamic, 3> Minv_Jck_T = Minv_Jc_T.middleCols<3>(3*k);
         for (int i = 0; i < num_contact_points; i++) {
-            Eigen::Matrix<real, 3, Dynamic> Jci = Jc.middleRows(3*i, 3);
+            Eigen::Matrix<real, 3, Dynamic> Jci = Jc_T.middleCols<3>(3*i).transpose();
             Eigen::Matrix<real, 3, 3> M_contact_inv_eigen = Jci * Minv_Jck_T;
             M_contact_inv(i, k) = tsmat3x3<real>(
                     M_contact_inv_eigen(0, 0),
@@ -247,7 +255,7 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
                              lambda.data());
 
     Eigen::Matrix<real, Dynamic, 1> lambda_vec = Map<Eigen::Matrix<real, Dynamic, 1>>((real*)lambda.data(), 3*num_contact_points);
-    Eigen::Matrix<real, Dynamic, 1> contact_forces = Jc.transpose() * lambda_vec / dt;
+    Eigen::Matrix<real, Dynamic, 1> contact_forces = Jc_T * lambda_vec / dt;
 
     if (out_lambda) {
         std::memcpy(out_lambda, lambda.data(), sizeof(tvec3<real>) * num_contact_points);
