@@ -29,7 +29,7 @@ void solve_collision(
 void iterative_contact_solver(
         ContactSolverType type, uint32_t max_iters, real dt,
         uint32_t num_contact_points,
-        const dynmat <tsmat3x3<real>>& M_contact_inv,
+        const dynmat<glm::tmat3x3<real>>& M_contact_inv,
         INOUT glm::tvec3<real>* c, INOUT glm::tvec3<real>* lambda);
 
 

@@ -51,9 +51,15 @@ int main(void)
     ArticulatedBody art = examples::create_free_link(5, true);
     MaterialDB material_db;
 
-    ArticulationState state(&art, &material_db, ContactSolverType::PGS);
-    state.enable_collision_with_ground = art.floating;
-    state.randomize_positions();
+    ArticulationState state;
+
+    auto reset = [&]() {
+        state = ArticulationState(&art, &material_db, ContactSolverType::NCP, 16);
+        state.enable_collision_with_ground = art.floating;
+        state.randomize_positions();
+    };
+
+    reset();
 
     float dt = 1.0f / 600.0f;
 
@@ -72,9 +78,7 @@ int main(void)
         // SetCameraMode(camera, CAMERA_THIRD_PERSON);
 
         if (IsKeyPressed(KEY_R)) {
-            state = ArticulationState(&art, &material_db, ContactSolverType::PGS);
-            state.enable_collision_with_ground = true;
-            state.randomize_positions();
+            reset();
         }
         if (IsKeyPressed(KEY_SPACE)) {
             run_simulation = !run_simulation;

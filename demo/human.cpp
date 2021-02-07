@@ -214,7 +214,7 @@ int main(int argc, char** argv) {
 
     art.bt_collision_world->setDebugDrawer(new RaylibBulletRenderer);
 
-    ArticulationState state(&art, &material_db, ContactSolverType::PGS);
+    ArticulationState state;
 
     auto reset = [&]() {
         state = ArticulationState(&art, &material_db, ContactSolverType::PGS, 16);
