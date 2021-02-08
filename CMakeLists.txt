@@ -21,7 +21,12 @@ endif()
 
 add_subdirectory(libs/bullet_collision)
 
-add_library(artsim src/artsim.cpp src/dynamics.cpp src/example_articulations.cpp include/artsim/utils/urdf.h src/utils/urdf.cpp include/artsim/contacts.h src/contacts.cpp)
+add_library(artsim
+        src/artsim.cpp src/dynamics.cpp src/example_articulations.cpp
+        src/contacts.cpp
+        src/soft_body.cpp
+        src/utils/urdf.cpp)
+
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
 target_link_libraries(artsim PUBLIC Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision)
 target_compile_definitions(artsim PRIVATE EIGEN_DONT_PARALLELIZE)
