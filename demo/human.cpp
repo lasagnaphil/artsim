@@ -23,6 +23,7 @@
 
 using namespace tinyxml2;
 using namespace artsim;
+using namespace glmx;
 
 std::vector<double> split_to_double(const std::string& input, int num)
 {

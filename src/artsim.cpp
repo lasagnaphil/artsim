@@ -14,6 +14,7 @@
 #include <queue>
 
 using namespace artsim;
+using namespace glmx;
 
 real Shape::mass(real density) {
     switch (type) {

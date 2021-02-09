@@ -22,14 +22,14 @@ void solve_collision(
         const MaterialDB& material_db,
         glm::tvec3 <real> gravity, real dt,
         const real* __restrict q, const real* __restrict u, const real* __restrict udot_orig,
-        const tscrew <real>* __restrict f_ext, const real* tau,
+        const glmx::tscrew<real>* __restrict f_ext, const real* tau,
         const ContactPoint* __restrict contact_points, uint32_t num_contact_points,
         OUT glm::tvec3 <real>* __restrict out_lambda, OUT real*__restrict out_contact_forces);
 
 void iterative_contact_solver(
         ContactSolverType type, uint32_t max_iters, real dt,
         uint32_t num_contact_points,
-        const dynmat <tsmat3x3<real>>& M_contact_inv,
+        const glmx::dynmat<glmx::tsmat3x3<real>>& M_contact_inv,
         INOUT glm::tvec3<real>* c, INOUT glm::tvec3<real>* lambda);
 
 
@@ -38,7 +38,7 @@ void euler_step_with_collision(
         const ArticulatedBody& art,
         const MaterialDB& material_db,
         glm::tvec3<real> gravity, real dt,
-        const tscrew<real>*__restrict f_ext,
+        const glmx::tscrew<real>*__restrict f_ext,
         const real*__restrict tau,
         const ContactPoint* contact_points, uint32_t num_contact_points,
         INOUT real*__restrict q, INOUT real*__restrict u,
@@ -50,7 +50,7 @@ std::vector<ContactPoint> contact_points_between_art_links_and_ground(
         const ArticulatedBody &art,
         const Id<ArticulatedBody> art_id,
         const uint32_t* link_indices, uint32_t link_indices_count,
-        const ttransform<real>* link_global_trans);
+        const glmx::ttransform<real>* link_global_trans);
 
 }
 

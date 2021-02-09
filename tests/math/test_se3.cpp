@@ -8,7 +8,6 @@
 #include "utils/test_utils.h"
 
 using namespace glm;
-using namespace artsim;
 
 static std::random_device random_dev;
 static std::default_random_engine engine(random_dev());

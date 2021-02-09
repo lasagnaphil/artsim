@@ -8,10 +8,10 @@
 
 #include <Eigen/Dense>
 
-namespace artsim {
-
 using namespace glm;
+using namespace glmx;
 
+namespace artsim {
 /*
  * TODO for contact solver:
  * - PGS:

@@ -24,9 +24,9 @@ struct ArticulationState {
     std::vector<real> u;
     std::vector<real> udot;
     std::vector<real> tau;
-    std::vector<artsim::tscrew<real>> f_ext;
-    std::vector<artsim::ttransform<real>> T_link_global;
-    std::vector<artsim::ttransform<real>> T_joint_global;
+    std::vector<glmx::tscrew<real>> f_ext;
+    std::vector<glmx::ttransform<real>> T_link_global;
+    std::vector<glmx::ttransform<real>> T_joint_global;
 
     glm::tvec3<real> gravity = {0, -9.81, 0};
 
@@ -46,9 +46,9 @@ struct ArticulationState {
             : art(artPtr), material_db(material_db),
               num_pos_dofs(art->get_num_pos_dofs()), num_vel_dofs(art->get_num_vel_dofs()), num_joints(art->get_num_joints()),
               q(num_pos_dofs, 0), u(num_vel_dofs, 0), udot(num_vel_dofs, 0), tau(num_vel_dofs, 0),
-              f_ext(num_joints, tscrew<real>(IDENTITY)),
-              T_link_global(num_joints, ttransform<real>(IDENTITY)),
-              T_joint_global(num_joints, ttransform<real>(IDENTITY)),
+              f_ext(num_joints, glmx::tscrew<real>(glmx::IDENTITY)),
+              T_link_global(num_joints, glmx::ttransform<real>(glmx::IDENTITY)),
+              T_joint_global(num_joints, glmx::ttransform<real>(glmx::IDENTITY)),
               solver_type(solverType), max_iters(max_iters)
     {
         reset_positions();
@@ -170,7 +170,7 @@ struct ArticulationState {
         return glm::make_quat(q.data() + jidx_start);
     }
 
-    ttransform<real> get_root_transform() const {
+    glmx::ttransform<real> get_root_transform() const {
         if (!art->floating) return {};
         return {glm::make_vec3(q.data()), glm::mat3_cast(glm::make_quat(q.data() + 3))};
     }
@@ -190,7 +190,7 @@ struct ArticulationState {
         q[jidx_start+3] = qj[3];
     }
 
-    void set_root_transform(const ttransform<real>& rootT) {
+    void set_root_transform(const glmx::ttransform<real>& rootT) {
         if (art->floating) {
             glm::quat rot = glm::quat_cast(rootT.R);
             q[0] = rootT.v[0];

@@ -14,6 +14,9 @@ find_package(TinyXML2 REQUIRED)
 
 option(ARTSIM_USE_DOUBLE "Use double instead of float" ON)
 option(ARTSIM_USE_ASAN "Use Address Sanitizer" OFF)
+option(ARTSIM_BUILD_RENDERER "Build renderer" OFF)
+option(ARTSIM_BUILD_DEMOS "Build demos" OFF)
+option(ARTSIM_BULID_TESTS "Build tests" OFF)
 
 if (ARTSIM_USE_ASAN)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -O1")
@@ -22,7 +25,7 @@ endif()
 add_subdirectory(libs/bullet_collision)
 
 add_library(artsim
-        src/artsim.cpp src/dynamics.cpp src/example_articulations.cpp
+        src/artsim.cpp src/dynamics.cpp src/utils/example_articulations.cpp
         src/contacts.cpp
         src/soft_body.cpp
         src/utils/urdf.cpp)
@@ -35,6 +38,9 @@ if (ARTSIM_USE_DOUBLE)
     target_compile_definitions(artsim PUBLIC ARTSIM_USE_DOUBLE)
 endif()
 
+if (ARTSIM_BUILD_RENDERER)
+    add_subdirectory(renderer)
+endif()
 if (ARTSIM_BUILD_DEMOS)
     add_subdirectory(demo)
 endif()

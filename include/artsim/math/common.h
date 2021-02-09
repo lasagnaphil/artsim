@@ -8,7 +8,7 @@
 #include <glm/vec3.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-namespace artsim {
+namespace glmx {
     template <class T>
     inline glm::tvec3<T> log(glm::tquat<T> q) {
         constexpr T pi = glm::pi<T>();
@@ -31,7 +31,7 @@ namespace artsim {
     template <class T>
     inline glm::tvec3<T> logdiff(glm::tquat<T> q1, glm::tquat<T> q2) {
         // return glmx::log(q2 * glm::conjugate(q1));
-        return artsim::log(glm::conjugate(q1) * q2);
+        return glmx::log(glm::conjugate(q1) * q2);
     }
 
     template <class T>

@@ -5,8 +5,9 @@
 #ifndef ARTSIM_DYNMAT_H
 #define ARTSIM_DYNMAT_H
 
-
 #include <cstddef>
+
+namespace glmx {
 
 template <class T>
 struct dynmat_view {
@@ -63,7 +64,7 @@ struct dynmat {
     }
     ~dynmat() { delete[] ptr; }
 
-    dynmat(uint32_t N, artsim::Identity, T value = T(1)) : rows(N), cols(N) {
+    dynmat(uint32_t N, glmx::Identity, T value = T(1)) : rows(N), cols(N) {
         ptr = new T[N*N];
         std::fill_n(ptr, N*N, T(0));
         for (int i = 0; i < N; i++) ptr[i*N + i] = value;
@@ -92,5 +93,6 @@ struct dynmat {
     }
 };
 
+}
 
 #endif //ARTSIM_DYNMAT_H

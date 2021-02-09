@@ -12,12 +12,13 @@
 
 #include <artsim/artsim.h>
 #include <artsim/articulation_state.h>
-#include <artsim/example_articulations.h>
+#include <artsim/utils/example_articulations.h>
 
 #include "articulation_render.h"
 
 using namespace artsim;
 using namespace glm;
+using namespace glmx;
 
 int main(void)
 {

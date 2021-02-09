@@ -11,6 +11,9 @@
 #include <glm/matrix.hpp>
 #include <random>
 
+using namespace glm;
+using namespace glmx;
+
 template <class T>
 void populate_random(std::default_random_engine& engine, T* buf, size_t size) {
     for (int i = 0; i < size; i++) {
@@ -41,10 +44,10 @@ void get_random_symmetric(std::default_random_engine& engine, glm::tmat3x3<Real>
 }
 
 template <class Real>
-void get_random(std::default_random_engine& engine, artsim::tsmat6x6<Real>& M) {
-    get_random<artsim::tsmat3x3<Real>, Real>(engine, M.I);
+void get_random(std::default_random_engine& engine, tsmat6x6<Real>& M) {
+    get_random<tsmat3x3<Real>, Real>(engine, M.I);
     get_random<glm::tmat3x3<Real>, Real>(engine, M.C);
-    get_random<artsim::tsmat3x3<Real>, Real>(engine, M.M);
+    get_random<tsmat3x3<Real>, Real>(engine, M.M);
 }
 
 template <class Real>
@@ -56,7 +59,7 @@ void get_random(std::default_random_engine& engine, glm::tquat<Real>& q) {
 }
 
 template <class Real>
-void get_random(std::default_random_engine& engine, artsim::ttransform<Real>& T) {
+void get_random(std::default_random_engine& engine, ttransform<Real>& T) {
     get_random<glm::tvec3<Real>, Real>(engine, T.v);
     get_random<glm::tmat3x3<Real>, Real>(engine, T.R);
 }
@@ -71,7 +74,7 @@ void populate_random(std::default_random_engine& engine, T* obj) {
 }
 
 template <class T, class U>
-void populate_random(std::default_random_engine& engine, artsim::ttransform<T>* obj) {
+void populate_random(std::default_random_engine& engine, ttransform<T>* obj) {
     size_t size = sizeof(T) / sizeof(U);
     glm::tquat<T> q;
     for (int i = 0; i < size; i++) {
@@ -101,12 +104,12 @@ for (int i = 0; i < M1.rows(); i++) { \
 
 
 template <class T>
-Eigen::Matrix<T, 6, 1> to_eigen(const artsim::tscrew<T>& S) {
+Eigen::Matrix<T, 6, 1> to_eigen(const tscrew<T>& S) {
     return Eigen::Map<Eigen::Matrix<T, 6, 1>>((T*)&S);
 }
 
 template <class T>
-Eigen::Matrix<T, 6, 3> to_eigen(artsim::tscrew<T> S[3]) {
+Eigen::Matrix<T, 6, 3> to_eigen(tscrew<T> S[3]) {
     Eigen::Matrix<T, 6, 3> M;
     M.col(0) = to_eigen(S[0]);
     M.col(1) = to_eigen(S[1]);
@@ -115,7 +118,7 @@ Eigen::Matrix<T, 6, 3> to_eigen(artsim::tscrew<T> S[3]) {
 }
 
 template <class T>
-Eigen::Matrix<T, 3, 3> to_eigen(const artsim::tsmat3x3<T>& M) {
+Eigen::Matrix<T, 3, 3> to_eigen(const tsmat3x3<T>& M) {
     Eigen::Matrix<T, 3, 3> Me;
     Me(0, 0) = M.xx; Me(1, 1) = M.yy; Me(2, 2) = M.zz;
     Me(1, 2) = Me(2, 1) = M.yz;
@@ -125,7 +128,7 @@ Eigen::Matrix<T, 3, 3> to_eigen(const artsim::tsmat3x3<T>& M) {
 }
 
 template <class T>
-Eigen::Matrix<T, 6, 6> to_eigen(const artsim::tsmat6x6<T>& A) {
+Eigen::Matrix<T, 6, 6> to_eigen(const tsmat6x6<T>& A) {
     Eigen::Matrix<T, 6, 6> Ae;
     Ae.template block<3, 3>(0, 0) = to_eigen(A.I);
     Ae.template block<3, 3>(0, 3) = to_eigen(A.C);
@@ -135,9 +138,9 @@ Eigen::Matrix<T, 6, 6> to_eigen(const artsim::tsmat6x6<T>& A) {
 }
 
 template <class T>
-Eigen::Matrix<T, 6, 6> to_eigen_adj_matrix(const artsim::ttransform<T>& t) {
+Eigen::Matrix<T, 6, 6> to_eigen_adj_matrix(const ttransform<T>& t) {
     Eigen::Matrix<T, 6, 6> M;
-    auto P = artsim::skew_symmetric(t.v);
+    auto P = skew_symmetric(t.v);
     M.template block<3, 3>(0, 0) = to_eigen(t.R);
     M.template block<3, 3>(0, 3) = Eigen::Matrix<T, 3, 3>::Zero();
     M.template block<3, 3>(3, 0) = to_eigen(P*t.R);

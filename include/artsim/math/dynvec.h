@@ -7,6 +7,8 @@
 
 #include <cstddef>
 
+namespace glmx {
+
 template <class T>
 struct dynvec_view {
     const T* ptr;
@@ -99,4 +101,5 @@ struct dynvec {
     }
 };
 
+}
 #endif //ARTSIM_DYNVEC_H

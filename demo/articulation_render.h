@@ -6,20 +6,20 @@
 #define ARTSIM_ARTICULATION_RENDER_H
 
 #include <artsim/artsim.h>
-#include <artsim/example_articulations.h>
+#include <artsim/utils/example_articulations.h>
 #include <raylib.h>
 #include <rlgl.h>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <imgui.h>
 
-Vector3 glm_to_ray(glm::vec3 v) {
+inline Vector3 glm_to_ray(glm::vec3 v) {
     return Vector3{v.x, v.y, v.z};
 }
 
-void render_articulation(const artsim::ArticulationState& state, Color color = RED) {
+inline void render_articulation(const artsim::ArticulationState& state, Color color = RED) {
     for (int i = 0; i < state.num_joints; i++) {
-        glm::tmat4x4<artsim::real> model_mat = artsim::mat4_cast(state.T_link_global[i]);
+        glm::tmat4x4<artsim::real> model_mat = glmx::mat4_cast(state.T_link_global[i]);
         glm::mat4 model_mat_f = model_mat;
         rlPushMatrix();
         rlMultMatrixf(glm::value_ptr(model_mat_f));
@@ -42,7 +42,7 @@ void render_articulation(const artsim::ArticulationState& state, Color color = R
         rlPushMatrix();
 
         if (!(state.art->floating && i == 0)) {
-            model_mat = artsim::mat4_cast(state.T_joint_global[i]);
+            model_mat = glmx::mat4_cast(state.T_joint_global[i]);
             model_mat_f = model_mat;
             rlMultMatrixf(glm::value_ptr(model_mat_f));
 
@@ -56,9 +56,9 @@ void render_articulation(const artsim::ArticulationState& state, Color color = R
         auto normal = state.contact_normals[c];
         const ContactPoint& cp = state.contact_points[c];
 
-        auto tangent_u = Ez<real>();
+        auto tangent_u = glmx::Ez<real>();
         auto tangent_v = glm::cross(cp.normal, tangent_u);
-        auto contact_T = ttransform<real>(cp.pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp.normal));
+        auto contact_T = glmx::ttransform<real>(cp.pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp.normal));
 
         DrawLine3D(glm_to_ray(glm::vec3(contact_T.v)),
                    glm_to_ray(glm::vec3(contact_T.v + real(1.0) * (contact_T.R * normal))),

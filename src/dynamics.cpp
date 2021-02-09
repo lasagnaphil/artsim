@@ -6,6 +6,9 @@
 
 #include <Eigen/Dense>
 
+using namespace glm;
+using namespace glmx;
+
 namespace artsim {
 
 void calc_S(const ArticulatedBody &art, const real *q, tscrew<real> *S) {
@@ -72,7 +75,7 @@ tscrew<real> calc_v0(const Joint& joint, const real* u) {
 
 void
 calculate_jacobian_for_local_frame(const ArticulatedBody& art, uint32_t link_idx, const ttransform<real>& T_contact,
-                                   const artsim::ttransform<real>* T_joint_global, const tscrew<real>* S,
+                                   const ttransform<real>* T_joint_global, const tscrew<real>* S,
                                    tscrew<real>* J_local) {
     int num_vel_dofs = art.get_num_vel_dofs();
     int num_joints = art.get_num_joints();

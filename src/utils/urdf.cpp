@@ -3,8 +3,9 @@
 //
 
 #include "artsim/utils/urdf.h"
-
 #include <glm/gtx/euler_angles.hpp>
+
+using namespace glmx;
 
 static std::string to_string(glm::vec3 v) {
     char s[30];

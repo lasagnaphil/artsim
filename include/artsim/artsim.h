@@ -47,7 +47,7 @@ inline btMatrix3x3 btconv(const glm::tmat3x3<real>& M) {
     return btMatrix3x3(M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]);
 }
 
-inline btTransform btconv(const ttransform<real>& T) {
+inline btTransform btconv(const glmx::ttransform<real>& T) {
     return btTransform(btconv(T.R), btconv(T.v));
 }
 
@@ -59,7 +59,7 @@ inline glm::tmat3x3<real> glmconv(const btMatrix3x3& M) {
     return {glmconv(M.getColumn(0)), glmconv(M.getColumn(1)), glmconv(M.getColumn(2))};
 }
 
-inline ttransform<real> glmconv(const btTransform& T) {
+inline glmx::ttransform<real> glmconv(const btTransform& T) {
     return {glmconv(T.getOrigin()), glmconv(T.getBasis())};
 }
 
@@ -166,7 +166,7 @@ inline ttransform<real> glmconv(const btTransform& T) {
         static Shape make_sphere(real radius);
 
         real mass(real density);
-        tsmat3x3<real> inertia(real density);
+        glmx::tsmat3x3<real> inertia(real density);
     };
 
     struct Material {
@@ -180,26 +180,26 @@ inline ttransform<real> glmconv(const btTransform& T) {
     };
 
     struct RigidBody {
-        tsmat3x3<real> inertia;
+        glmx::tsmat3x3<real> inertia;
         real mass;
         Shape shape;
-        ttransform<real> global_trans;
+        glmx::ttransform<real> global_trans;
     };
 
     struct Link {
-        tsmat3x3<real> inertia; // inertia from link frame
-        tspmat<real> I_j; // Spatial mass matrix from joint frame
+        glmx::tsmat3x3<real> inertia; // inertia from link frame
+        glmx::tspmat<real> I_j; // Spatial mass matrix from joint frame
         real mass;
         Shape shape;
         btCollisionShape* bt_shape;
-        ttransform<real> local_joint_pose;
-        ttransform<real> local_link_pose;
+        glmx::ttransform<real> local_joint_pose;
+        glmx::ttransform<real> local_link_pose;
         uint32_t parent_idx;
         Id<Material> mat_id;
         btCollisionObject* bt_collision_object;
 
-        static Link create(const tsmat3x3<real>& inertia, real mass, Shape shape,
-                           ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
+        static Link create(const glmx::tsmat3x3<real>& inertia, real mass, Shape shape,
+                           glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
                            int parent_idx, Id<Material> mat_id);
     };
 
@@ -404,10 +404,10 @@ inline ttransform<real> glmconv(const btTransform& T) {
 
     struct Frame {
         BodyId body;
-        artsim::transform T_local;
+        glmx::transform T_local;
 
         static Frame from_articulation(Id<ArticulatedBody> id, uint32_t link_idx,
-                                       const artsim::transform& T_local) {
+                                       const glmx::transform& T_local) {
             return {BodyId::from_articulation_link(id, link_idx), T_local};
         }
     };

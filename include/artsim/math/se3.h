@@ -14,7 +14,7 @@
 #include <glm/gtx/transform.hpp>
 #include <glm/gtx/norm.hpp>
 
-namespace artsim {
+namespace glmx {
     enum Identity {
         IDENTITY
     };
@@ -180,7 +180,7 @@ namespace artsim {
         glm::tvec3<T> w_cross_v = glm::cross(V.w, V.v);
         glm::tvec3<T> p = V.v * theta + (1 - glm::cos(theta)) * w_cross_v +
                       (theta - glm::sin(theta)) * glm::cross(V.w, w_cross_v);
-        glm::tmat3x3<T> R = artsim::exp_mat(V.w * theta);
+        glm::tmat3x3<T> R = glmx::exp_mat(V.w * theta);
 
         return ttransform<T>(p, R);
     }

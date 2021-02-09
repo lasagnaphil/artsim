@@ -2,7 +2,9 @@
 // Created by Phillip Chang on 2020/09/27.
 //
 
-#include "artsim/example_articulations.h"
+#include "artsim/utils/example_articulations.h"
+
+using namespace glmx;
 
 artsim::ArticulatedBody artsim::examples::create_single_pendulum_link(bool spherical, float density, float l, float d) {
     ArticulatedBody art;
