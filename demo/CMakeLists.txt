@@ -4,16 +4,11 @@ add_custom_command(TARGET artsim_copy_resource_folder POST_BUILD
         ${CMAKE_CURRENT_SOURCE_DIR}/resources
         ${CMAKE_CURRENT_BINARY_DIR}/resources)
 
-add_subdirectory(deps)
+add_executable(gengine_demo_spheres_pbr demo_spheres_pbr.cpp)
+target_link_libraries(gengine_demo_spheres_pbr PRIVATE gengine)
 
-add_executable(artsim_demo_pendulum pendulum.cpp)
-target_link_libraries(artsim_demo_pendulum PRIVATE artsim raylib imgui)
+add_executable(artsim_demo_basic demo_human.cpp)
+target_link_libraries(artsim_demo_basic PRIVATE gengine)
 
-add_executable(artsim_demo_contacts contacts.cpp)
-target_link_libraries(artsim_demo_contacts PRIVATE artsim raylib imgui)
-
-add_executable(artsim_demo_contact_bench contact_bench.cpp human.cpp raylib_bullet_renderer.h)
-target_link_libraries(artsim_demo_contact_bench PRIVATE artsim raylib imgui)
-
-add_executable(artsim_demo_human human.cpp)
-target_link_libraries(artsim_demo_human PRIVATE artsim raylib imgui)
+add_executable(artsim_demo_human demo_human.cpp)
+target_link_libraries(artsim_demo_human PRIVATE gengine)

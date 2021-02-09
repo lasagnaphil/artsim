@@ -3,8 +3,9 @@ project(artsim)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-find_package(GLM REQUIRED)
 set(CMAKE_CXX_STANDARD 17)
+
+find_package(GLM REQUIRED)
 
 # We're only using Eigen temporarily for now, we're probably going to remove it in the future
 find_package(Eigen3 CONFIG REQUIRED)
@@ -42,6 +43,9 @@ if (ARTSIM_BUILD_RENDERER)
     add_subdirectory(renderer)
 endif()
 if (ARTSIM_BUILD_DEMOS)
+    if (NOT ARTSIM_BUILD_RENDERER)
+        add_subdirectory(renderer)
+    endif()
     add_subdirectory(demo)
 endif()
 if (ARTSIM_BUILD_TESTS)

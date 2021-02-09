@@ -7,88 +7,83 @@
 
 #include <artsim/artsim.h>
 #include <artsim/utils/example_articulations.h>
-#include <raylib.h>
-#include <rlgl.h>
 #include <glm/gtc/type_ptr.hpp>
-
 #include <imgui.h>
 
-inline Vector3 glm_to_ray(glm::vec3 v) {
-    return Vector3{v.x, v.y, v.z};
-}
+#include <gengine/Arena.h>
+#include <gengine/PBRenderer.h>
+#include <gengine/DebugRenderer.h>
 
-inline void render_articulation(const artsim::ArticulationState& state, Color color = RED) {
-    for (int i = 0; i < state.num_joints; i++) {
-        glm::tmat4x4<artsim::real> model_mat = glmx::mat4_cast(state.T_link_global[i]);
-        glm::mat4 model_mat_f = model_mat;
-        rlPushMatrix();
-        rlMultMatrixf(glm::value_ptr(model_mat_f));
+class ArticulationStateRender {
+public:
+    ArticulationStateRender() = default;
+    ArticulationStateRender(artsim::ArticulationState* state,
+                            Ref<PBRMaterial> link_mat = {}, Ref<PBRMaterial> joint_mat = {})
 
-        artsim::Shape shape = state.art->links[i].shape;
-        switch(shape.type) {
-            case artsim::Shape::Type::Sphere: {
-                DrawSphere(Vector3Zero(), shape.sphere.radius, color);
-                DrawSphereWires(Vector3Zero(), shape.sphere.radius, 10, 10, GRAY);
-            } break;
-            case artsim::Shape::Type::Box: {
-                DrawCube(Vector3Zero(), shape.box.size.x, shape.box.size.y, shape.box.size.z, color);
-                DrawCubeWires(Vector3Zero(), shape.box.size.x, shape.box.size.y, shape.box.size.z, GRAY);
-            } break;
-            default: {}
+    : state(state), link_mat(link_mat), joint_mat(joint_mat) {
+
+        link_meshes.resize(state->num_joints);
+        joint_meshes.resize(state->num_joints);
+
+        for (int i = 0; i < state->num_joints; i++) {
+            artsim::Shape shape = state->art->links[i].shape;
+            switch(shape.type) {
+                case artsim::Shape::Type::Sphere: {
+                    link_meshes[i] = Mesh::makeSphere(shape.sphere.radius);
+                } break;
+                case artsim::Shape::Type::Box: {
+                    link_meshes[i] = Mesh::makeCube(shape.box.size);
+                } break;
+                default: {}
+            }
+            joint_meshes[i] = Mesh::makeSphere(0.02f);
         }
 
-        rlPopMatrix();
-
-        rlPushMatrix();
-
-        if (!(state.art->floating && i == 0)) {
-            model_mat = glmx::mat4_cast(state.T_joint_global[i]);
-            model_mat_f = model_mat;
-            rlMultMatrixf(glm::value_ptr(model_mat_f));
-
-            DrawSphere(Vector3Zero(), 0.02f, GREEN);
+        if (!link_mat) {
+            this->link_mat = std::make_shared<PBRMaterial>();
+            this->link_mat->texAlbedo = Texture::fromSingleColor({0.5f, 0.0f, 0.0f});
+            this->link_mat->texAO = Texture::fromSingleColor({1.0f, 0.0f, 0.0f});
+            this->link_mat->texMetallic = Texture::fromSingleColor({0.5f, 0.0f, 0.0f});
+            this->link_mat->texRoughness = Texture::fromSingleColor({0.5f, 0.0f, 0.0f});
         }
-
-        rlPopMatrix();
-    }
-    for (int c = 0; c < state.contact_points.size(); c++) {
-        using namespace artsim;
-        auto normal = state.contact_normals[c];
-        const ContactPoint& cp = state.contact_points[c];
-
-        auto tangent_u = glmx::Ez<real>();
-        auto tangent_v = glm::cross(cp.normal, tangent_u);
-        auto contact_T = glmx::ttransform<real>(cp.pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp.normal));
-
-        DrawLine3D(glm_to_ray(glm::vec3(contact_T.v)),
-                   glm_to_ray(glm::vec3(contact_T.v + real(1.0) * (contact_T.R * normal))),
-                   GREEN);
-    }
-}
-
-struct ScrollingBuffer {
-    int MaxSize;
-    int Offset;
-    ImVector<ImVec2> Data;
-    ScrollingBuffer() {
-        MaxSize = 2000;
-        Offset  = 0;
-        Data.reserve(MaxSize);
-    }
-    void AddPoint(float x, float y) {
-        if (Data.size() < MaxSize)
-            Data.push_back(ImVec2(x,y));
-        else {
-            Data[Offset] = ImVec2(x,y);
-            Offset =  (Offset + 1) % MaxSize;
+        if (!joint_mat) {
+            this->joint_mat = std::make_shared<PBRMaterial>();
+            this->joint_mat->texAlbedo = Texture::fromSingleColor(colors::WhiteSmoke);
+            this->joint_mat->texAO = Texture::fromSingleColor({1.0f, 0.0f, 0.0f});
+            this->joint_mat->texMetallic = Texture::fromSingleColor({0.8f, 0.0f, 0.0f});
+            this->joint_mat->texRoughness = Texture::fromSingleColor({0.8f, 0.0f, 0.0f});
         }
     }
-    void Erase() {
-        if (Data.size() > 0) {
-            Data.shrink(0);
-            Offset  = 0;
+
+    void render(PBRenderer& renderer, DebugRenderer& debug) {
+        for (int i = 0; i < state->num_joints; i++) {
+            glm::mat4 link_trans = glmx::mat4_cast(state->T_link_global[i]);
+            glm::mat4 joint_trans = glmx::mat4_cast(state->T_link_global[i]);
+            renderer.queueRender(PBRCommand {link_meshes[i], link_mat, link_trans});
+            renderer.queueRender(PBRCommand {joint_meshes[i], joint_mat, joint_trans});
+        }
+        for (int c = 0; c < state->contact_points.size(); c++) {
+            using namespace artsim;
+            auto normal = state->contact_normals[c];
+            const ContactPoint& cp = state->contact_points[c];
+
+            auto tangent_u = glmx::Ez<real>();
+            auto tangent_v = glm::cross(cp.normal, tangent_u);
+            auto contact_T = glmx::ttransform<real>(cp.pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp.normal));
+
+            debug.drawLine(glm::vec3(contact_T.v),
+                           glm::vec3(contact_T.v + real(1) * (contact_T.R * normal)),
+                           colors::Green, true);
         }
     }
+
+private:
+    artsim::ArticulationState* state = nullptr;
+    Ref<PBRMaterial> link_mat;
+    Ref<PBRMaterial> joint_mat;
+    std::vector<Ref<Mesh>> link_meshes;
+    std::vector<Ref<Mesh>> joint_meshes;
+
 };
 
 #endif //ARTSIM_ARTICULATION_RENDER_H
