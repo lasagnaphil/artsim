@@ -81,7 +81,7 @@ void SoftBody::setup() {
     }
 }
 
-void soft_body_dynamics_admm(const SoftBody& body, double dt, double stiffness, OUT double* vertices) {
+void soft_body_dynamics(const SoftBody& body, FEMAlgorithmType alg_type, double dt, OUT double* vertices) {
     Map<VectorXd> x(vertices, 3*body.vertices.size());
     std::vector<Matrix3dr> u(body.tetrahedrons.size(), Matrix3d::Identity());
     std::vector<Matrix3dr> z(body.tetrahedrons.size());
@@ -102,11 +102,19 @@ void soft_body_dynamics_admm(const SoftBody& body, double dt, double stiffness, 
 
         Matrix3dr F = D_s * body.B_m[i] + u[i];
 
-        // TODO: Apply proximal operator to F, given material
-        z[i].noalias() = proximal(F);
-        u[i].noalias() = F - z[i];
+        if (alg_type == FEMAlgorithmType::ProjectiveDynamics) {
+            // TODO: If we have no constraints, the equation simply reduces to z = F, u = 0
+            // Matrix3dr p = proj(F);
+            // z[i].noalias() = 0.5 * (p + F);
+            z[i].noalias() = F;
+            u[i].noalias() = Matrix3dr::Zero();
+        }
+        else if (alg_type == FEMAlgorithmType::ADMM) {
+            // TODO: Apply proximal operator to F, given material
+            // z[i].noalias() = proximal(F);
+            u[i].noalias() = F - z[i];
+        }
     }
-
 
     MatrixXd A = body.M;
     MatrixXd b = body.M * x;
@@ -118,7 +126,7 @@ void soft_body_dynamics_admm(const SoftBody& body, double dt, double stiffness, 
         // TODO: Calculate D_i based on body.B_m[i]
         // D_i = ...;
 
-        Matrix<double, 12, 12> dM = dt * dt * stiffness * D_i.transpose() * D_i;
+        Matrix<double, 12, 12> dM = dt * dt * body.stiffness * D_i.transpose() * D_i;
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
                 A.block(3*tet(j), 3*tet(k), 3, 3) += dM.block(3*j, 3*k, 3, 3);
@@ -127,7 +135,7 @@ void soft_body_dynamics_admm(const SoftBody& body, double dt, double stiffness, 
 
         Matrix3dr p = z[i] - u[i];
         Map<Matrix<double, 9, 1>> p_vec(p.data());
-        Matrix<double, 12, 1> dMx = dt * dt * stiffness * D_i.transpose() * p_vec;
+        Matrix<double, 12, 1> dMx = dt * dt * body.stiffness * D_i.transpose() * p_vec;
         for (int j = 0; j < 4; j++) {
             b.middleRows<3>(3*tet(j)) += dMx.middleRows<3>(3*j);
         }

@@ -22,10 +22,16 @@ struct SoftBody {
     Eigen::MatrixXd M;
 
     double density = 1000;
+    double stiffness = 1.0;
 
     void load_from_mesh(const char* filename);
 
     void setup();
+};
+
+enum class FEMAlgorithmType {
+    ProjectiveDynamics,
+    ADMM
 };
 
 
