@@ -1,4 +1,4 @@
 build/
 cmake-build-*/
 .idea/
-renderer/generated/shaders
+renderer/generated

@@ -83,6 +83,8 @@ file(GLOB shaders_src
 
 set(SHADER_HEADER_FILES "")
 
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/generated/shaders)
+
 foreach(shader ${shaders_src})
     get_filename_component(shader_name ${shader} NAME)
     set(SHADER_HEADER_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generated/shaders/${shader_name}.h)

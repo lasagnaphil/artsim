@@ -7,7 +7,7 @@ add_custom_command(TARGET artsim_copy_resource_folder POST_BUILD
 add_executable(gengine_demo_spheres_pbr demo_spheres_pbr.cpp)
 target_link_libraries(gengine_demo_spheres_pbr PRIVATE gengine)
 
-add_executable(artsim_demo_basic demo_human.cpp)
+add_executable(artsim_demo_basic demo_basic.cpp)
 target_link_libraries(artsim_demo_basic PRIVATE gengine)
 
 add_executable(artsim_demo_human demo_human.cpp)
