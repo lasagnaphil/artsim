@@ -43,10 +43,13 @@ struct Mesh {
         vertices(std::move(vertices)), indices(std::move(indices)) {}
     Mesh(Vertex* vertexData, std::size_t vertexCount) :
         vertices(vertexData, vertexData + vertexCount), indices() {}
-    Mesh(Vertex* vertexData, std::size_t vertexCount, float* indexData, std::size_t indexCount) :
+    Mesh(Vertex* vertexData, std::size_t vertexCount, uint32_t* indexData, std::size_t indexCount) :
         vertices(vertexData, vertexData + vertexCount), indices(indexData, indexData + indexCount) {}
 
-    void initVBO();
+    enum class DrawMode {
+        Static, Dynamic
+    };
+    void initVBO(DrawMode drawMode = DrawMode::Static);
     void updateVBO();
 
     MeshCollider generateCollider();

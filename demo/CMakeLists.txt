@@ -12,3 +12,6 @@ target_link_libraries(artsim_demo_basic PRIVATE gengine)
 
 add_executable(artsim_demo_human demo_human.cpp)
 target_link_libraries(artsim_demo_human PRIVATE gengine)
+
+add_executable(artsim_demo_soft_body demo_soft_body.cpp)
+target_link_libraries(artsim_demo_soft_body PRIVATE gengine)

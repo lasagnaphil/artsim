@@ -61,18 +61,19 @@ float Mesh::planeVertices[8*6] = {
         -0.5f, 0.0f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
 };
 
-void Mesh::initVBO() {
+void Mesh::initVBO(DrawMode drawMode) {
+    int32_t drawModeGL = drawMode == DrawMode::Static? GL_STATIC_DRAW : GL_DYNAMIC_DRAW;
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Mesh::Vertex) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Mesh::Vertex) * vertices.size(), vertices.data(), drawModeGL);
 
     if (!indices.empty()) {
         glGenBuffers(1, &ebo);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t) * indices.size(), indices.data(), GL_STATIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t) * indices.size(), indices.data(), drawModeGL);
     }
 
     glEnableVertexAttribArray(0);
@@ -86,7 +87,7 @@ void Mesh::initVBO() {
 
 void Mesh::updateVBO() {
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size(), vertices.data());
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Mesh::Vertex) * vertices.size(), vertices.data());
 }
 
 

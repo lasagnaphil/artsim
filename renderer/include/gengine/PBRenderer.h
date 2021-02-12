@@ -99,7 +99,7 @@ public:
         renderCommands.push_back(command);
     }
 
-    void render();
+    void render(bool shadows = false);
 
     void renderImGui();
 

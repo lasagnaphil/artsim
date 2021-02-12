@@ -1,0 +1,146 @@
+//
+// Created by Phillip Chang on 2020/09/26.
+//
+
+#include <chrono>
+
+#include <artsim/artsim.h>
+#include <artsim/articulation_state.h>
+#include <artsim/utils/example_articulations.h>
+
+#include <imgui.h>
+#include <implot.h>
+#include <gengine/App.h>
+#include <gengine/InputManager.h>
+#include "soft_body_render.h"
+
+using namespace artsim;
+using namespace glm;
+using namespace glmx;
+
+class MyApp : public App {
+public:
+    MyApp(const AppSettings& settings) : App(settings) {}
+
+    void loadResources() {
+
+        FlyCamera* camera = dynamic_cast<FlyCamera*>(this->camera.get());
+        Ref<Transform> cameraTransform = camera->transform;
+        cameraTransform->move({0.0f, 2.0f, 0.0f});
+
+        pbRenderer.dirLightProjVolume = {
+                {-10.f, -10.f, 0.f}, {10.f, 10.f, 100.f}
+        };
+        pbRenderer.shadowFramebufferSize = {2048, 2048};
+
+        pbRenderer.dirLight.enabled = true;
+        pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, -2.0f});
+        pbRenderer.dirLight.color = glm::vec3(1.0f);
+
+        resetPhysics();
+
+        Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
+
+        OBJFile objfile;
+        objfile.load("resources/soft_body/octopus.obj");
+        soft_body.load(objfile);
+        soft_body.precomputation(sim_dt);
+        soft_body_render = SoftBodyRender(&soft_body, soft_body_mat);
+        pos = soft_body.vertices;
+        vel = std::vector<glm::dvec3>(pos.size(), glm::dvec3(0));
+
+        link_mat = PBRMaterial::quick(0.5f * colors::Red);
+    }
+
+    void processInput(SDL_Event &event) override {
+    }
+
+    void update(float dt) override {
+        auto inputMgr = InputManager::get();
+
+        if (inputMgr->isKeyEntered(SDL_SCANCODE_SPACE)) {
+            run_simulation = !run_simulation;
+        }
+
+        if (run_simulation) {
+            auto t1 = std::chrono::high_resolution_clock::now();
+
+            soft_body_dynamics(soft_body, FEMAlgorithmType::ProjectiveDynamics, sim_dt,
+                               OUT (double*)pos.data(), OUT (double*)vel.data());
+
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+            printf("Duration: %lld microsecs\n", duration.count());
+
+            run_simulation = false;
+        }
+    }
+
+    void render() override {
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
+
+        soft_body_render.render(pbRenderer, imRenderer, pos.data());
+
+        pbRenderer.render();
+        imRenderer.render();
+
+        ImGui::Begin("FEM Debug");
+        if (ImGui::TreeNode("Positions")) {
+            for (int i = 0; i < pos.size(); i++) {
+                auto v = pos[i];
+                ImGui::Text("%.6g\t%.6g\t%.6g", v.x, v.y, v.z);
+            }
+            ImGui::TreePop();
+        }
+        if (ImGui::TreeNode("Velocities")) {
+            for (int i = 0; i < vel.size(); i++) {
+                auto v = vel[i];
+                ImGui::Text("%.6g\t%.6g\t%.6g", v.x, v.y, v.z);
+            }
+            ImGui::TreePop();
+        }
+        ImGui::End();
+    }
+
+    void release() override {
+    }
+
+    void resetPhysics() {
+    }
+
+private:
+    ArticulatedBody art;
+    MaterialDB material_db;
+    ArticulationState state;
+    float sim_dt = 1.0f / 60.0f;
+    bool run_simulation = false;
+
+    SoftBodyData soft_body;
+    std::vector<glm::dvec3> pos;
+    std::vector<glm::dvec3> vel;
+
+    SoftBodyRender soft_body_render;
+
+    Ref<PBRMaterial> ground_mat;
+    Ref<Mesh> ground_mesh;
+
+    Ref<PBRMaterial> link_mat, joint_mat;
+    int art_type = 1;
+};
+
+int main(int argc, char** argv)
+{
+    // Initialization
+    //--------------------------------------------------------------------------------------
+    auto settings = AppSettings::defaultPBR();
+    settings.useDisplayFPS = false;
+    MyApp app(settings);
+    app.load();
+    app.startMainLoop();
+    app.release();
+
+    return 0;
+}

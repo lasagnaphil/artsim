@@ -8,25 +8,42 @@
 #include <glm/vec3.hpp>
 #include <vector>
 #include <artsim/artsim.h>
-#include <Eigen/Dense>
+#include <artsim/math/dynmat.h>
+#include <Eigen/SparseCholesky>
 
 namespace artsim {
 
-struct SoftBody {
-    std::vector<Eigen::Vector3d> vertices;
-    std::vector<Eigen::Vector3i> triangles;
-    std::vector<Eigen::Vector4i> tetrahedrons;
+struct OBJFile {
+    std::vector<glm::dvec3> vertices;
+    std::vector<glm::dvec3> normals;
+    std::vector<glm::dvec2> uvs;
 
-    std::vector<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> B_m;
+    std::vector<glm::ivec3> triangle_vertices;
+    std::vector<glm::ivec3> triangle_normals;
+    std::vector<glm::ivec3> triangle_uvs;
+
+    std::vector<glm::ivec4> tetrahedrons;
+
+    void load(const char* filename);
+};
+
+struct SoftBodyData {
+    std::vector<glm::dvec3> vertices;
+    std::vector<glm::ivec3> triangles;
+    std::vector<glm::ivec4> tetrahedrons;
+
+    std::vector<glm::dmat3x3> B_m;
     std::vector<double> W;
-    Eigen::MatrixXd M;
+    Eigen::SparseMatrix<double> M;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> A_LDLt;
 
     double density = 1000;
-    double stiffness = 1.0;
+    double stiffness = 1e6;
+    double dt;
 
-    void load_from_mesh(const char* filename);
+    void load(const OBJFile& obj);
 
-    void setup();
+    void precomputation(double dt);
 };
 
 enum class FEMAlgorithmType {
@@ -34,7 +51,8 @@ enum class FEMAlgorithmType {
     ADMM
 };
 
-
+void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, double dt,
+                        OUT double* pos, OUT double* vel);
 
 }
 

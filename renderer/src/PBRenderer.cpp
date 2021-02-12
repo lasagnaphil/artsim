@@ -93,7 +93,7 @@ void PBRenderer::init() {
      */
 }
 
-void PBRenderer::render() {
+void PBRenderer::render(bool shadows) {
     const unsigned int SCREEN_WIDTH = ImGui::GetIO().DisplaySize.x;
     const unsigned int SCREEN_HEIGHT = ImGui::GetIO().DisplaySize.y;
     float near_plane = 0.1f;
@@ -117,9 +117,11 @@ void PBRenderer::render() {
     glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
     {
         glClear(GL_DEPTH_BUFFER_BIT);
-        glCullFace(GL_FRONT);
-        renderPass(depthShader);
-        glCullFace(GL_BACK);
+        if (shadows) {
+            glCullFace(GL_FRONT);
+            renderPass(depthShader);
+            glCullFace(GL_BACK);
+        }
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 

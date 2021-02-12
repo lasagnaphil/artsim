@@ -49,6 +49,7 @@ struct dynmat {
     uint32_t rows;
     uint32_t cols;
 
+    dynmat() : ptr(nullptr), rows(0), cols(0) {}
     dynmat(uint32_t rows, uint32_t cols) : rows(rows), cols(cols) {
         ptr = new T[rows*cols];
     }
