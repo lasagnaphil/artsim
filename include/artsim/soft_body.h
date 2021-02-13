@@ -27,6 +27,34 @@ struct OBJFile {
     void load(const char* filename);
 };
 
+struct SoftBodyProperties {
+    double density = 1000;
+    double young_modulus = 1e8;
+    double poisson_ratio = 0.4999;
+    double stiffness = 10000;
+    double dt = 1.0 / 60.0f;
+
+    double calc_mu() {
+        return young_modulus / (1.0 + poisson_ratio);
+    }
+
+    double calc_lambda() {
+        return young_modulus * poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio));
+    }
+};
+
+struct CorotationalEnergyConstraint {
+    int tet_id;
+    double mu;
+    double lambda;
+    double k;
+};
+
+struct VolumePreservationEnergyConstraint {
+    int tet_id;
+    double k;
+};
+
 struct SoftBodyData {
     std::vector<glm::dvec3> vertices;
     std::vector<glm::ivec3> triangles;
@@ -37,13 +65,22 @@ struct SoftBodyData {
     Eigen::SparseMatrix<double> M;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> A_LDLt;
 
-    double density = 1000;
-    double stiffness = 1e6;
-    double dt;
+    SoftBodyProperties props;
 
-    void load(const OBJFile& obj);
+    std::vector<glm::dmat4x3> D;
 
-    void precomputation(double dt);
+    std::vector<CorotationalEnergyConstraint> corotational_energy_constraints;
+    std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy_constraints;
+
+    void load(const OBJFile& obj, const SoftBodyProperties& props);
+
+    void precomputation();
+
+    void add_corotational_energy(int tet_id, double mu, double lambda, double k);
+    void add_corotational_energy_full_body(double mu, double lambda, double k);
+
+    void add_volume_preservation_energy(int tet_id, double k);
+    void add_volume_preservation_energy_full_body(double k);
 };
 
 enum class FEMAlgorithmType {

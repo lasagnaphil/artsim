@@ -43,11 +43,17 @@ public:
 
         OBJFile objfile;
         objfile.load("resources/soft_body/octopus.obj");
-        soft_body.load(objfile);
-        soft_body.precomputation(sim_dt);
+        SoftBodyProperties props;
+        props.young_modulus = 1e8;
+        props.poisson_ratio = 0.499;
+        props.stiffness = 1e4;
+        props.dt = sim_dt;
+        soft_body.load(objfile, props);
+        soft_body.add_corotational_energy_full_body(props.calc_mu(), props.calc_lambda(), 1);
+        soft_body.precomputation();
         soft_body_render = SoftBodyRender(&soft_body, soft_body_mat);
-        pos = soft_body.vertices;
-        vel = std::vector<glm::dvec3>(pos.size(), glm::dvec3(0));
+
+        resetPhysics();
 
         link_mat = PBRMaterial::quick(0.5f * colors::Red);
     }
@@ -61,18 +67,21 @@ public:
         if (inputMgr->isKeyEntered(SDL_SCANCODE_SPACE)) {
             run_simulation = !run_simulation;
         }
+        if (inputMgr->isKeyEntered(SDL_SCANCODE_R)) {
+            resetPhysics();
+        }
 
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
             soft_body_dynamics(soft_body, FEMAlgorithmType::ProjectiveDynamics, sim_dt,
-                               OUT (double*)pos.data(), OUT (double*)vel.data());
+                               INOUT (double*)pos.data(), INOUT (double*)vel.data());
 
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             printf("Duration: %lld microsecs\n", duration.count());
 
-            run_simulation = false;
+            // run_simulation = false;
         }
     }
 
@@ -109,13 +118,15 @@ public:
     }
 
     void resetPhysics() {
+        pos = soft_body.vertices;
+        vel = std::vector<glm::dvec3>(pos.size(), glm::dvec3(0));
     }
 
 private:
     ArticulatedBody art;
     MaterialDB material_db;
     ArticulationState state;
-    float sim_dt = 1.0f / 60.0f;
+    float sim_dt = 1.0f / 240.0f;
     bool run_simulation = false;
 
     SoftBodyData soft_body;
