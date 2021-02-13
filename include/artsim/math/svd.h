@@ -31,11 +31,11 @@ namespace glmx {
 
 template<class T>
 glm::tvec2<T> approx_givens_quat(T s_pp, T s_pq, T s_qq) {
-    float c_h = 2 * (s_pp - s_qq);
-    float s_h2 = s_pq * s_pq;
-    float c_h2 = c_h * c_h;
+    T c_h = 2 * (s_pp - s_qq);
+    T s_h2 = s_pq * s_pq;
+    T c_h2 = c_h * c_h;
     if (GAMMA * s_h2 < c_h2) {
-        float omega = 1.0f / sqrt(s_h2 + c_h2);
+        T omega = 1.0f / sqrt(s_h2 + c_h2);
         return glm::tvec2<T>(omega * c_h, omega * s_pq);
     }
     return glm::tvec2<T>(C_STAR, S_STAR);
@@ -45,15 +45,15 @@ glm::tvec2<T> approx_givens_quat(T s_pp, T s_pq, T s_qq) {
 // (c, s * glm::tvec3<T>) meaning that .x = c
 template<class T>
 glm::tmat3x3<T> quat_to_mat3(glm::tvec4<T> quat) {
-    float qx2 = quat.y * quat.y;
-    float qy2 = quat.z * quat.z;
-    float qz2 = quat.w * quat.w;
-    float qwqx = quat.x * quat.y;
-    float qwqy = quat.x * quat.z;
-    float qwqz = quat.x * quat.w;
-    float qxqy = quat.y * quat.z;
-    float qxqz = quat.y * quat.w;
-    float qyqz = quat.z * quat.w;
+    T qx2 = quat.y * quat.y;
+    T qy2 = quat.z * quat.z;
+    T qz2 = quat.w * quat.w;
+    T qwqx = quat.x * quat.y;
+    T qwqy = quat.x * quat.z;
+    T qwqz = quat.x * quat.w;
+    T qxqy = quat.y * quat.z;
+    T qxqz = quat.y * quat.w;
+    T qyqz = quat.z * quat.w;
 
     return glm::tmat3x3<T>(1.0f - 2.0f * (qy2 + qz2), 2.0f * (qxqy + qwqz), 2.0f * (qxqz - qwqy),
                            2.0f * (qxqy - qwqz), 1.0f - 2.0f * (qx2 + qz2), 2.0f * (qyqz + qwqx),
@@ -90,20 +90,20 @@ glm::tmat3x3<T> symmetric_eigenanalysis(glm::tmat3x3<T> A) {
 
 template<class T>
 glm::tvec2<T> approx_qr_givens_quat(T a0, T a1) {
-    float rho = sqrt(a0 * a0 + a1 * a1);
-    float s_h = a1;
-    float max_rho_eps = rho;
+    T rho = sqrt(a0 * a0 + a1 * a1);
+    T s_h = a1;
+    T max_rho_eps = rho;
     if (rho <= SVD_EPS) {
         s_h = 0;
         max_rho_eps = SVD_EPS;
     }
-    float c_h = max_rho_eps + a0;
+    T c_h = max_rho_eps + a0;
     if (a0 < 0) {
-        float temp = c_h - 2 * a0;
+        T temp = c_h - 2 * a0;
         c_h = s_h;
         s_h = temp;
     }
-    float omega = 1.0f / sqrt(c_h * c_h + s_h * s_h);
+    T omega = T(1.0) / sqrt(c_h * c_h + s_h * s_h);
     return glm::tvec2<T>(omega * c_h, omega * s_h);
 }
 
@@ -156,9 +156,9 @@ SVD_mats<T> svd(glm::tmat3x3<T> A) {
     glm::tmat3x3<T> B = A * svd_result.V;
 
     // sort singular values
-    float rho0 = dot(B[0], B[0]);
-    float rho1 = dot(B[1], B[1]);
-    float rho2 = dot(B[2], B[2]);
+    T rho0 = glm::dot(B[0], B[0]);
+    T rho1 = glm::dot(B[1], B[1]);
+    T rho2 = glm::dot(B[2], B[2]);
     if (rho0 < rho1) {
         glm::tvec3<T> temp = B[1];
         B[1] = -B[0];
@@ -166,7 +166,7 @@ SVD_mats<T> svd(glm::tmat3x3<T> A) {
         temp = svd_result.V[1];
         svd_result.V[1] = -svd_result.V[0];
         svd_result.V[0] = temp;
-        float temp_rho = rho0;
+        T temp_rho = rho0;
         rho0 = rho1;
         rho1 = temp_rho;
     }

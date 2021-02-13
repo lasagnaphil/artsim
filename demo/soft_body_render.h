@@ -13,15 +13,7 @@ public:
 
     SoftBodyRender(artsim::SoftBodyData* data, Ref<PBRMaterial> mat) : data(data), mat(mat) {
         std::vector<Mesh::Vertex> vertices(3*data->triangles.size());
-        /*
-        std::vector<uint32_t> indices(4 * data->tetrahedrons.size());
-        for (int i = 0; i < data->tetrahedrons.size(); i++) {
-            indices[4*i+0] = data->tetrahedrons[i].x;
-            indices[4*i+1] = data->tetrahedrons[i].y;
-            indices[4*i+2] = data->tetrahedrons[i].z;
-            indices[4*i+3] = data->tetrahedrons[i].w;
-        }
-         */
+
         mesh = Resources::make<Mesh>(vertices);
         mesh->initVBO(Mesh::DrawMode::Dynamic);
         update_mesh(data->vertices.data());
@@ -39,18 +31,6 @@ public:
             debug.drawLine(vpos[i0], vpos[i1], colors::Black, true);
             debug.drawLine(vpos[i0], vpos[i2], colors::Black, true);
             debug.drawLine(vpos[i1], vpos[i2], colors::Black, true);
-            /*
-            auto i0 = data->tetrahedrons[t][0];
-            auto i1 = data->tetrahedrons[t][1];
-            auto i2 = data->tetrahedrons[t][2];
-            auto i3 = data->tetrahedrons[t][3];
-            debug.drawLine(vpos[i0], vpos[i1], colors::Black, true);
-            debug.drawLine(vpos[i0], vpos[i2], colors::Black, true);
-            debug.drawLine(vpos[i0], vpos[i3], colors::Black, true);
-            debug.drawLine(vpos[i1], vpos[i2], colors::Black, true);
-            debug.drawLine(vpos[i1], vpos[i3], colors::Black, true);
-            debug.drawLine(vpos[i2], vpos[i3], colors::Black, true);
-             */
         }
     }
 

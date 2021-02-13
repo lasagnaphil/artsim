@@ -11,6 +11,7 @@
 #include <Eigen/IterativeLinearSolvers>
 #include <unordered_map>
 #include <glm/gtx/hash.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 using namespace Eigen;
 using Matrix3dr = Matrix<double, 3, 3, RowMajor>;
@@ -80,9 +81,10 @@ void OBJFile::load(const char* filename) {
 }
 
 glm::ivec3 reorder_tri_indices(glm::ivec3 tri) {
-    if (tri[1] > tri[2]) std::swap(tri[1], tri[2]);
-    if (tri[0] > tri[1]) std::swap(tri[0], tri[1]);
-    if (tri[1] > tri[2]) std::swap(tri[1], tri[2]);
+    while (tri[0] > tri[1] || tri[0] > tri[2]) {
+        std::swap(tri[0], tri[1]);
+        std::swap(tri[1], tri[2]);
+    }
     return tri;
 }
 
@@ -105,9 +107,9 @@ void SoftBodyData::load(const OBJFile& obj, const SoftBodyProperties& props) {
             auto i1 = obj.tetrahedrons[i].y;
             auto i2 = obj.tetrahedrons[i].z;
             auto i3 = obj.tetrahedrons[i].w;
-            insert_triangle(reorder_tri_indices({i0, i1, i2}));
+            insert_triangle(reorder_tri_indices({i0, i2, i1}));
             insert_triangle(reorder_tri_indices({i0, i1, i3}));
-            insert_triangle(reorder_tri_indices({i0, i2, i3}));
+            insert_triangle(reorder_tri_indices({i0, i3, i2}));
             insert_triangle(reorder_tri_indices({i1, i2, i3}));
         }
         for (auto& [tri, count] : tri_overlaps) {
@@ -165,14 +167,15 @@ void SoftBodyData::precomputation() {
         M_triplets.emplace_back(k[0], k[1], v);
     }
     M.setFromTriplets(M_triplets.begin(), M_triplets.end());
+    M_LDLt.analyzePattern(M);
+    M_LDLt.factorize(M);
 
     SparseMatrix<double> A = M;
-    double k_s = props.dt * props.dt * props.stiffness;
     for (const auto& c : corotational_energy_constraints) {
         glm::ivec4 tet = tetrahedrons[c.tet_id];
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
-                double dA = c.k * glm::dot(D[c.tet_id][j], D[c.tet_id][k]);
+                double dA = props.dt * props.dt * c.k * glm::dot(D[c.tet_id][j], D[c.tet_id][k]);
                 A.coeffRef(3*tet[j]+0, 3*tet[k]+0) += dA;
                 A.coeffRef(3*tet[j]+1, 3*tet[k]+1) += dA;
                 A.coeffRef(3*tet[j]+2, 3*tet[k]+2) += dA;
@@ -183,7 +186,7 @@ void SoftBodyData::precomputation() {
         glm::ivec4 tet = tetrahedrons[c.tet_id];
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
-                double dA = c.k * glm::dot(D[c.tet_id][j], D[c.tet_id][k]);
+                double dA = props.dt * props.dt * c.k * glm::dot(D[c.tet_id][j], D[c.tet_id][k]);
                 A.coeffRef(3*tet[j]+0, 3*tet[k]+0) += dA;
                 A.coeffRef(3*tet[j]+1, 3*tet[k]+1) += dA;
                 A.coeffRef(3*tet[j]+2, 3*tet[k]+2) += dA;
@@ -209,7 +212,7 @@ void SoftBodyData::precomputation() {
     }
 }
 
-void SoftBodyData::add_corotational_energy(int tet_id, double mu, double lambda, double k) {
+void SoftBodyData::add_corotational_energy(int tet_id, double k, double mu, double lambda) {
     CorotationalEnergyConstraint constraint;
     constraint.tet_id = tet_id;
     constraint.mu = mu;
@@ -218,22 +221,24 @@ void SoftBodyData::add_corotational_energy(int tet_id, double mu, double lambda,
     corotational_energy_constraints.push_back(constraint);
 }
 
-void SoftBodyData::add_corotational_energy_full_body(double mu, double lambda, double k) {
+void SoftBodyData::add_corotational_energy_full_body(double k, double mu, double lambda) {
     for (int i = 0; i < tetrahedrons.size(); i++) {
-        add_corotational_energy(i, mu, lambda, k);
+        add_corotational_energy(i, k, mu, lambda);
     }
 }
 
-void SoftBodyData::add_volume_preservation_energy(int tet_id, double k) {
+void SoftBodyData::add_volume_preservation_energy(int tet_id, double k, double sigma_min, double sigma_max) {
     VolumePreservationEnergyConstraint constraint;
     constraint.tet_id = tet_id;
     constraint.k = k;
+    constraint.sigma_min = sigma_min;
+    constraint.sigma_max = sigma_max;
     volume_preservation_energy_constraints.push_back(constraint);
 }
 
-void SoftBodyData::add_volume_preservation_energy_full_body(double k) {
+void SoftBodyData::add_volume_preservation_energy_full_body(double k, double sigma_min, double sigma_max) {
     for (int i = 0; i < tetrahedrons.size(); i++) {
-        add_volume_preservation_energy(i, k);
+        add_volume_preservation_energy(i, k, sigma_min, sigma_max);
     }
 }
 
@@ -255,8 +260,31 @@ glm::dmat3 proximal(const glm::dmat3& F, const CorotationalEnergyConstraint& c, 
     return F_svd.U * Sigma * glm::transpose(F_svd.V);
 }
 
-glm::dvec3 calc_sigma_star(const glm::dvec3 sigma) {
-    // TODO
+glm::dvec3 calc_S_star(glm::dvec3 S, double sigma_min, double sigma_max) {
+    double sigma = S[0]*S[1]*S[2];
+    if (sigma < sigma_min) sigma = sigma_min;
+    if (sigma > sigma_max) sigma = sigma_max;
+    else return S;
+    glm::dvec3 D(0);
+    for (int i = 0; i < 5; i++) {
+        glm::dvec3 S_star = S + D;
+        double C = S_star[0]*S_star[1]*S_star[2] - sigma;
+        glm::dvec3 grad_C = glm::dvec3(S_star[1]*S_star[2], S_star[2]*S_star[0], S_star[0]*S_star[1]);
+        D = ((glm::dot(grad_C, D) - C) / glm::length2(grad_C)) * grad_C;
+    }
+    return S + D;
+}
+
+glm::dmat3 projection(const glm::dmat3& F, const VolumePreservationEnergyConstraint& c) {
+    auto F_svd = glmx::svd(F);
+    auto S = glm::dvec3(F_svd.Sigma[0][0], F_svd.Sigma[1][1], F_svd.Sigma[2][2]);
+    auto S_star = calc_S_star(S, c.sigma_min, c.sigma_max);
+    auto Sigma = glm::dmat3(S_star[0], 0, 0, 0, S_star[1], 0, 0, 0, S_star[2]);
+    return F_svd.U * Sigma * glm::transpose(F_svd.V);
+}
+
+glm::dmat3 proximal(const glm::dmat3& F, const VolumePreservationEnergyConstraint& c, double tau) {
+    return projection(F, c);
 }
 
 template <class Constraint>
@@ -297,25 +325,29 @@ template <class Constraint>
 void global_solve_modify_b(const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
                          const glm::dmat3* p, INOUT double* b) {
 #pragma omp parallel for
-    for (int cidx = 0; cidx < body.corotational_energy_constraints.size(); cidx++) {
-        auto& c = body.corotational_energy_constraints[cidx];
+    for (int cidx = 0; cidx < num_constraints; cidx++) {
+        auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
         auto& p_mat = p[c.tet_id];
+        auto& D_i = body.D[c.tet_id];
         double k_s = body.props.dt * body.props.dt * body.props.stiffness;
         for (int j = 0; j < 4; j++) {
-            b[3*tet[j]+0] += k_s * glm::dot(body.D[c.tet_id][j], glm::dvec3(p_mat[0][0], p_mat[1][0], p_mat[2][0]));
-            b[3*tet[j]+1] += k_s * glm::dot(body.D[c.tet_id][j], glm::dvec3(p_mat[0][1], p_mat[1][1], p_mat[2][1]));
-            b[3*tet[j]+2] += k_s * glm::dot(body.D[c.tet_id][j], glm::dvec3(p_mat[0][2], p_mat[1][2], p_mat[2][2]));
+            // glm::dvec3 db = k_s * (D_i[j][0] * p_mat[0] + D_i[j][1] * p_mat[1] + D_i[j][2] * p_mat[2]);
+            glm::dvec3 db = k_s * p_mat * D_i[j];
+            b[3*tet[j]+0] += db[0];
+            b[3*tet[j]+1] += db[1];
+            b[3*tet[j]+2] += db[2];
         }
     }
 }
 
-void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, double dt,
+void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, double dt, const double* f,
                         INOUT double* pos, INOUT double* vel) {
     Map<VectorXd> x(pos, 3*body.vertices.size());
     Map<VectorXd> v(vel, 3*body.vertices.size());
+    Map<const VectorXd> f_ext(f, 3*body.vertices.size());
     VectorXd x_orig = x;
-    x.noalias() += v * dt;
+    x += dt * v + dt*dt * body.M_LDLt.solve(f_ext);
 
     std::vector<glm::dmat3x3> u(body.tetrahedrons.size(), glm::dmat3x3(0.0));
     std::vector<glm::dmat3x3> z(body.tetrahedrons.size());
@@ -323,21 +355,39 @@ void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, dou
 
     glm::dvec3* V = (glm::dvec3*) pos;
 
+    std::cout << x_orig.transpose() << std::endl;
     for (int iter = 0; iter < 10; iter++) {
         // Local solve
-        projective_dynamics_volume_constraint_local_solve(
-                body, body.corotational_energy_constraints.data(), body.corotational_energy_constraints.size(), V,
-                OUT p.data());
+        if (alg_type == FEMAlgorithmType::ProjectiveDynamics) {
+            projective_dynamics_volume_constraint_local_solve(
+                    body, body.corotational_energy_constraints.data(), body.corotational_energy_constraints.size(), V,
+                    OUT p.data());
+            projective_dynamics_volume_constraint_local_solve(
+                    body, body.volume_preservation_energy_constraints.data(), body.volume_preservation_energy_constraints.size(), V,
+                    OUT p.data());
+        }
+        else if (alg_type == FEMAlgorithmType::ADMM) {
+            admm_volume_constraint_local_solve(
+                    body, body.corotational_energy_constraints.data(), body.corotational_energy_constraints.size(), V,
+                    OUT z.data(), OUT u.data(), OUT p.data());
+            admm_volume_constraint_local_solve(
+                    body, body.volume_preservation_energy_constraints.data(), body.volume_preservation_energy_constraints.size(), V,
+                    OUT z.data(), OUT u.data(), OUT p.data());
+
+        }
 
         // Global solve
         VectorXd b = body.M * x;
         global_solve_modify_b(
                 body, body.corotational_energy_constraints.data(), body.corotational_energy_constraints.size(), p.data(),
                 OUT b.data());
+        global_solve_modify_b(
+                body, body.volume_preservation_energy_constraints.data(), body.volume_preservation_energy_constraints.size(), p.data(),
+                OUT b.data());
 
-        x.noalias() = body.A_LDLt.solve(b);
+        x = body.A_LDLt.solve(b);
     }
-    v.noalias() = (x - x_orig) / dt;
+    v = (x - x_orig) / dt;
 }
 
 }

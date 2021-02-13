@@ -34,7 +34,7 @@ public:
         pbRenderer.shadowFramebufferSize = {2048, 2048};
 
         pbRenderer.dirLight.enabled = true;
-        pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, -2.0f});
+        pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, 2.0f});
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
         resetPhysics();
@@ -43,13 +43,15 @@ public:
 
         OBJFile objfile;
         objfile.load("resources/soft_body/octopus.obj");
+        // objfile.load("resources/soft_body/cube_.mesh");
         SoftBodyProperties props;
         props.young_modulus = 1e8;
-        props.poisson_ratio = 0.499;
+        props.poisson_ratio = 0.45;
         props.stiffness = 1e4;
         props.dt = sim_dt;
         soft_body.load(objfile, props);
-        soft_body.add_corotational_energy_full_body(props.calc_mu(), props.calc_lambda(), 1);
+        soft_body.add_corotational_energy_full_body(1e-6, props.calc_mu(), props.calc_lambda());
+        // soft_body.add_volume_preservation_energy_full_body(0.01, 0.9, 1.1);
         soft_body.precomputation();
         soft_body_render = SoftBodyRender(&soft_body, soft_body_mat);
 
@@ -74,14 +76,14 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
-            soft_body_dynamics(soft_body, FEMAlgorithmType::ProjectiveDynamics, sim_dt,
+            soft_body_dynamics(soft_body, FEMAlgorithmType::ProjectiveDynamics, sim_dt, (double*) force.data(),
                                INOUT (double*)pos.data(), INOUT (double*)vel.data());
 
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             printf("Duration: %lld microsecs\n", duration.count());
 
-            // run_simulation = false;
+            run_simulation = false;
         }
     }
 
@@ -120,6 +122,7 @@ public:
     void resetPhysics() {
         pos = soft_body.vertices;
         vel = std::vector<glm::dvec3>(pos.size(), glm::dvec3(0));
+        force = std::vector<glm::dvec3>(pos.size(), glm::dvec3(0));
     }
 
 private:
@@ -132,6 +135,7 @@ private:
     SoftBodyData soft_body;
     std::vector<glm::dvec3> pos;
     std::vector<glm::dvec3> vel;
+    std::vector<glm::dvec3> force;
 
     SoftBodyRender soft_body_render;
 

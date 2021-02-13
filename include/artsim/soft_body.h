@@ -53,6 +53,8 @@ struct CorotationalEnergyConstraint {
 struct VolumePreservationEnergyConstraint {
     int tet_id;
     double k;
+    double sigma_min;
+    double sigma_max;
 };
 
 struct SoftBodyData {
@@ -63,6 +65,7 @@ struct SoftBodyData {
     std::vector<glm::dmat3x3> B_m;
     std::vector<double> W;
     Eigen::SparseMatrix<double> M;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> M_LDLt;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> A_LDLt;
 
     SoftBodyProperties props;
@@ -76,11 +79,11 @@ struct SoftBodyData {
 
     void precomputation();
 
-    void add_corotational_energy(int tet_id, double mu, double lambda, double k);
-    void add_corotational_energy_full_body(double mu, double lambda, double k);
+    void add_corotational_energy(int tet_id, double k, double mu, double lambda);
+    void add_corotational_energy_full_body(double k, double mu, double lambda);
 
-    void add_volume_preservation_energy(int tet_id, double k);
-    void add_volume_preservation_energy_full_body(double k);
+    void add_volume_preservation_energy(int tet_id, double k, double sigma_min, double sigma_max);
+    void add_volume_preservation_energy_full_body(double k, double sigma_min, double sigma_max);
 };
 
 enum class FEMAlgorithmType {
@@ -88,7 +91,7 @@ enum class FEMAlgorithmType {
     ADMM
 };
 
-void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, double dt,
+void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, double dt, const double* f,
                         OUT double* pos, OUT double* vel);
 
 }
