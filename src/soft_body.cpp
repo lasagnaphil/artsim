@@ -135,10 +135,11 @@ void SoftBodyData::precomputation() {
         glm::dmat3x3 D_m(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
         B_m[i] = glm::inverse(D_m);
         W[i] = glm::determinant(D_m) / 6.0;
-        D[i][0] = D_m[0];
-        D[i][1] = D_m[1];
-        D[i][2] = D_m[2];
-        D[i][3] = -D_m[0] - D_m[1] - D_m[2];
+        glm::dmat3x3 D_i = glm::transpose(B_m[i]);
+        D[i][0] = D_i[0];
+        D[i][1] = D_i[1];
+        D[i][2] = D_i[2];
+        D[i][3] = -D_i[0] - D_i[1] - D_i[2];
     }
 
     M = SparseMatrix<double>(3*vertices.size(), 3*vertices.size());
@@ -293,7 +294,7 @@ void projective_dynamics_volume_constraint_local_solve(
         const glm::dvec3* V,
         OUT glm::dmat3x3* p) {
 
-#pragma omp parallel for
+// #pragma omp parallel for
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
@@ -309,7 +310,7 @@ void admm_volume_constraint_local_solve(
         const glm::dvec3* V,
         OUT glm::dmat3x3* z, OUT glm::dmat3x3* u, OUT glm::dmat3x3* p) {
 
-#pragma omp parallel for
+// #pragma omp parallel for
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
@@ -324,15 +325,14 @@ void admm_volume_constraint_local_solve(
 template <class Constraint>
 void global_solve_modify_b(const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
                          const glm::dmat3* p, INOUT double* b) {
-#pragma omp parallel for
+// #pragma omp parallel for
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
         auto& p_mat = p[c.tet_id];
         auto& D_i = body.D[c.tet_id];
-        double k_s = body.props.dt * body.props.dt * body.props.stiffness;
+        double k_s = body.props.dt * body.props.dt * c.k;
         for (int j = 0; j < 4; j++) {
-            // glm::dvec3 db = k_s * (D_i[j][0] * p_mat[0] + D_i[j][1] * p_mat[1] + D_i[j][2] * p_mat[2]);
             glm::dvec3 db = k_s * p_mat * D_i[j];
             b[3*tet[j]+0] += db[0];
             b[3*tet[j]+1] += db[1];
@@ -355,7 +355,6 @@ void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, dou
 
     glm::dvec3* V = (glm::dvec3*) pos;
 
-    std::cout << x_orig.transpose() << std::endl;
     for (int iter = 0; iter < 10; iter++) {
         // Local solve
         if (alg_type == FEMAlgorithmType::ProjectiveDynamics) {

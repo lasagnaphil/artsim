@@ -31,7 +31,6 @@ struct SoftBodyProperties {
     double density = 1000;
     double young_modulus = 1e8;
     double poisson_ratio = 0.4999;
-    double stiffness = 10000;
     double dt = 1.0 / 60.0f;
 
     double calc_mu() {

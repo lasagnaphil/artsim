@@ -14,11 +14,15 @@ find_package(Eigen3 CONFIG REQUIRED)
 find_package(TinyXML2 REQUIRED)
 
 option(ARTSIM_USE_DOUBLE "Use double instead of float" ON)
+option(ARTSIM_USE_OPENMP "Use OpenMP" ON)
 option(ARTSIM_USE_ASAN "Use Address Sanitizer" OFF)
 option(ARTSIM_BUILD_RENDERER "Build renderer" OFF)
 option(ARTSIM_BUILD_DEMOS "Build demos" OFF)
 option(ARTSIM_BULID_TESTS "Build tests" OFF)
 
+if (ARTSIM_USE_OPENMP)
+    find_package(OpenMP REQUIRED)
+endif()
 if (ARTSIM_USE_ASAN)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -O1")
 endif()
@@ -32,7 +36,11 @@ add_library(artsim
         src/utils/urdf.cpp)
 
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
-target_link_libraries(artsim PUBLIC Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision)
+set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision)
+if (ARTSIM_USE_OPENMP)
+    set(ARTSIM_LIB ${ARTSIM_LIB} OpenMP::OpenMP_CXX)
+endif()
+target_link_libraries(artsim PUBLIC ${ARTSIM_LIB})
 target_compile_definitions(artsim PRIVATE EIGEN_DONT_PARALLELIZE)
 
 if (ARTSIM_USE_DOUBLE)
