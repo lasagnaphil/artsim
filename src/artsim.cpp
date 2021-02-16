@@ -16,7 +16,7 @@
 using namespace artsim;
 using namespace glmx;
 
-real Shape::mass(real density) {
+real CollisionShape::mass(real density) {
     switch (type) {
         case Type::Box: return density * box.size.x * box.size.y * box.size.z;
         case Type::Sphere: return real(4.0 / 3.0) * glm::pi<real>() * sphere.radius * sphere.radius * sphere.radius;
@@ -24,7 +24,7 @@ real Shape::mass(real density) {
     }
 }
 
-tsmat3x3<real> Shape::inertia(real density) {
+tsmat3x3<real> CollisionShape::inertia(real density) {
     glm::vec3 I;
     switch (type) {
         case Type::Box: {
@@ -39,45 +39,39 @@ tsmat3x3<real> Shape::inertia(real density) {
     return tsmat3x3<real>(I.x, I.y, I.z, 0, 0, 0);
 }
 
-Shape Shape::make_ground() {
-    Shape shape;
-    shape.type = Shape::Type::Ground;
+CollisionShape CollisionShape::make_ground() {
+    CollisionShape shape;
+    shape.type = CollisionShape::Type::Ground;
+    shape.bt_shape = new btStaticPlaneShape(btVector3(0, 0, 0), 0);
     return shape;
 }
-Shape Shape::make_box(glm::vec3 size) {
-    Shape shape;
-    shape.type = Shape::Type::Box;
+CollisionShape CollisionShape::make_box(glm::vec3 size) {
+    CollisionShape shape;
+    shape.type = CollisionShape::Type::Box;
     shape.box.size = size;
+    shape.bt_shape = new btBoxShape(btconv(real(0.5) * shape.box.size));
     return shape;
 }
 
-Shape Shape::make_sphere(real radius) {
-    Shape shape;
-    shape.type = Shape::Type::Sphere;
+CollisionShape CollisionShape::make_sphere(real radius) {
+    CollisionShape shape;
+    shape.type = CollisionShape::Type::Sphere;
     shape.sphere.radius = radius;
+    shape.bt_shape = new btSphereShape(shape.sphere.radius);
     return shape;
 }
 
-Link Link::create(const tsmat3x3<real>& inertia, real mass, Shape shape,
+Link Link::create(const tsmat3x3<real>& inertia, real mass, CollisionShape shape,
                   ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
                   int parent_idx, Id<Material> mat_id) {
     Link link;
     link.inertia = inertia;
     link.mass = mass;
-    link.shape = shape;
+    link.col_shape = shape;
     link.local_joint_pose = local_joint_pose;
     link.local_link_pose = local_link_pose;
     link.parent_idx = parent_idx;
     link.mat_id = mat_id;
-    // TODO: Allocate these from a separate array!
-    switch (shape.type) {
-        case Shape::Type::Ground:
-            link.bt_shape = new btStaticPlaneShape(btVector3(0, 0, 0), 0); break;
-        case Shape::Type::Sphere:
-            link.bt_shape = new btSphereShape(shape.sphere.radius); break;
-        case Shape::Type::Box:
-            link.bt_shape = new btBoxShape(btconv(real(0.5) * shape.box.size)); break;
-    }
     auto I0 = tspmat<real>(tsmat3x3<real>(link.inertia), glm::tvec3<real>(0), link.mass);
     link.I_j = inv_transform(I0, ttransform<real>(inverse(link.local_link_pose)));
     return link;
@@ -155,7 +149,7 @@ void ArticulatedBody::setup() {
         // TODO: Set body_id with current articulation id
         BodyId body_id = BodyId::from_articulation_link({}, i);
         btCollisionObject* col_obj = new btCollisionObject;
-        col_obj->setCollisionShape(links[i].bt_shape);
+        col_obj->setCollisionShape(links[i].col_shape.bt_shape);
         col_obj->setUserIndex(body_id.index);
         col_obj->setUserIndex2(body_id.generation);
         bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);

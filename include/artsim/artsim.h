@@ -13,15 +13,13 @@
 #include <glm/vec3.hpp>
 #include <glm/mat3x3.hpp>
 #include <artsim/math/se3.h>
+#include <artsim/obj_file.h>
 
 #include <cstdint>
 #include <cstdio>
 #include <vector>
 #include <unordered_map>
 #include <string>
-
-#define OUT
-#define INOUT
 
 namespace artsim {
 
@@ -139,7 +137,7 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
         }
     };
 
-    struct Shape {
+    struct CollisionShape {
         enum class Type {
             Ground, Box, Sphere
         };
@@ -155,13 +153,38 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
                 real radius;
             } sphere;
         };
+        btCollisionShape* bt_shape;
 
-        static Shape make_ground();
-        static Shape make_box(glm::vec3 size);
-        static Shape make_sphere(real radius);
+        static CollisionShape make_ground();
+        static CollisionShape make_box(glm::vec3 size);
+        static CollisionShape make_sphere(real radius);
 
         real mass(real density);
         glmx::tsmat3x3<real> inertia(real density);
+    };
+
+    struct RenderShape {
+        enum class Type {
+            Box, Sphere, Mesh
+        };
+        Type type;
+
+        union {
+            struct {
+                glm::tvec3<real> size;
+            } box;
+            struct {
+                real radius;
+            } sphere;
+            struct {
+                OBJFile* obj;
+            } mesh;
+        };
+
+        static RenderShape make_from_collision_shape(const CollisionShape& col);
+        static RenderShape make_box();
+        static RenderShape make_sphere(real radius);
+        static RenderShape make_obj(OBJFile* obj);
     };
 
     struct Material {
@@ -177,7 +200,8 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
     struct RigidBody {
         glmx::tsmat3x3<real> inertia;
         real mass;
-        Shape shape;
+        CollisionShape col_shape;
+        RenderShape render_shape;
         glmx::ttransform<real> global_trans;
     };
 
@@ -185,15 +209,15 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
         glmx::tsmat3x3<real> inertia; // inertia from link frame
         glmx::tspmat<real> I_j; // Spatial mass matrix from joint frame
         real mass;
-        Shape shape;
-        btCollisionShape* bt_shape;
+        CollisionShape col_shape;
+        RenderShape render_shape;
         glmx::ttransform<real> local_joint_pose;
         glmx::ttransform<real> local_link_pose;
         uint32_t parent_idx;
         Id<Material> mat_id;
         btCollisionObject* bt_collision_object;
 
-        static Link create(const glmx::tsmat3x3<real>& inertia, real mass, Shape shape,
+        static Link create(const glmx::tsmat3x3<real>& inertia, real mass, CollisionShape shape,
                            glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
                            int parent_idx, Id<Material> mat_id);
     };

@@ -471,9 +471,9 @@ contact_points_between_art_links_and_ground(const ArticulatedBody& art, const Id
     for (uint32_t li = 0; li < link_indices_count; li++) {
         std::vector<glm::tvec3<real>> cpos;
         uint32_t i = link_indices[li];
-        switch (art.links[i].shape.type) {
-            case artsim::Shape::Type::Box: {
-                glm::tvec3<real> ext = real(0.5) * art.links[i].shape.box.size;
+        switch (art.links[i].col_shape.type) {
+            case artsim::CollisionShape::Type::Box: {
+                glm::tvec3<real> ext = real(0.5) * art.links[i].col_shape.box.size;
                 glm::tvec3<real> p = link_global_trans[i].v;
                 if (p.y*p.y > ext.x*ext.x + ext.y*ext.y + ext.z*ext.z) {
                     // early bailout for boxes that definitely doesn't collide with ground
@@ -543,9 +543,9 @@ contact_points_between_art_links_and_ground(const ArticulatedBody& art, const Id
                 }
 #endif
             } break;
-            case artsim::Shape::Type::Sphere: {
+            case artsim::CollisionShape::Type::Sphere: {
                 glm::tvec3<real> p = link_global_trans[i].v;
-                real r = art.links[i].shape.sphere.radius;
+                real r = art.links[i].col_shape.sphere.radius;
                 real d = p.y - r;
                 if (d <= 0.0f) {
                     ContactPoint cp;

@@ -26,12 +26,12 @@ public:
         joint_meshes.resize(state->num_joints);
 
         for (int i = 0; i < state->num_joints; i++) {
-            artsim::Shape shape = state->art->links[i].shape;
+            artsim::CollisionShape shape = state->art->links[i].col_shape;
             switch(shape.type) {
-                case artsim::Shape::Type::Sphere: {
+                case artsim::CollisionShape::Type::Sphere: {
                     link_meshes[i] = Mesh::makeSphere(shape.sphere.radius);
                 } break;
-                case artsim::Shape::Type::Box: {
+                case artsim::CollisionShape::Type::Box: {
                     link_meshes[i] = Mesh::makeCube(shape.box.size);
                 } break;
                 default: {}

@@ -12,6 +12,9 @@
 #include <glm/mat4x4.hpp>
 #include <glm/gtx/quaternion.hpp>
 
+#define OUT
+#define INOUT
+
 namespace artsim {
 
 #ifdef ARTSIM_USE_DOUBLE

@@ -8,26 +8,11 @@
 #include <glm/vec3.hpp>
 #include <vector>
 #include <artsim/artsim.h>
+#include <artsim/obj_file.h>
 #include <artsim/math/dynmat.h>
 #include <Eigen/SparseCholesky>
 
 namespace artsim {
-
-struct OBJFile {
-    std::vector<glm::tvec3<real>> vertices;
-    std::vector<glm::tvec3<real>> normals;
-    std::vector<glm::tvec2<real>> uvs;
-
-    std::vector<glm::ivec3> triangle_vertices;
-    std::vector<glm::ivec3> triangle_normals;
-    std::vector<glm::ivec3> triangle_uvs;
-
-    std::vector<glm::ivec4> tetrahedrons;
-
-    static OBJFile make_cube(real dL, glm::ivec3 N);
-
-    void load(const char* filename);
-};
 
 struct SoftBodyProperties {
     real density = 1000;
@@ -66,12 +51,12 @@ struct SoftBodyData {
     std::vector<glm::tmat3x3<real>> B_m;
     std::vector<real> W;
     Eigen::SparseMatrix<real> M;
+    std::vector<glm::tmat4x3<real>> D;
+
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> M_LDLt;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
 
     SoftBodyProperties props;
-
-    std::vector<glm::tmat4x3<real>> D;
 
     std::vector<CorotationalEnergyConstraint> corotational_energy_constraints;
     std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy_constraints;

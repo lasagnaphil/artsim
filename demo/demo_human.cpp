@@ -93,14 +93,14 @@ artsim::ArticulatedBody load_human(const char* filename, std::vector<uint32_t>& 
         real mass = std::stod(body_elem->Attribute("mass"));
 
         std::string body_type = body_elem->Attribute("type");
-        Shape shape;
+        CollisionShape shape;
         if (body_type == "Box") {
             glm::tvec3<real> size = string_to_vector3d(body_elem->Attribute("size"));
-            shape = Shape::make_box(size);
+            shape = CollisionShape::make_box(size);
         }
         else if (body_type == "Sphere") {
             double radius = std::stod(body_elem->Attribute("radius"));
-            shape = Shape::make_sphere(radius);
+            shape = CollisionShape::make_sphere(radius);
         }
         else if (body_type == "Capsule") {
             double radius = std::stod(body_elem->Attribute("radius"));

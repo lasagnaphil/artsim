@@ -30,9 +30,12 @@ endif()
 add_subdirectory(libs/bullet_collision)
 
 add_library(artsim
-        src/artsim.cpp src/dynamics.cpp src/utils/example_articulations.cpp
+        src/artsim.cpp src/dynamics.cpp
         src/contacts.cpp
         src/soft_body.cpp
+        src/soft_body_with_art.cpp
+        src/obj_file.cpp
+        src/utils/example_articulations.cpp
         src/utils/urdf.cpp)
 
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})

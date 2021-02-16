@@ -8,7 +8,7 @@ using namespace glmx;
 
 artsim::ArticulatedBody artsim::examples::create_single_pendulum_link(bool spherical, float density, float l, float d) {
     ArticulatedBody art;
-    Shape box1 = Shape::make_box({d, l, d});
+    CollisionShape box1 = CollisionShape::make_box({d, l, d});
     art.add_link_and_joint(
             Link::create(box1.inertia(density), box1.mass(density), box1,
                          ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
@@ -22,14 +22,14 @@ artsim::ArticulatedBody artsim::examples::create_single_pendulum_link(bool spher
 artsim::ArticulatedBody artsim::examples::create_double_pendulum_ball(bool spherical, float m1, float m2, float l1, float l2) {
     ArticulatedBody art;
     art.add_link_and_joint(
-            Link::create(tsmat3x3<real>(0), m1, Shape::make_sphere(0.1f),
+            Link::create(tsmat3x3<real>(0), m1, CollisionShape::make_sphere(0.1f),
                          ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
                          ttransform<real>(glm::tvec3<real>(0.0f, -l1, 0.0f)),
                          -1, Id<artsim::Material>::null()),
             spherical? Joint::spherical() : Joint::revolute_z()
     );
     art.add_link_and_joint(
-            Link::create(tsmat3x3<real>(0), m2, Shape::make_sphere(0.1f),
+            Link::create(tsmat3x3<real>(0), m2, CollisionShape::make_sphere(0.1f),
                          ttransform<real>(glm::tvec3<real>(0.0f, -l1, 0.0f)),
                          ttransform<real>(glm::tvec3<real>(0.0f, -l2, 0.0f)),
                          0, Id<artsim::Material>::null()),
@@ -40,8 +40,8 @@ artsim::ArticulatedBody artsim::examples::create_double_pendulum_ball(bool spher
 }
 
 artsim::ArticulatedBody artsim::examples::create_double_pendulum_link(bool spherical, float density, float l1, float l2, float d) {
-    Shape box1 = Shape::make_box({d, l1, d});
-    Shape box2 = Shape::make_box({d, l2, d});
+    CollisionShape box1 = CollisionShape::make_box({d, l1, d});
+    CollisionShape box2 = CollisionShape::make_box({d, l2, d});
 
     ArticulatedBody art;
     art.add_link_and_joint(
@@ -64,9 +64,9 @@ artsim::ArticulatedBody artsim::examples::create_double_pendulum_link(bool spher
 
 artsim::ArticulatedBody
 artsim::examples::create_triple_pendulum_link(bool spherical, float density, float l1, float l2, float l3, float d) {
-    Shape box1 = Shape::make_box({d, l1, d});
-    Shape box2 = Shape::make_box({d, l2, d});
-    Shape box3 = Shape::make_box({d, l3, d});
+    CollisionShape box1 = CollisionShape::make_box({d, l1, d});
+    CollisionShape box2 = CollisionShape::make_box({d, l2, d});
+    CollisionShape box3 = CollisionShape::make_box({d, l3, d});
 
     ArticulatedBody art;
     art.add_link_and_joint(
@@ -95,8 +95,8 @@ artsim::examples::create_triple_pendulum_link(bool spherical, float density, flo
 }
 
 artsim::ArticulatedBody artsim::examples::create_furuta_pendulum(bool spherical, float density, float l1, float l2, float d) {
-    Shape box1 = Shape::make_box({l1, d, d});
-    Shape box2 = Shape::make_box({d, l2, d});
+    CollisionShape box1 = CollisionShape::make_box({l1, d, d});
+    CollisionShape box2 = CollisionShape::make_box({d, l2, d});
 
     ArticulatedBody art;
     art.add_link_and_joint(
@@ -119,7 +119,7 @@ artsim::ArticulatedBody artsim::examples::create_furuta_pendulum(bool spherical,
 
 artsim::ArticulatedBody artsim::examples::create_5_link_tree(bool spherical) {
     float density = 1000.0f;
-    Shape box = Shape::make_box({0.1f, 1.0f, 0.1f});
+    CollisionShape box = CollisionShape::make_box({0.1f, 1.0f, 0.1f});
 
     ArticulatedBody art;
 
@@ -150,7 +150,7 @@ artsim::ArticulatedBody artsim::examples::create_5_link_tree(bool spherical) {
 
 artsim::ArticulatedBody artsim::examples::create_13_link_tree(bool spherical) {
     float density = 1000.0f;
-    Shape box = Shape::make_box({0.1f, 1.0f, 0.1f});
+    CollisionShape box = CollisionShape::make_box({0.1f, 1.0f, 0.1f});
 
     ArticulatedBody art;
 
@@ -189,7 +189,7 @@ artsim::ArticulatedBody artsim::examples::create_13_link_tree(bool spherical) {
 
 artsim::ArticulatedBody artsim::examples::create_free_link(int num_links, bool spherical) {
     float density = 1000.0f;
-    Shape box = Shape::make_box({0.1f, 1.0f, 0.1f});
+    CollisionShape box = CollisionShape::make_box({0.1f, 1.0f, 0.1f});
 
     ArticulatedBody art;
 

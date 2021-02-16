@@ -6,8 +6,9 @@
 #include <random>
 
 #include <artsim/artsim.h>
+#include <artsim/soft_body.h>
+#include <artsim/soft_body_with_art.h>
 #include <artsim/articulation_state.h>
-#include <artsim/utils/example_articulations.h>
 
 #include <imgui.h>
 #include <implot.h>
@@ -43,9 +44,9 @@ public:
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
 
         OBJFile objfile;
-        // objfile.load("resources/soft_body/octopus.obj");
+        objfile.load("resources/soft_body/octopus.obj");
         // objfile.load("resources/soft_body/starfish.obj");
-        objfile.load("resources/soft_body/link_.mesh");
+        // objfile.load("resources/soft_body/link_.mesh");
         // objfile = OBJFile::make_cube(0.3, glm::ivec3(5, 3, 3));
         SoftBodyProperties props;
         props.young_modulus = 1e8;
@@ -125,7 +126,7 @@ public:
     void resetPhysics() {
         pos = soft_body.vertices;
         for (int i = 0; i < pos.size(); i++) {
-            pos[i] += std::uniform_real_distribution<real>(-0.01f, 0.01f)(random_engine);
+            pos[i] += std::uniform_real_distribution<real>(-0.1f, 0.1f)(random_engine);
         }
         vel.clear();
         vel.resize(pos.size(), glm::tvec3<real>(0));
