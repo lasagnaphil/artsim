@@ -19,7 +19,7 @@ public:
         update_mesh(data->vertices.data());
     }
 
-    void render(PBRenderer& renderer, DebugRenderer& debug, const glm::dvec3* vpos) {
+    void render(PBRenderer& renderer, DebugRenderer& debug, const glm::tvec3<artsim::real>* vpos) {
         update_mesh(vpos);
 
         renderer.queueRender({mesh, mat, glm::mat4(1.0f)});
@@ -34,7 +34,7 @@ public:
         }
     }
 
-    void update_mesh(const glm::dvec3* vpos) {
+    void update_mesh(const glm::tvec3<artsim::real>* vpos) {
         Mesh& m = *mesh;
         for (int t = 0; t < data->triangles.size(); t++) {
             m.vertices[3*t+0].pos = vpos[data->triangles[t][0]];

@@ -74,13 +74,13 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
-            soft_body_dynamics(soft_body, FEMAlgorithmType::ADMM, sim_dt, (double*) force.data(),
-                               INOUT (double*)pos.data(), INOUT (double*)vel.data());
+            soft_body_dynamics(soft_body, FEMAlgorithmType::ADMM, sim_dt, (real*) force.data(),
+                               INOUT (real*)pos.data(), INOUT (real*)vel.data());
 
 
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-            printf("Duration: %lld microsecs\n", duration.count());
+            // printf("Duration: %lld microsecs\n", duration.count());
 
             // run_simulation = false;
         }
@@ -120,9 +120,11 @@ public:
 
     void resetPhysics() {
         pos = soft_body.vertices;
-        vel.resize(pos.size(), glm::dvec3(0));
-        vel[0] = glm::dvec3(0, 1000, 0);
-        force.resize(pos.size(), glm::dvec3(0));
+        for (int i = 0; i < pos.size(); i++) {
+            pos[i] += (i % 2 == 0)? 0.01 : -0.01;
+        }
+        vel.resize(pos.size(), glm::tvec3<real>(0));
+        force.resize(pos.size(), glm::tvec3<real>(0));
     }
 
 private:
@@ -130,12 +132,12 @@ private:
     MaterialDB material_db;
     ArticulationState state;
     float sim_dt = 1.0f / 60.0f;
-    bool run_simulation = false;
+    bool run_simulation = true;
 
     SoftBodyData soft_body;
-    std::vector<glm::dvec3> pos;
-    std::vector<glm::dvec3> vel;
-    std::vector<glm::dvec3> force;
+    std::vector<glm::tvec3<real>> pos;
+    std::vector<glm::tvec3<real>> vel;
+    std::vector<glm::tvec3<real>> force;
 
     SoftBodyRender soft_body_render;
 

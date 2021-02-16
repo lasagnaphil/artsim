@@ -14,9 +14,9 @@
 namespace artsim {
 
 struct OBJFile {
-    std::vector<glm::dvec3> vertices;
-    std::vector<glm::dvec3> normals;
-    std::vector<glm::dvec2> uvs;
+    std::vector<glm::tvec3<real>> vertices;
+    std::vector<glm::tvec3<real>> normals;
+    std::vector<glm::tvec2<real>> uvs;
 
     std::vector<glm::ivec3> triangle_vertices;
     std::vector<glm::ivec3> triangle_normals;
@@ -28,48 +28,48 @@ struct OBJFile {
 };
 
 struct SoftBodyProperties {
-    double density = 1000;
-    double young_modulus = 1e8;
-    double poisson_ratio = 0.4999;
-    double dt = 1.0 / 60.0f;
+    real density = 1000;
+    real young_modulus = 1e8;
+    real poisson_ratio = 0.4999;
+    real dt = 1.0 / 60.0f;
 
-    double calc_mu() {
+    real calc_mu() {
         return young_modulus / (1.0 + poisson_ratio);
     }
 
-    double calc_lambda() {
+    real calc_lambda() {
         return young_modulus * poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio));
     }
 };
 
 struct CorotationalEnergyConstraint {
     int tet_id;
-    double mu;
-    double lambda;
-    double k;
+    real mu;
+    real lambda;
+    real k;
 };
 
 struct VolumePreservationEnergyConstraint {
     int tet_id;
-    double k;
-    double sigma_min;
-    double sigma_max;
+    real k;
+    real sigma_min;
+    real sigma_max;
 };
 
 struct SoftBodyData {
-    std::vector<glm::dvec3> vertices;
+    std::vector<glm::tvec3<real>> vertices;
     std::vector<glm::ivec3> triangles;
     std::vector<glm::ivec4> tetrahedrons;
 
-    std::vector<glm::dmat3x3> B_m;
-    std::vector<double> W;
-    Eigen::SparseMatrix<double> M;
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> M_LDLt;
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> A_LDLt;
+    std::vector<glm::tmat3x3<real>> B_m;
+    std::vector<real> W;
+    Eigen::SparseMatrix<real> M;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> M_LDLt;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
 
     SoftBodyProperties props;
 
-    std::vector<glm::dmat4x3> D;
+    std::vector<glm::tmat4x3<real>> D;
 
     std::vector<CorotationalEnergyConstraint> corotational_energy_constraints;
     std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy_constraints;
@@ -78,11 +78,11 @@ struct SoftBodyData {
 
     void precomputation();
 
-    void add_corotational_energy(int tet_id, double k, double mu, double lambda);
-    void add_corotational_energy_full_body(double k, double mu, double lambda);
+    void add_corotational_energy(int tet_id, real k, real mu, real lambda);
+    void add_corotational_energy_full_body(real k, real mu, real lambda);
 
-    void add_volume_preservation_energy(int tet_id, double k, double sigma_min, double sigma_max);
-    void add_volume_preservation_energy_full_body(double k, double sigma_min, double sigma_max);
+    void add_volume_preservation_energy(int tet_id, real k, real sigma_min, real sigma_max);
+    void add_volume_preservation_energy_full_body(real k, real sigma_min, real sigma_max);
 };
 
 enum class FEMAlgorithmType {
@@ -90,8 +90,8 @@ enum class FEMAlgorithmType {
     ADMM
 };
 
-void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, double dt, const double* f,
-                        OUT double* pos, OUT double* vel);
+void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, real dt, const real* f,
+                        OUT real* pos, OUT real* vel);
 
 }
 
