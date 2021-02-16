@@ -7,7 +7,7 @@
 // http://pages.cs.wisc.edu/~sifakis/papers/SVD_TR1690.pdf
 
 // This should also work on the CPU using glm
-// Then you probably should use glm::quat instead of glm::tvec4<T>
+// Then you probably should use glm::quat instead of glm::tquat<T>
 // and glm::tmat3x3<T>_cast to convert to glm::tmat3x3<T>.
 
 #include <glm/vec2.hpp>
@@ -41,25 +41,6 @@ glm::tvec2<T> approx_givens_quat(T s_pp, T s_pq, T s_qq) {
     return glm::tvec2<T>(C_STAR, S_STAR);
 }
 
-// the quaternion is stored in glm::tvec4<T> like so:
-// (c, s * glm::tvec3<T>) meaning that .x = c
-template<class T>
-glm::tmat3x3<T> quat_to_mat3(glm::tvec4<T> quat) {
-    T qx2 = quat.y * quat.y;
-    T qy2 = quat.z * quat.z;
-    T qz2 = quat.w * quat.w;
-    T qwqx = quat.x * quat.y;
-    T qwqy = quat.x * quat.z;
-    T qwqz = quat.x * quat.w;
-    T qxqy = quat.y * quat.z;
-    T qxqz = quat.y * quat.w;
-    T qyqz = quat.z * quat.w;
-
-    return glm::tmat3x3<T>(1.0f - 2.0f * (qy2 + qz2), 2.0f * (qxqy + qwqz), 2.0f * (qxqz - qwqy),
-                           2.0f * (qxqy - qwqz), 1.0f - 2.0f * (qx2 + qz2), 2.0f * (qyqz + qwqx),
-                           2.0f * (qxqz + qwqy), 2.0f * (qyqz - qwqx), 1.0f - 2.0f * (qx2 + qy2));
-}
-
 template<class T>
 glm::tmat3x3<T> symmetric_eigenanalysis(glm::tmat3x3<T> A) {
     glm::tmat3x3<T> S = transpose(A) * A;
@@ -67,20 +48,20 @@ glm::tmat3x3<T> symmetric_eigenanalysis(glm::tmat3x3<T> A) {
     glm::tmat3x3<T> q = glm::tmat3x3<T>(1.0f);
     for (int i = 0; i < 5; i++) {
         glm::tvec2<T> ch_sh = approx_givens_quat(S[0].x, S[0].y, S[1].y);
-        glm::tvec4<T> ch_sh_quat = glm::tvec4<T>(ch_sh.x, 0, 0, ch_sh.y);
-        glm::tmat3x3<T> q_mat = quat_to_mat3(ch_sh_quat);
+        glm::tquat<T> ch_sh_quat = glm::tquat<T>(ch_sh.x, 0, 0, ch_sh.y);
+        glm::tmat3x3<T> q_mat = glm::mat3_cast(ch_sh_quat);
         S = transpose(q_mat) * S * q_mat;
         q = q * q_mat;
 
         ch_sh = approx_givens_quat(S[0].x, S[0].z, S[2].z);
-        ch_sh_quat = glm::tvec4<T>(ch_sh.x, 0, -ch_sh.y, 0);
-        q_mat = quat_to_mat3(ch_sh_quat);
+        ch_sh_quat = glm::tquat<T>(ch_sh.x, 0, -ch_sh.y, 0);
+        q_mat = glm::mat3_cast(ch_sh_quat);
         S = transpose(q_mat) * S * q_mat;
         q = q * q_mat;
 
         ch_sh = approx_givens_quat(S[1].y, S[1].z, S[2].z);
-        ch_sh_quat = glm::tvec4<T>(ch_sh.x, ch_sh.y, 0, 0);
-        q_mat = quat_to_mat3(ch_sh_quat);
+        ch_sh_quat = glm::tquat<T>(ch_sh.x, ch_sh.y, 0, 0);
+        q_mat = glm::mat3_cast(ch_sh_quat);
         S = transpose(q_mat) * S * q_mat;
         q = q * q_mat;
 
@@ -120,19 +101,19 @@ QR_mats<T> qr_decomp(glm::tmat3x3<T> B) {
     // 1 0
     // (ch, 0, 0, sh)
     glm::tvec2<T> ch_sh10 = approx_qr_givens_quat(B[0].x, B[0].y);
-    glm::tmat3x3<T> Q10 = quat_to_mat3(glm::tvec4<T>(ch_sh10.x, 0, 0, ch_sh10.y));
+    glm::tmat3x3<T> Q10 = glm::mat3_cast(glm::tquat<T>(ch_sh10.x, 0, 0, ch_sh10.y));
     R = transpose(Q10) * B;
 
     // 2 0
     // (ch, 0, -sh, 0)
     glm::tvec2<T> ch_sh20 = approx_qr_givens_quat(R[0].x, R[0].z);
-    glm::tmat3x3<T> Q20 = quat_to_mat3(glm::tvec4<T>(ch_sh20.x, 0, -ch_sh20.y, 0));
+    glm::tmat3x3<T> Q20 = glm::mat3_cast(glm::tquat<T>(ch_sh20.x, 0, -ch_sh20.y, 0));
     R = transpose(Q20) * R;
 
     // 2 1
     // (ch, sh, 0, 0)
     glm::tvec2<T> ch_sh21 = approx_qr_givens_quat(R[1].y, R[1].z);
-    glm::tmat3x3<T> Q21 = quat_to_mat3(glm::tvec4<T>(ch_sh21.x, ch_sh21.y, 0, 0));
+    glm::tmat3x3<T> Q21 = glm::mat3_cast(glm::tquat<T>(ch_sh21.x, ch_sh21.y, 0, 0));
     R = transpose(Q21) * R;
 
     qr_decomp_result.R = R;

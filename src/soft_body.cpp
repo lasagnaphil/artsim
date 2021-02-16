@@ -81,6 +81,33 @@ void OBJFile::load(const char* filename) {
     ifs.close();
 }
 
+/*
+OBJFile OBJFile::make_cube(real L, int N) {
+    OBJFile obj;
+    obj.vertices.resize((N+1)*(N+1)*(N+1));
+
+#define INDEX(i,j,k) ((N+1)*(N+1)*(i) + (N+1)*(j) + (k))
+
+    real dL = 1.0 / (N+1);
+    for (int i = 0; i <= N; i++) {
+        for (int j = 0; j <= N; j++) {
+            for (int k = 0; k <= N; k++) {
+                obj.vertices[INDEX(i,j,k)] = glm::tvec3<real>(-dL*N/2 + i*dL, -dL*N/2 + j*dL, -dL*N/2 + k*dL);
+            }
+        }
+    }
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            for (int k = 0; k < N; k++) {
+                obj.tetrahedrons.emplace_back(INDEX(i,j,k), INDEX(i+1,j,k),
+            }
+        }
+    }
+
+#undef INDEX
+}
+ */
+
 glm::ivec3 reorder_tri_indices(glm::ivec3 tri) {
     while (tri[0] > tri[1] || tri[0] > tri[2]) {
         std::swap(tri[0], tri[1]);
@@ -295,7 +322,7 @@ void projective_dynamics_volume_constraint_local_solve(
         const glm::tvec3<real>* V,
         OUT glm::tmat3x3<real>* p) {
 
-// #pragma omp parallel for
+#pragma omp parallel for schedule(static)
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
@@ -311,7 +338,7 @@ void admm_volume_constraint_local_solve(
         const glm::tvec3<real>* V,
         OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* p) {
 
-// #pragma omp parallel for
+#pragma omp parallel for schedule(static)
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
@@ -326,7 +353,6 @@ void admm_volume_constraint_local_solve(
 template <class Constraint>
 void global_solve_modify_b(const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
                          const glm::tmat3x3<real>* p, INOUT real* b) {
-// #pragma omp parallel for
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
@@ -356,7 +382,7 @@ void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, rea
 
     glm::tvec3<real>* V = (glm::tvec3<real>*) pos;
 
-    for (int iter = 0; iter < 10; iter++) {
+    for (int iter = 0; iter < 5; iter++) {
         // Local solve
         if (alg_type == FEMAlgorithmType::ProjectiveDynamics) {
             projective_dynamics_volume_constraint_local_solve(

@@ -6,6 +6,7 @@
 #define ARTSIM_ARTSIM_H
 
 #include "core/arena.h"
+#include "types.h"
 
 #include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
 
@@ -23,12 +24,6 @@
 #define INOUT
 
 namespace artsim {
-
-#ifdef ARTSIM_USE_DOUBLE
-using real = double;
-#else
-using real = float;
-#endif
 
 #define SHOW_LOG
 

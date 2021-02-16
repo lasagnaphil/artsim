@@ -24,6 +24,8 @@ struct OBJFile {
 
     std::vector<glm::ivec4> tetrahedrons;
 
+    static OBJFile make_cube(real L, int N);
+
     void load(const char* filename);
 };
 
@@ -44,9 +46,9 @@ struct SoftBodyProperties {
 
 struct CorotationalEnergyConstraint {
     int tet_id;
+    real k;
     real mu;
     real lambda;
-    real k;
 };
 
 struct VolumePreservationEnergyConstraint {

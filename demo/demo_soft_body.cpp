@@ -23,7 +23,7 @@ public:
     MyApp(const AppSettings& settings) : App(settings) {}
 
     void loadResources() {
-        // Eigen::setNbThreads(16);
+        Eigen::setNbThreads(16);
 
         FlyCamera* camera = dynamic_cast<FlyCamera*>(this->camera.get());
         Ref<Transform> cameraTransform = camera->transform;
@@ -42,9 +42,10 @@ public:
 
         OBJFile objfile;
         objfile.load("resources/soft_body/octopus.obj");
-        // objfile.load("resources/soft_body/cube_.mesh");
+        // objfile.load("resources/soft_body/starfish.obj");
+        // objfile.load("resources/soft_body/link_.mesh");
         SoftBodyProperties props;
-        props.young_modulus = 1e8;
+        props.young_modulus = 1e9;
         props.poisson_ratio = 0.4;
         props.dt = sim_dt;
         soft_body.load(objfile, props);
@@ -120,9 +121,11 @@ public:
 
     void resetPhysics() {
         pos = soft_body.vertices;
+        /*
         for (int i = 0; i < pos.size(); i++) {
             pos[i] += (i % 2 == 0)? 0.01 : -0.01;
         }
+         */
         vel.resize(pos.size(), glm::tvec3<real>(0));
         force.resize(pos.size(), glm::tvec3<real>(0));
     }
@@ -154,6 +157,7 @@ int main(int argc, char** argv)
     //--------------------------------------------------------------------------------------
     auto settings = AppSettings::defaultPBR();
     settings.useDisplayFPS = false;
+    settings.updateFPS = 60;
     MyApp app(settings);
     app.load();
     app.startMainLoop();
