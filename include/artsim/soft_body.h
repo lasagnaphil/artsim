@@ -24,7 +24,7 @@ struct OBJFile {
 
     std::vector<glm::ivec4> tetrahedrons;
 
-    static OBJFile make_cube(real L, int N);
+    static OBJFile make_cube(real dL, glm::ivec3 N);
 
     void load(const char* filename);
 };

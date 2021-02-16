@@ -3,6 +3,7 @@
 //
 
 #include <chrono>
+#include <random>
 
 #include <artsim/artsim.h>
 #include <artsim/articulation_state.h>
@@ -23,6 +24,7 @@ public:
     MyApp(const AppSettings& settings) : App(settings) {}
 
     void loadResources() {
+        random_engine = std::default_random_engine(0);
         Eigen::setNbThreads(16);
 
         FlyCamera* camera = dynamic_cast<FlyCamera*>(this->camera.get());
@@ -41,11 +43,12 @@ public:
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
 
         OBJFile objfile;
-        objfile.load("resources/soft_body/octopus.obj");
+        // objfile.load("resources/soft_body/octopus.obj");
         // objfile.load("resources/soft_body/starfish.obj");
-        // objfile.load("resources/soft_body/link_.mesh");
+        objfile.load("resources/soft_body/link_.mesh");
+        // objfile = OBJFile::make_cube(0.3, glm::ivec3(5, 3, 3));
         SoftBodyProperties props;
-        props.young_modulus = 1e9;
+        props.young_modulus = 1e8;
         props.poisson_ratio = 0.4;
         props.dt = sim_dt;
         soft_body.load(objfile, props);
@@ -121,12 +124,12 @@ public:
 
     void resetPhysics() {
         pos = soft_body.vertices;
-        /*
         for (int i = 0; i < pos.size(); i++) {
-            pos[i] += (i % 2 == 0)? 0.01 : -0.01;
+            pos[i] += std::uniform_real_distribution<real>(-0.01f, 0.01f)(random_engine);
         }
-         */
+        vel.clear();
         vel.resize(pos.size(), glm::tvec3<real>(0));
+        force.clear();
         force.resize(pos.size(), glm::tvec3<real>(0));
     }
 
@@ -149,6 +152,8 @@ private:
 
     Ref<PBRMaterial> link_mat, joint_mat;
     int art_type = 1;
+
+    std::default_random_engine random_engine;
 };
 
 int main(int argc, char** argv)

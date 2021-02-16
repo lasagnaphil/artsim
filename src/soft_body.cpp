@@ -81,32 +81,36 @@ void OBJFile::load(const char* filename) {
     ifs.close();
 }
 
-/*
-OBJFile OBJFile::make_cube(real L, int N) {
+OBJFile OBJFile::make_cube(real dL, glm::ivec3 N) {
     OBJFile obj;
-    obj.vertices.resize((N+1)*(N+1)*(N+1));
+    obj.vertices.resize((N.x+1)*(N.y+1)*(N.z+1));
 
-#define INDEX(i,j,k) ((N+1)*(N+1)*(i) + (N+1)*(j) + (k))
+#define INDEX(i,j,k) ((N.y+1)*(N.z+1)*(i) + (N.z+1)*(j) + (k))
 
-    real dL = 1.0 / (N+1);
-    for (int i = 0; i <= N; i++) {
-        for (int j = 0; j <= N; j++) {
-            for (int k = 0; k <= N; k++) {
-                obj.vertices[INDEX(i,j,k)] = glm::tvec3<real>(-dL*N/2 + i*dL, -dL*N/2 + j*dL, -dL*N/2 + k*dL);
+    for (int i = 0; i <= N.x; i++) {
+        for (int j = 0; j <= N.y; j++) {
+            for (int k = 0; k <= N.z; k++) {
+                obj.vertices[INDEX(i,j,k)] = -0.5 * dL * glm::rvec3(N) + glm::rvec3(i,j,k) * dL;
             }
         }
     }
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            for (int k = 0; k < N; k++) {
-                obj.tetrahedrons.emplace_back(INDEX(i,j,k), INDEX(i+1,j,k),
+    obj.tetrahedrons.reserve(6*N.x*N.y*N.z);
+    for (int i = 0; i < N.x; i++) {
+        for (int j = 0; j < N.y; j++) {
+            for (int k = 0; k < N.z; k++) {
+                obj.tetrahedrons.emplace_back(INDEX(i+0,j+0,k+0), INDEX(i+0,j+0,k+1), INDEX(i+0,j+1,k+1), INDEX(i+1,j+1,k+1));
+                obj.tetrahedrons.emplace_back(INDEX(i+0,j+0,k+0), INDEX(i+0,j+0,k+1), INDEX(i+1,j+0,k+1), INDEX(i+1,j+1,k+1));
+                obj.tetrahedrons.emplace_back(INDEX(i+0,j+0,k+0), INDEX(i+0,j+1,k+0), INDEX(i+0,j+1,k+1), INDEX(i+1,j+1,k+1));
+                obj.tetrahedrons.emplace_back(INDEX(i+0,j+0,k+0), INDEX(i+0,j+1,k+0), INDEX(i+1,j+1,k+0), INDEX(i+1,j+1,k+1));
+                obj.tetrahedrons.emplace_back(INDEX(i+0,j+0,k+0), INDEX(i+1,j+0,k+0), INDEX(i+1,j+0,k+1), INDEX(i+1,j+1,k+1));
+                obj.tetrahedrons.emplace_back(INDEX(i+0,j+0,k+0), INDEX(i+1,j+0,k+0), INDEX(i+1,j+1,k+0), INDEX(i+1,j+1,k+1));
             }
         }
     }
+    return obj;
 
 #undef INDEX
 }
- */
 
 glm::ivec3 reorder_tri_indices(glm::ivec3 tri) {
     while (tri[0] > tri[1] || tri[0] > tri[2]) {
@@ -159,10 +163,15 @@ void SoftBodyData::precomputation() {
     D.resize(tetrahedrons.size());
     for (int i = 0; i < tetrahedrons.size(); i++) {
         auto& V = vertices;
-        glm::ivec4 tet = tetrahedrons[i];
+        glm::ivec4& tet = tetrahedrons[i];
         glm::tmat3x3<real> D_m(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
-        B_m[i] = glm::inverse(D_m);
         W[i] = glm::determinant(D_m) / 6.0;
+        if (W[i] < 0) {
+            W[i] = -W[i];
+            std::swap(tet[2], tet[3]);
+            D_m = glm::tmat3x3<real>(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
+        }
+        B_m[i] = glm::inverse(D_m);
         glm::tmat3x3<real> D_i = glm::transpose(B_m[i]);
         D[i][0] = D_i[0];
         D[i][1] = D_i[1];
