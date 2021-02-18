@@ -45,19 +45,20 @@ public:
 
         OBJFile objfile;
         // objfile.load("resources/soft_body_with_art/mesh_carved_.mesh");
-        // objfile.load("resources/soft_body/octopus.obj");
+        objfile.load("resources/soft_body/octopus.obj");
         // objfile.load("resources/soft_body/starfish.obj");
         // objfile.load("resources/soft_body/link_.mesh");
         // objfile = OBJFile::make_cube_tetrahedral(0.5, {1, 1, 1});
-        PyMesh::MshLoader msh("resources/soft_body_with_art/mesh_carved_.msh");
+        // PyMesh::MshLoader msh("resources/soft_body_with_art/mesh_carved_.msh");
         // PyMesh::MshLoader msh("resources/soft_body/link_.msh");
 
         SoftBodyProperties props;
         props.young_modulus = 1e8;
         props.poisson_ratio = 0.4;
         props.dt = sim_dt;
-        soft_body.load(msh, props);
-        soft_body.add_corotational_energy_full_body(props.young_modulus, props.calc_mu(), props.calc_lambda());
+        soft_body.load(objfile, props);
+        soft_body.add_neohookean_energy_full_body(1e4, props.calc_mu(), props.calc_lambda());
+        // soft_body.add_corotational_energy_full_body(1e5, props.calc_mu(), props.calc_lambda());
         // soft_body.add_volume_preservation_energy_full_body(props.young_modulus, 1.0, 1.0);
         soft_body.precomputation();
         soft_body_render = SoftBodyRender(&soft_body, soft_body_mat);
@@ -91,7 +92,7 @@ public:
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             // printf("Duration: %lld microsecs\n", duration.count());
 
-            // run_simulation = false;
+            run_simulation = false;
         }
     }
 

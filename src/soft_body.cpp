@@ -214,6 +214,21 @@ void SoftBodyData::add_corotational_energy_full_body(real k, real mu, real lambd
     }
 }
 
+void SoftBodyData::add_neohookean_energy(int tet_id, real k, real mu, real lambda) {
+    NeoHookeanEnergyConstraint constraint;
+    constraint.tet_id = tet_id;
+    constraint.mu = mu;
+    constraint.lambda = lambda;
+    constraint.k = k;
+    neohookean_energy_constraints.push_back(constraint);
+}
+
+void SoftBodyData::add_neohookean_energy_full_body(real k, real mu, real lambda) {
+    for (int i = 0; i < tetrahedrons.size(); i++) {
+        add_neohookean_energy(i, k, mu, lambda);
+    }
+}
+
 void SoftBodyData::add_volume_preservation_energy(int tet_id, real k, real sigma_min, real sigma_max) {
     VolumePreservationEnergyConstraint constraint;
     constraint.tet_id = tet_id;
@@ -260,6 +275,35 @@ glm::tvec3<real> calc_S_star(glm::tvec3<real> S, real sigma_min, real sigma_max)
         D = ((glm::dot(grad_C, D) - C) / glm::length2(grad_C)) * grad_C;
     }
     return S + D;
+}
+
+glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const NeoHookeanEnergyConstraint& c) {
+    // TODO
+    fprintf(stderr, "Unimplemented!\n");
+    exit(EXIT_FAILURE);
+}
+
+glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const NeoHookeanEnergyConstraint& c, real tau) {
+    auto F_svd = glmx::svd(F);
+    auto S_star = glm::tvec3<real>(F_svd.Sigma[0][0], F_svd.Sigma[1][1], F_svd.Sigma[2][2]);
+    auto S = S_star;
+    for (int i = 0; i < 5; i++) {
+        real J = glm::log(S[0]*S[1]*S[2]);
+        glm::tvec3<real> grad;
+        grad[0] = c.mu*(S[0] - real(1)/S[0]) + c.lambda/S[0] * J + tau*(S[0] - S_star[0]);
+        grad[1] = c.mu*(S[1] - real(1)/S[1]) + c.lambda/S[1] * J + tau*(S[1] - S_star[1]);
+        grad[2] = c.mu*(S[2] - real(1)/S[2]) + c.lambda/S[2] * J + tau*(S[2] - S_star[2]);
+        glmx::tsmat3x3<real> H;
+        H.xx = c.mu + (c.mu + c.lambda)/(S[0]*S[0]) - c.lambda/(S[0]*S[0]) * J + tau;
+        H.yy = c.mu + (c.mu + c.lambda)/(S[1]*S[1]) - c.lambda/(S[1]*S[1]) * J + tau;
+        H.zz = c.mu + (c.mu + c.lambda)/(S[2]*S[2]) - c.lambda/(S[2]*S[2]) * J + tau;
+        H.yz = c.lambda / (S[1]*S[2]);
+        H.zx = c.lambda / (S[2]*S[0]);
+        H.xy = c.lambda / (S[0]*S[1]);
+        S -= glmx::inverse(H) * grad;
+    }
+    glm::tmat3x3<real> Sigma(S.x, 0, 0, 0, S.y, 0, 0, 0, S.z);
+    return F_svd.U * Sigma * glm::transpose(F_svd.V);
 }
 
 glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const VolumePreservationEnergyConstraint& c) {
@@ -347,12 +391,18 @@ void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, rea
                     body, body.corotational_energy_constraints.data(), body.corotational_energy_constraints.size(), V,
                     OUT p.data());
             projective_dynamics_volume_constraint_local_solve(
+                    body, body.neohookean_energy_constraints.data(), body.neohookean_energy_constraints.size(), V,
+                    OUT p.data());
+            projective_dynamics_volume_constraint_local_solve(
                     body, body.volume_preservation_energy_constraints.data(), body.volume_preservation_energy_constraints.size(), V,
                     OUT p.data());
         }
         else if (alg_type == FEMAlgorithmType::ADMM) {
             admm_volume_constraint_local_solve(
                     body, body.corotational_energy_constraints.data(), body.corotational_energy_constraints.size(), V,
+                    OUT z.data(), OUT u.data(), OUT p.data());
+            admm_volume_constraint_local_solve(
+                    body, body.neohookean_energy_constraints.data(), body.neohookean_energy_constraints.size(), V,
                     OUT z.data(), OUT u.data(), OUT p.data());
             admm_volume_constraint_local_solve(
                     body, body.volume_preservation_energy_constraints.data(), body.volume_preservation_energy_constraints.size(), V,
@@ -364,6 +414,9 @@ void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, rea
         VectorXr b = body.M * x;
         global_solve_modify_b(
                 body, body.corotational_energy_constraints.data(), body.corotational_energy_constraints.size(), p.data(),
+                OUT b.data());
+        global_solve_modify_b(
+                body, body.neohookean_energy_constraints.data(), body.neohookean_energy_constraints.size(), p.data(),
                 OUT b.data());
         global_solve_modify_b(
                 body, body.volume_preservation_energy_constraints.data(), body.volume_preservation_energy_constraints.size(), p.data(),

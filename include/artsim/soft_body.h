@@ -37,6 +37,13 @@ struct CorotationalEnergyConstraint {
     real lambda;
 };
 
+struct NeoHookeanEnergyConstraint {
+    int tet_id;
+    real k;
+    real mu;
+    real lambda;
+};
+
 struct VolumePreservationEnergyConstraint {
     int tet_id;
     real k;
@@ -60,6 +67,7 @@ struct SoftBodyData {
     SoftBodyProperties props;
 
     std::vector<CorotationalEnergyConstraint> corotational_energy_constraints;
+    std::vector<NeoHookeanEnergyConstraint> neohookean_energy_constraints;
     std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy_constraints;
 
     void load(const OBJFile& obj, const SoftBodyProperties& props);
@@ -69,6 +77,9 @@ struct SoftBodyData {
 
     void add_corotational_energy(int tet_id, real k, real mu, real lambda);
     void add_corotational_energy_full_body(real k, real mu, real lambda);
+
+    void add_neohookean_energy(int tet_id, real k, real mu, real lambda);
+    void add_neohookean_energy_full_body(real k, real mu, real lambda);
 
     void add_volume_preservation_energy(int tet_id, real k, real sigma_min, real sigma_max);
     void add_volume_preservation_energy_full_body(real k, real sigma_min, real sigma_max);
