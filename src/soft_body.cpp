@@ -17,49 +17,93 @@ using VectorXr = Matrix<artsim::real, Dynamic, 1>;
 
 namespace artsim {
 
-glm::ivec3 reorder_tri_indices(glm::ivec3 tri) {
+std::pair<glm::ivec3, bool> reorder_tri_indices(glm::ivec3 tri) {
+    /*
     while (tri[0] > tri[1] || tri[0] > tri[2]) {
         std::swap(tri[0], tri[1]);
         std::swap(tri[1], tri[2]);
     }
-    return tri;
+     */
+    bool flipped = false;
+    if (tri[1] > tri[2]) {
+        flipped = !flipped;
+        std::swap(tri[1], tri[2]);
+    }
+    if (tri[0] > tri[1]) {
+        flipped = !flipped;
+        std::swap(tri[0], tri[1]);
+    }
+    if (tri[1] > tri[2]) {
+        flipped = !flipped;
+        std::swap(tri[1], tri[2]);
+    }
+    return {tri, flipped};
 }
 
 void SoftBodyData::load(const OBJFile& obj, const SoftBodyProperties& props) {
     this->props = props;
     vertices = obj.vertices;
-    if (obj.triangle_vertices.empty()) {
-        std::unordered_map<glm::ivec3, int> tri_overlaps;
-        auto insert_triangle = [&](glm::ivec3 tri) {
-            auto it = tri_overlaps.find(tri);
-            if (it == tri_overlaps.end()) {
-                tri_overlaps.insert({tri, 1});
+    tetrahedrons = obj.tetrahedrons;
+    generate_surface_triangles();
+}
+
+void SoftBodyData::load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props) {
+    auto& nodes = msh.get_nodes();
+    auto& elems = msh.get_elements();
+    std::cout << "nodes=" << nodes.size() << ", elems=" << elems.size() << std::endl;
+    int num_nodes = nodes.rows() / 3;
+    int num_elems = elems.rows() / 4;
+    vertices.resize(num_nodes);
+    for (int i = 0; i < num_nodes; i++) {
+        vertices[i] = {nodes[3*i+0], nodes[3*i+1], nodes[3*i+2]};
+    }
+    tetrahedrons.resize(num_elems);
+    for (int i = 0; i < num_elems; i++) {
+        tetrahedrons[i] = {elems[4*i+0], elems[4*i+1], elems[4*i+2], elems[4*i+3]};
+    }
+    generate_surface_triangles();
+}
+
+void SoftBodyData::generate_surface_triangles() {
+#if 1
+    for (auto& tet : tetrahedrons) {
+        triangles.push_back({tet[0], tet[2], tet[1]});
+        triangles.push_back({tet[0], tet[1], tet[3]});
+        triangles.push_back({tet[0], tet[3], tet[2]});
+        triangles.push_back({tet[1], tet[2], tet[3]});
+    }
+#else
+    std::unordered_map<glm::ivec3, std::pair<int, bool>> tri_overlaps;
+    auto insert_triangle = [&](glm::ivec3 tri) {
+        auto [tri_p, flipped] = reorder_tri_indices(tri);
+        auto it = tri_overlaps.find(tri_p);
+        if (it == tri_overlaps.end()) {
+            tri_overlaps.insert({tri_p, {1, flipped}});
+        }
+        else {
+            it->second.first++;
+        }
+    };
+    for (auto& tet : tetrahedrons) {
+        insert_triangle({tet[0], tet[2], tet[1]});
+        insert_triangle({tet[0], tet[1], tet[3]});
+        insert_triangle({tet[0], tet[3], tet[2]});
+        insert_triangle({tet[1], tet[2], tet[3]});
+    }
+    for (auto [tri, p] : tri_overlaps) {
+        auto [count, flipped] = p;
+        if (count == 1) {
+            if (flipped) {
+                glm::ivec3 tri_p(tri[1], tri[0], tri[2]);
+                triangles.push_back(tri_p);
             }
             else {
-                it->second++;
-            }
-        };
-        for (int i = 0; i < obj.tetrahedrons.size(); i++) {
-            auto i0 = obj.tetrahedrons[i].x;
-            auto i1 = obj.tetrahedrons[i].y;
-            auto i2 = obj.tetrahedrons[i].z;
-            auto i3 = obj.tetrahedrons[i].w;
-            insert_triangle(reorder_tri_indices({i0, i2, i1}));
-            insert_triangle(reorder_tri_indices({i0, i1, i3}));
-            insert_triangle(reorder_tri_indices({i0, i3, i2}));
-            insert_triangle(reorder_tri_indices({i1, i2, i3}));
-        }
-        for (auto& [tri, count] : tri_overlaps) {
-            if (count == 1) {
                 triangles.push_back(tri);
             }
         }
+        std::cout << glm::to_string(tri) << ": " << count << std::endl;
     }
-    else {
-        triangles = obj.triangle_vertices;
-    }
-
-    tetrahedrons = obj.tetrahedrons;
+#endif
 }
 
 void SoftBodyData::precomputation() {

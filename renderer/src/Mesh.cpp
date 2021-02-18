@@ -164,9 +164,6 @@ Ref<Mesh> Mesh::fromOBJFile(const std::string& filename, bool onlyVertices, bool
             }
         }
     }
-    else {
-        assert(false);
-    }
 
     mesh->initVBO();
     return mesh;

@@ -44,23 +44,27 @@ public:
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
 
         OBJFile objfile;
-        objfile.load("resources/soft_body/octopus.obj");
+        // objfile.load("resources/soft_body_with_art/mesh_carved_.mesh");
+        // objfile.load("resources/soft_body/octopus.obj");
         // objfile.load("resources/soft_body/starfish.obj");
         // objfile.load("resources/soft_body/link_.mesh");
-        // objfile = OBJFile::make_cube_tetrahedral(0.3, glm::ivec3(5, 3, 3));
+        // objfile = OBJFile::make_cube_tetrahedral(0.5, {1, 1, 1});
+        PyMesh::MshLoader msh("resources/soft_body_with_art/mesh_carved_.msh");
+        // PyMesh::MshLoader msh("resources/soft_body/link_.msh");
+
         SoftBodyProperties props;
         props.young_modulus = 1e8;
         props.poisson_ratio = 0.4;
         props.dt = sim_dt;
-        soft_body.load(objfile, props);
+        soft_body.load(msh, props);
         soft_body.add_corotational_energy_full_body(props.young_modulus, props.calc_mu(), props.calc_lambda());
-        // soft_body.add_volume_preservation_energy_full_body(props.young_modulus, 0.9, 1.1);
+        // soft_body.add_volume_preservation_energy_full_body(props.young_modulus, 1.0, 1.0);
         soft_body.precomputation();
         soft_body_render = SoftBodyRender(&soft_body, soft_body_mat);
 
         resetPhysics();
 
-        link_mat = PBRMaterial::quick(0.5f * colors::Red);
+        orig_mesh_mat = PBRMaterial::quick(colors::Green);
     }
 
     void processInput(SDL_Event &event) override {
@@ -125,9 +129,12 @@ public:
 
     void resetPhysics() {
         pos = soft_body.vertices;
+        real noise = 0.01;
+        /*
         for (int i = 0; i < pos.size(); i++) {
-            pos[i] += std::uniform_real_distribution<real>(-0.1f, 0.1f)(random_engine);
+            pos[i] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
         }
+         */
         vel.clear();
         vel.resize(pos.size(), glm::tvec3<real>(0));
         force.clear();
@@ -139,7 +146,8 @@ private:
     MaterialDB material_db;
     ArticulationState state;
     float sim_dt = 1.0f / 60.0f;
-    bool run_simulation = true;
+    bool run_simulation = false;
+    bool render_orig = false;
 
     SoftBodyData soft_body;
     std::vector<glm::tvec3<real>> pos;
@@ -151,7 +159,8 @@ private:
     Ref<PBRMaterial> ground_mat;
     Ref<Mesh> ground_mesh;
 
-    Ref<PBRMaterial> link_mat, joint_mat;
+
+    Ref<PBRMaterial> orig_mesh_mat, joint_mat;
     int art_type = 1;
 
     std::default_random_engine random_engine;

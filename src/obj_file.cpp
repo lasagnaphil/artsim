@@ -12,10 +12,6 @@ namespace artsim {
 
 void OBJFile::load(const char* filename) {
     std::ifstream ifs(filename);
-    if (!(ifs.is_open())) {
-        std::cout << "Can't read file " << filename << std::endl;
-        return;
-    }
     std::string str;
     std::string index;
     std::stringstream ss;
@@ -52,6 +48,15 @@ void OBJFile::load(const char* filename) {
                 triangle_vertices.push_back(fi);
                 continue;
             }
+            res = sscanf(str.c_str(), "f %d//%d %d//%d %d//%d",
+                         &fi.x,&fn.x,
+                         &fi.y,&fn.y,
+                         &fi.z,&fn.z);
+            if (res == 6) {
+                triangle_vertices.push_back(fi);
+                triangle_normals.push_back(fn);
+                continue;
+            }
             res = sscanf(str.c_str(), "f %d/%d/%d %d/%d/%d %d/%d/%d",
                          &fi.x,&ft.x,&fn.x,
                          &fi.y,&ft.y,&fn.y,
@@ -63,7 +68,8 @@ void OBJFile::load(const char* filename) {
                 continue;
             }
             fprintf(stderr, "Error while parsing OBJ file!\n");
-        } else if (index == "t") {
+        }
+        else if (index == "t") {
             glm::ivec4 t;
             ss >> t[0] >> t[1] >> t[2] >> t[3];
             tetrahedrons.push_back(t);
@@ -73,8 +79,45 @@ void OBJFile::load(const char* filename) {
 }
 
 void OBJFile::save(const char* filename) {
-    // TODO
-    exit(EXIT_FAILURE);
+    std::ofstream ofs(filename);
+
+    for (auto& v : vertices) {
+        ofs << "v " << v.x << " " << v.y << " " << v.z << std::endl;
+    }
+    for (auto& vn : normals) {
+        ofs << "vn " << vn.x << " " << vn.y << " " << vn.z << std::endl;
+    }
+    for (auto& vt : uvs) {
+        ofs << "vt " << vt.x << " " << vt.y << std::endl;
+    }
+    if (!triangle_vertices.empty() && !triangle_uvs.empty() && !triangle_normals.empty() ) {
+        for (int i = 0; i < triangle_vertices.size(); i++) {
+            auto fi = triangle_vertices[i];
+            auto ft = triangle_uvs[i];
+            auto fn = triangle_normals[i];
+            ofs << "f " << fi[0] << "/" << ft[0] << "/" << fn[0] << " "
+                        << fi[1] << "/" << ft[1] << "/" << fn[1] << " "
+                        << fi[2] << "/" << ft[2] << "/" << fn[2] << std::endl;
+        }
+    }
+    else if (!triangle_vertices.empty() && !triangle_normals.empty()) {
+        for (int i = 0; i < triangle_vertices.size(); i++) {
+            auto fi = triangle_vertices[i];
+            auto fn = triangle_normals[i];
+            ofs << "f " << fi[0] << "//" << fn[0] << " "
+                        << fi[1] << "//" << fn[1] << " "
+                        << fi[2] << "//" << fn[2] << std::endl;
+        }
+    }
+    else if (!triangle_vertices.empty()) {
+        for (int i = 0; i < triangle_vertices.size(); i++) {
+            auto fi = triangle_vertices[i];
+            ofs << "f " << fi[0] << " " << fi[1] << " " << fi[2] << std::endl;
+        }
+    }
+    for (auto& t : tetrahedrons) {
+        ofs << "t " << t[0] << " " << t[1] << " " << t[2] << " " << t[3] << std::endl;
+    }
 }
 
 OBJFile OBJFile::make_cube_tetrahedral(real dL, glm::ivec3 N) {

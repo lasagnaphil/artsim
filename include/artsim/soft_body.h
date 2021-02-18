@@ -10,6 +10,7 @@
 #include <artsim/artsim.h>
 #include <artsim/obj_file.h>
 #include <artsim/math/dynmat.h>
+#include <artsim/utils/pymesh/MshLoader.h>
 #include <Eigen/SparseCholesky>
 
 namespace artsim {
@@ -62,6 +63,7 @@ struct SoftBodyData {
     std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy_constraints;
 
     void load(const OBJFile& obj, const SoftBodyProperties& props);
+    void load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props);
 
     void precomputation();
 
@@ -70,6 +72,9 @@ struct SoftBodyData {
 
     void add_volume_preservation_energy(int tet_id, real k, real sigma_min, real sigma_max);
     void add_volume_preservation_energy_full_body(real k, real sigma_min, real sigma_max);
+
+private:
+    void generate_surface_triangles();
 };
 
 enum class FEMAlgorithmType {

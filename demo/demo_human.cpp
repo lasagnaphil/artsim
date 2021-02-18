@@ -51,9 +51,9 @@ public:
 
         reset();
 
-        link_mat = PBRMaterial::quick(0.5f * colors::Red);
+        orig_mesh_mat = PBRMaterial::quick(0.5f * colors::Red);
         joint_mat = PBRMaterial::quick(colors::Green);
-        art_render = ArticulationStateRender(&state, link_mat, joint_mat);
+        art_render = ArticulationStateRender(&state, orig_mesh_mat, joint_mat);
     }
 
     void processInput(SDL_Event &event) override {
@@ -115,7 +115,7 @@ public:
         state.set_root_transform(glmx::ttransform<real>(tvec3<real>(0.0f, 1.3f, 0.0f)));
         state.update_transforms();
 
-        art_render = ArticulationStateRender(&state, link_mat, joint_mat);
+        art_render = ArticulationStateRender(&state, orig_mesh_mat, joint_mat);
     }
 
 private:
@@ -132,7 +132,7 @@ private:
     Ref<PBRMaterial> ground_mat;
     Ref<Mesh> ground_mesh;
 
-    Ref<PBRMaterial> link_mat, joint_mat;
+    Ref<PBRMaterial> orig_mesh_mat, joint_mat;
     ArticulationStateRender art_render;
 };
 

@@ -6,6 +6,7 @@
 #include "artsim/dynamics.h"
 
 #include <glm/gtx/hash.hpp>
+#include <filesystem>
 
 using namespace glmx;
 

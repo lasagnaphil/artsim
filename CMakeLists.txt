@@ -36,7 +36,8 @@ add_library(artsim
         src/soft_body_with_art.cpp
         src/obj_file.cpp
         src/utils/example_articulations.cpp
-        src/utils/urdf.cpp src/utils/xml.cpp)
+        src/utils/urdf.cpp src/utils/xml.cpp
+        src/utils/pymesh/MshLoader.cpp src/utils/pymesh/MshSaver.cpp src/utils/pymesh/IOUtils.cpp)
 
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
 set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision)

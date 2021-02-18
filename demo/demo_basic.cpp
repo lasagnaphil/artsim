@@ -46,9 +46,9 @@ public:
 
         resetPhysics();
 
-        link_mat = PBRMaterial::quick(0.5f * colors::Red);
+        orig_mesh_mat = PBRMaterial::quick(0.5f * colors::Red);
         joint_mat = PBRMaterial::quick(colors::Green);
-        art_render = ArticulationStateRender(&state, link_mat, joint_mat);
+        art_render = ArticulationStateRender(&state, orig_mesh_mat, joint_mat);
     }
 
     void processInput(SDL_Event &event) override {
@@ -116,7 +116,7 @@ public:
                 state.enable_collision_with_ground = false;
                 state.randomize_positions();
 
-                art_render = ArticulationStateRender(&state, link_mat, joint_mat);
+                art_render = ArticulationStateRender(&state, orig_mesh_mat, joint_mat);
             } break;
             case DemoType::Contacts: {
                 art = examples::create_free_link(art_type, true);
@@ -125,7 +125,7 @@ public:
                 state.enable_collision_with_ground = art.floating;
                 state.randomize_positions();
 
-                art_render = ArticulationStateRender(&state, link_mat, joint_mat);
+                art_render = ArticulationStateRender(&state, orig_mesh_mat, joint_mat);
             } break;
 
         }
@@ -141,7 +141,7 @@ private:
     Ref<PBRMaterial> ground_mat;
     Ref<Mesh> ground_mesh;
 
-    Ref<PBRMaterial> link_mat, joint_mat;
+    Ref<PBRMaterial> orig_mesh_mat, joint_mat;
     ArticulationStateRender art_render;
 
     DemoType demo_type = DemoType::Pendulum;
