@@ -44,7 +44,6 @@ void artsim::SoftBodyWithArtData::precomputation() {
     }
 
     Matrix<real, Dynamic, Dynamic> J_cr(3*num_constrained_vertices, num_links);
-    Matrix<real, Dynamic, Dynamic> J_cr_M_r_inv(3*num_constrained_vertices, num_links);
 
     for (auto& [link_idx, vertices] : constrained_vertices) {
         for (int vidx = vertices.first; vidx < vertices.second; vidx++) {
@@ -55,9 +54,6 @@ void artsim::SoftBodyWithArtData::precomputation() {
             J_cr(3*vidx+2, link_idx) = vel[2];
         }
     }
-
-    dynmat_view<real> J_cr_T_view(J_cr.data(), num_links, 3*num_constrained_vertices);
-    dynmat_view<real> J_cr_M_r_inv_view(J_cr_M_r_inv.data(), num_links, 3*num_constrained_vertices);
 
     // TODO
 }

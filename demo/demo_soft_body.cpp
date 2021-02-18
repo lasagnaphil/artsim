@@ -47,7 +47,7 @@ public:
         objfile.load("resources/soft_body/octopus.obj");
         // objfile.load("resources/soft_body/starfish.obj");
         // objfile.load("resources/soft_body/link_.mesh");
-        // objfile = OBJFile::make_cube(0.3, glm::ivec3(5, 3, 3));
+        // objfile = OBJFile::make_cube_tetrahedral(0.3, glm::ivec3(5, 3, 3));
         SoftBodyProperties props;
         props.young_modulus = 1e8;
         props.poisson_ratio = 0.4;

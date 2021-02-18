@@ -36,7 +36,7 @@ add_library(artsim
         src/soft_body_with_art.cpp
         src/obj_file.cpp
         src/utils/example_articulations.cpp
-        src/utils/urdf.cpp)
+        src/utils/urdf.cpp src/utils/xml.cpp)
 
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
 set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision)
@@ -50,13 +50,10 @@ if (ARTSIM_USE_DOUBLE)
     target_compile_definitions(artsim PUBLIC ARTSIM_USE_DOUBLE)
 endif()
 
-if (ARTSIM_BUILD_RENDERER)
+if (ARTSIM_BUILD_RENDERER OR ARTSIM_BUILD_DEMOS)
     add_subdirectory(renderer)
 endif()
 if (ARTSIM_BUILD_DEMOS)
-    if (NOT ARTSIM_BUILD_RENDERER)
-        add_subdirectory(renderer)
-    endif()
     add_subdirectory(demo)
 endif()
 if (ARTSIM_BUILD_TESTS)

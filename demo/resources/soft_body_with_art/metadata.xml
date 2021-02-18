@@ -1,0 +1,14 @@
+<meta>
+    <articulation>two_link_art.xml</articulation>
+    <soft_body_mesh>two_link_mesh.obj</soft_body_mesh>
+    <constraints>
+        <link name="root">
+            <vertices start="1" end="2"/>
+            <normals start="1" end="2"/>
+        </link>
+        <link name="link1">
+            <vertices start="1" end="2"/>
+            <normals start="1" end="2"/>
+        </link>
+    </constraints>
+</meta>

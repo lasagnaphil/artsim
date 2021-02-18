@@ -72,7 +72,12 @@ void OBJFile::load(const char* filename) {
     ifs.close();
 }
 
-OBJFile OBJFile::make_cube(real dL, glm::ivec3 N) {
+void OBJFile::save(const char* filename) {
+    // TODO
+    exit(EXIT_FAILURE);
+}
+
+OBJFile OBJFile::make_cube_tetrahedral(real dL, glm::ivec3 N) {
     OBJFile obj;
     obj.vertices.resize((N.x+1)*(N.y+1)*(N.z+1));
 

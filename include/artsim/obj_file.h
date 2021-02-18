@@ -7,6 +7,7 @@
 
 #include <artsim/types.h>
 #include <vector>
+#include <unordered_map>
 
 namespace artsim {
 
@@ -21,9 +22,10 @@ struct OBJFile {
 
     std::vector<glm::ivec4> tetrahedrons;
 
-    static OBJFile make_cube(real dL, glm::ivec3 N);
+    static OBJFile make_cube_tetrahedral(real dL, glm::ivec3 N);
 
     void load(const char* filename);
+    void save(const char* filename);
 };
 
 }
