@@ -15,6 +15,11 @@ using namespace Eigen;
 using MatrixXr = Matrix<artsim::real, Dynamic, Dynamic>;
 using VectorXr = Matrix<artsim::real, Dynamic, 1>;
 
+#define VOLUME_CONSTRAINTS \
+    X(corotational_energy_constraints) \
+    X(neohookean_energy_constraints)   \
+    X(volume_preservation_energy_constraints)
+
 namespace artsim {
 
 std::pair<glm::ivec3, bool> reorder_tri_indices(glm::ivec3 tri) {
@@ -40,31 +45,8 @@ std::pair<glm::ivec3, bool> reorder_tri_indices(glm::ivec3 tri) {
     return {tri, flipped};
 }
 
-void SoftBodyData::load(const OBJFile& obj, const SoftBodyProperties& props) {
-    this->props = props;
-    vertices = obj.vertices;
-    tetrahedrons = obj.tetrahedrons;
-    generate_surface_triangles();
-}
-
-void SoftBodyData::load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props) {
-    auto& nodes = msh.get_nodes();
-    auto& elems = msh.get_elements();
-    std::cout << "nodes=" << nodes.size() << ", elems=" << elems.size() << std::endl;
-    int num_nodes = nodes.rows() / 3;
-    int num_elems = elems.rows() / 4;
-    vertices.resize(num_nodes);
-    for (int i = 0; i < num_nodes; i++) {
-        vertices[i] = {nodes[3*i+0], nodes[3*i+1], nodes[3*i+2]};
-    }
-    tetrahedrons.resize(num_elems);
-    for (int i = 0; i < num_elems; i++) {
-        tetrahedrons[i] = {elems[4*i+0], elems[4*i+1], elems[4*i+2], elems[4*i+3]};
-    }
-    generate_surface_triangles();
-}
-
-void SoftBodyData::generate_surface_triangles() {
+void gen_surface_triangles_from_tet_mesh(const std::vector<glm::ivec4>& tetrahedrons,
+                                         OUT std::vector<glm::ivec3>& triangles) {
 #if 0
     for (auto& tet : tetrahedrons) {
         triangles.push_back({tet[0], tet[2], tet[1]});
@@ -101,10 +83,34 @@ void SoftBodyData::generate_surface_triangles() {
                 triangles.push_back(tri);
             }
         }
-        std::cout << glm::to_string(tri) << ": " << count << std::endl;
     }
 #endif
 }
+
+void SoftBodyData::load(const OBJFile& obj, const SoftBodyProperties& props) {
+    this->props = props;
+    vertices = obj.vertices;
+    tetrahedrons = obj.tetrahedrons;
+    gen_surface_triangles_from_tet_mesh(tetrahedrons, OUT triangles);
+}
+
+void SoftBodyData::load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props) {
+    auto& nodes = msh.get_nodes();
+    auto& elems = msh.get_elements();
+    std::cout << "nodes=" << nodes.size() << ", elems=" << elems.size() << std::endl;
+    int num_nodes = nodes.rows() / 3;
+    int num_elems = elems.rows() / 4;
+    vertices.resize(num_nodes);
+    for (int i = 0; i < num_nodes; i++) {
+        vertices[i] = {nodes[3*i+0], nodes[3*i+1], nodes[3*i+2]};
+    }
+    tetrahedrons.resize(num_elems);
+    for (int i = 0; i < num_elems; i++) {
+        tetrahedrons[i] = {elems[4*i+0], elems[4*i+1], elems[4*i+2], elems[4*i+3]};
+    }
+    gen_surface_triangles_from_tet_mesh(tetrahedrons, OUT triangles);
+}
+
 
 void SoftBodyData::precomputation() {
     B_m.resize(tetrahedrons.size());
@@ -157,29 +163,26 @@ void SoftBodyData::precomputation() {
     M_LDLt.analyzePattern(M);
     M_LDLt.factorize(M);
 
+    update_system_matrix();
+}
+
+void SoftBodyData::update_system_matrix() {
     SparseMatrix<real> A = M;
-    for (const auto& c : corotational_energy_constraints) {
-        glm::ivec4 tet = tetrahedrons[c.tet_id];
-        for (int j = 0; j < 4; j++) {
-            for (int k = 0; k < 4; k++) {
-                real dA = props.dt * props.dt * c.k * W[c.tet_id] * glm::dot(D[c.tet_id][j], D[c.tet_id][k]);
-                A.coeffRef(3*tet[j]+0, 3*tet[k]+0) += dA;
-                A.coeffRef(3*tet[j]+1, 3*tet[k]+1) += dA;
-                A.coeffRef(3*tet[j]+2, 3*tet[k]+2) += dA;
-            }
-        }
+
+#define X(constraints) \
+    for (const auto& c : constraints) { \
+        glm::ivec4 tet = tetrahedrons[c.tet_id]; \
+        for (int j = 0; j < 4; j++) { \
+            for (int k = 0; k < 4; k++) { \
+                real dA = props.dt * props.dt * c.k * W[c.tet_id] * glm::dot(D[c.tet_id][j], D[c.tet_id][k]); \
+                A.coeffRef(3*tet[j]+0, 3*tet[k]+0) += dA; \
+                A.coeffRef(3*tet[j]+1, 3*tet[k]+1) += dA; \
+                A.coeffRef(3*tet[j]+2, 3*tet[k]+2) += dA; \
+            } \
+        } \
     }
-    for (const auto& c : volume_preservation_energy_constraints) {
-        glm::ivec4 tet = tetrahedrons[c.tet_id];
-        for (int j = 0; j < 4; j++) {
-            for (int k = 0; k < 4; k++) {
-                real dA = props.dt * props.dt * c.k * W[c.tet_id] * glm::dot(D[c.tet_id][j], D[c.tet_id][k]);
-                A.coeffRef(3*tet[j]+0, 3*tet[k]+0) += dA;
-                A.coeffRef(3*tet[j]+1, 3*tet[k]+1) += dA;
-                A.coeffRef(3*tet[j]+2, 3*tet[k]+2) += dA;
-            }
-        }
-    }
+    VOLUME_CONSTRAINTS
+#undef X
 
     SparseMatrix<real> A_prime = A;
     A_LDLt.analyzePattern(A_prime);
@@ -300,6 +303,7 @@ glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const NeoHookeanEnergyC
         H.yz = c.lambda / (S[1]*S[2]);
         H.zx = c.lambda / (S[2]*S[0]);
         H.xy = c.lambda / (S[0]*S[1]);
+        /*
         std::cout << glm::to_string(S) << std::endl;
         if (glm::isnan(H.xx) || glm::isnan(H.yy) || glm::isnan(H.zz)) {
             std::cout << "Nan detected!" << std::endl;
@@ -307,9 +311,10 @@ glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const NeoHookeanEnergyC
         if (glm::epsilonEqual(glmx::determinant(H), 0., 1e-8)) {
             std::cout << "Singular matrix!" << std::endl;
         }
+         */
         S -= glmx::inverse(H) * grad;
     }
-    std::cout << "opt finished" << std::endl;
+    // std::cout << "opt finished" << std::endl;
     glm::tmat3x3<real> Sigma(S.x, 0, 0, 0, S.y, 0, 0, 0, S.z);
     return F_svd.U * Sigma * glm::transpose(F_svd.V);
 }
@@ -378,12 +383,7 @@ void global_solve_modify_b(const SoftBodyData& body, const Constraint* constrain
     }
 }
 
-#define VOLUME_CONSTRAINTS \
-    X(corotational_energy_constraints) \
-    X(neohookean_energy_constraints)   \
-    X(volume_preservation_energy_constraints) \
-
-void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, real dt, const real* f,
+void soft_body_dynamics(SoftBodyData& body, FEMAlgorithmType alg_type, real dt, const real* f,
                         INOUT real* pos, INOUT real* vel) {
     Map<VectorXr> x(pos, 3*body.vertices.size());
     Map<VectorXr> v(vel, 3*body.vertices.size());
@@ -420,8 +420,12 @@ void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, rea
         VOLUME_CONSTRAINTS
 #undef X
 
-        x = body.A_LDLt.solve(b);
+        if (body.should_update_system_matrix) {
+            body.update_system_matrix();
+            body.should_update_system_matrix = false;
+        }
 
+        x = body.A_LDLt.solve(b);
     }
     v = (x - x_orig) / dt;
 }

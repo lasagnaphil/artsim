@@ -9,27 +9,27 @@
 
 namespace artsim {
 
-struct SoftBodyWithArtData {
-    SoftBodyData soft_body;
+struct SoftBodyWithArtData : public SoftBodyData {
+public:
+    ~SoftBodyWithArtData() = default;
 
     std::unordered_map<int, std::pair<int, int>> constrained_vertices;
     int num_constrained_vertices;
+
+    std::vector<glm::tmat3x3<real>> B_m;
+    std::vector<real> W;
+    Eigen::SparseMatrix<real> M;
+    std::vector<glm::tmat4x3<real>> D;
 
     Eigen::SparseMatrix<real> M_ff;
     Eigen::SparseMatrix<real> M_cf;
     Eigen::SparseMatrix<real> J_M_fc;
     Eigen::SparseMatrix<real> J_M_cc;
 
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> M_LDLt;
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
-
     ArticulatedBody art;
     std::vector<real> rest_pose;
 
-    static SoftBodyWithArtData make_two_link_test();
-
-    void load(const OBJFile& soft_body, const SoftBodyProperties& soft_body_props, const ArticulatedBody& art,
-              const real* rest_pose_data);
+    void load(const char* metadata);
 
     void precomputation();
 };

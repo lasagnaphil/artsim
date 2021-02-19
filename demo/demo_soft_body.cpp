@@ -57,8 +57,8 @@ public:
         props.poisson_ratio = 0.499;
         props.dt = sim_dt;
         soft_body.load(msh, props);
-        soft_body.add_corotational_energy_full_body(props.calc_corotational_stiffness(), props.calc_mu(), props.calc_lambda());
-        // soft_body.add_neohookean_energy_full_body(props.calc_neohookean_stiffness(), props.calc_mu(), props.calc_lambda());
+        // soft_body.add_corotational_energy_full_body(props.calc_corotational_stiffness(), props.calc_mu(), props.calc_lambda());
+        soft_body.add_neohookean_energy_full_body(props.calc_neohookean_stiffness(), props.calc_mu(), props.calc_lambda());
         // soft_body.add_volume_preservation_energy_full_body(1e5, 1.0, 1.0);
         soft_body.precomputation();
         soft_body_render = SoftBodyRender(&soft_body, soft_body_mat);
@@ -91,8 +91,6 @@ public:
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             // printf("Duration: %lld microsecs\n", duration.count());
-
-            run_simulation = true;
         }
     }
 

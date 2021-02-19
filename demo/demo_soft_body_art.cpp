@@ -56,7 +56,7 @@ public:
         props.young_modulus = 1e8;
         props.poisson_ratio = 0.499;
         props.dt = sim_dt;
-        soft_body.load(msh, props);
+        soft_body_with_art.load("resources/soft_body_with_art/metadata.xml");
         soft_body.add_corotational_energy_full_body(props.calc_corotational_stiffness(), props.calc_mu(), props.calc_lambda());
         // soft_body.add_neohookean_energy_full_body(props.calc_neohookean_stiffness(), props.calc_mu(), props.calc_lambda());
         // soft_body.add_volume_preservation_energy_full_body(1e5, 1.0, 1.0);
@@ -142,14 +142,13 @@ public:
     }
 
 private:
-    ArticulatedBody art;
     MaterialDB material_db;
     ArticulationState state;
     float sim_dt = 1.0f / 60.0f;
     bool run_simulation = false;
     bool render_orig = false;
 
-    SoftBodyData soft_body;
+    SoftBodyWithArtData soft_body_with_art;
     std::vector<glm::tvec3<real>> pos;
     std::vector<glm::tvec3<real>> vel;
     std::vector<glm::tvec3<real>> force;

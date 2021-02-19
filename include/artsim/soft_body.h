@@ -66,7 +66,12 @@ struct VolumePreservationEnergyConstraint {
     real sigma_max;
 };
 
+void gen_surface_triangles_from_tet_mesh(const std::vector<glm::ivec4>& tetrahedrons,
+                                         OUT std::vector<glm::ivec3>& triangles);
+
 struct SoftBodyData {
+public:
+    ~SoftBodyData() = default;
     std::vector<glm::tvec3<real>> vertices;
     std::vector<glm::ivec3> triangles;
     std::vector<glm::ivec4> tetrahedrons;
@@ -88,7 +93,8 @@ struct SoftBodyData {
     void load(const OBJFile& obj, const SoftBodyProperties& props);
     void load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props);
 
-    void precomputation();
+    virtual void precomputation();
+    void update_system_matrix();
 
     void add_corotational_energy(int tet_id, real k, real mu, real lambda);
     void add_corotational_energy_full_body(real k, real mu, real lambda);
@@ -99,8 +105,7 @@ struct SoftBodyData {
     void add_volume_preservation_energy(int tet_id, real k, real sigma_min, real sigma_max);
     void add_volume_preservation_energy_full_body(real k, real sigma_min, real sigma_max);
 
-private:
-    void generate_surface_triangles();
+    bool should_update_system_matrix = false;
 };
 
 enum class FEMAlgorithmType {
@@ -108,7 +113,7 @@ enum class FEMAlgorithmType {
     ADMM
 };
 
-void soft_body_dynamics(const SoftBodyData& body, FEMAlgorithmType alg_type, real dt, const real* f,
+void soft_body_dynamics(SoftBodyData& body, FEMAlgorithmType alg_type, real dt, const real* f,
                         OUT real* pos, OUT real* vel);
 
 }

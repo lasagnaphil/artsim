@@ -6,32 +6,43 @@
 #include "artsim/dynamics.h"
 #include "artsim/utils/xml.h"
 
+#include <tinyxml2.h>
 #include <glm/gtx/hash.hpp>
-#include <filesystem>
 
 using namespace glmx;
 using namespace artsim;
+using namespace tinyxml2;
 
-SoftBodyWithArtData SoftBodyWithArtData::make_two_link_test() {
-    SoftBodyWithArtData data;
+void SoftBodyWithArtData::load(const char* metadata) {
+    XMLDocument doc;
+    doc.LoadFile(metadata);
+    auto root_el = doc.RootElement();
+    auto constraints_el = root_el->FirstChildElement("constraints");
+    auto articulation_el = root_el->FirstChildElement("articulation");
+    auto soft_body_mesh_el = root_el->FirstChildElement("soft_body_mesh");
+
+    OBJFile soft_body_obj;
+    soft_body_obj.load(soft_body_mesh_el->Attribute("file"));
+    props.young_modulus = soft_body_mesh_el->DoubleAttribute("young_modulus");
+    props.poisson_ratio = soft_body_mesh_el->DoubleAttribute("poisson_ratio");
+    props.dt = 1.0 / soft_body_mesh_el->IntAttribute("hz");
+
+    vertices = soft_body_obj.vertices;
+    tetrahedrons = soft_body_obj.tetrahedrons;
+
     std::vector<uint32_t> contact_indices;
-    data.art = load_from_xml("demo/resources/soft_body_with_art/two_link_art.xml", contact_indices);
-
-}
-
-void SoftBodyWithArtData::load(const OBJFile& soft_body_obj, const SoftBodyProperties& soft_body_props,
-                                       const ArticulatedBody& in_art, const real* rest_pose_data) {
-    soft_body.load(soft_body_obj, soft_body_props);
-    this->art = in_art;
+    art = load_from_xml(articulation_el->Attribute("file"), contact_indices);
 
     int num_pos_dofs = art.get_num_pos_dofs();
-    rest_pose.resize(num_pos_dofs);
-    std::copy_n(rest_pose_data, num_pos_dofs, rest_pose.data());
+    rest_pose.resize(num_pos_dofs, 0);
+
+    // TODO: reorder vertices so that constrained ones go last
+
+    gen_surface_triangles_from_tet_mesh(tetrahedrons, triangles);
 }
 
 void SoftBodyWithArtData::precomputation() {
     using namespace Eigen;
-    // TODO: reorder vertices so that constrained ones go last
 
     int num_links = art.get_num_joints();
 
@@ -47,9 +58,9 @@ void SoftBodyWithArtData::precomputation() {
 
     Matrix<real, Dynamic, Dynamic> J_cr(3*num_constrained_vertices, num_links);
 
-    for (auto& [link_idx, vertices] : constrained_vertices) {
-        for (int vidx = vertices.first; vidx < vertices.second; vidx++) {
-            auto T_v = soft_body.vertices[vidx] - joint_trans[link_idx].v;
+    for (auto& [link_idx, link_vertices] : constrained_vertices) {
+        for (int vidx = link_vertices.first; vidx < link_vertices.second; vidx++) {
+            auto T_v = vertices[vidx] - joint_trans[link_idx].v;
             auto vel = glm::cross(global_joint_S[link_idx].w, T_v);
             J_cr(3*vidx+0, link_idx) = vel[0];
             J_cr(3*vidx+1, link_idx) = vel[1];
