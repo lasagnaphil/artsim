@@ -336,6 +336,15 @@ namespace glmx {
         return minv;
     }
 
+    template <class T>
+    T determinant(const tsmat3x3<T>& m) {
+        T xx = m.yy * m.zz - m.yz * m.yz;
+        T xy = m.zx * m.yz - m.zz * m.xy;
+        T zx = m.yz * m.xy - m.yy * m.zx;
+        T determinant = m.xx * xx + m.xy * xy + m.zx * zx;
+        return determinant;
+    }
+
     // TODO: optimize rotate and inv_rotate (see Featherstone2008 A.5)
     template <class T>
     inline tsmat3x3<T> rotate(const tsmat3x3<T>& I, const glm::tmat3x3<T>& R) {

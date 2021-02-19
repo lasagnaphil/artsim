@@ -53,13 +53,13 @@ public:
         // PyMesh::MshLoader msh("resources/soft_body/link_.msh");
 
         SoftBodyProperties props;
-        props.young_modulus = 1e8;
-        props.poisson_ratio = 0.4;
+        props.young_modulus = 1e7;
+        props.poisson_ratio = 0.499;
         props.dt = sim_dt;
         soft_body.load(objfile, props);
-        soft_body.add_neohookean_energy_full_body(1e4, props.calc_mu(), props.calc_lambda());
-        // soft_body.add_corotational_energy_full_body(1e5, props.calc_mu(), props.calc_lambda());
-        // soft_body.add_volume_preservation_energy_full_body(props.young_modulus, 1.0, 1.0);
+        soft_body.add_corotational_energy_full_body(props.calc_corotational_stiffness(), props.calc_mu(), props.calc_lambda());
+        // soft_body.add_neohookean_energy_full_body(props.calc_neohookean_stiffness(), props.calc_mu(), props.calc_lambda());
+        // soft_body.add_volume_preservation_energy_full_body(1e5, 1.0, 1.0);
         soft_body.precomputation();
         soft_body_render = SoftBodyRender(&soft_body, soft_body_mat);
 
@@ -92,7 +92,7 @@ public:
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             // printf("Duration: %lld microsecs\n", duration.count());
 
-            run_simulation = false;
+            run_simulation = true;
         }
     }
 
@@ -130,8 +130,8 @@ public:
 
     void resetPhysics() {
         pos = soft_body.vertices;
-        real noise = 0.01;
         /*
+        real noise = 0.1;
         for (int i = 0; i < pos.size(); i++) {
             pos[i] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
         }

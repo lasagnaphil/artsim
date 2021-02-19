@@ -46,7 +46,7 @@ glm::tmat3x3<T> symmetric_eigenanalysis(glm::tmat3x3<T> A) {
     glm::tmat3x3<T> S = transpose(A) * A;
     // jacobi iteration
     glm::tmat3x3<T> q = glm::tmat3x3<T>(1.0f);
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 4; i++) {
         glm::tvec2<T> ch_sh = approx_givens_quat(S[0].x, S[0].y, S[1].y);
         glm::tquat<T> ch_sh_quat = glm::tquat<T>(ch_sh.x, 0, 0, ch_sh.y);
         glm::tmat3x3<T> q_mat = glm::mat3_cast(ch_sh_quat);

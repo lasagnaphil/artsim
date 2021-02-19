@@ -28,6 +28,21 @@ struct SoftBodyProperties {
     real calc_lambda() {
         return young_modulus * poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio));
     }
+
+    real calc_corotational_stiffness() {
+        return 2*calc_mu() + calc_lambda();
+    }
+
+    real calc_neohookean_stiffness(real cmin = 0.9, real cmax = 1.1) {
+        real mu = calc_mu();
+        real lambda = calc_lambda();
+        auto numer = [mu, lambda](real x) {
+            real lgx = log(1+x);
+            return mu*(lgx - x + x*x/2 + x*x*x/3) - lambda*((1+x)*(1-lgx) + lgx*lgx/2);
+        };
+        auto denom = [](real x) { return x*x*x/3; };
+        return (numer(cmax-1) - numer(cmin-1)) / (denom(cmax-1) - denom(cmin-1));
+    }
 };
 
 struct CorotationalEnergyConstraint {
