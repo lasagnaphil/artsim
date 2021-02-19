@@ -19,18 +19,23 @@ public:
         update_mesh(data->vertices.data());
     }
 
-    void render(PBRenderer& renderer, DebugRenderer& debug, const glm::tvec3<artsim::real>* vpos) {
+    void render(PBRenderer& renderer, const glm::tvec3<artsim::real>* vpos) {
         update_mesh(vpos);
-
         renderer.queueRender({mesh, mat, glm::mat4(1.0f)});
+    }
 
-        for (int t = 0; t < data->triangles.size(); t++) {
-            auto i0 = data->triangles[t][0];
-            auto i1 = data->triangles[t][1];
-            auto i2 = data->triangles[t][2];
+    void render_debug(DebugRenderer& debug, const glm::tvec3<artsim::real>* vpos) {
+        for (int t = 0; t < data->tetrahedrons.size(); t++) {
+            auto i0 = data->tetrahedrons[t][0];
+            auto i1 = data->tetrahedrons[t][1];
+            auto i2 = data->tetrahedrons[t][2];
+            auto i3 = data->tetrahedrons[t][3];
             debug.drawLine(vpos[i0], vpos[i1], colors::Black, true);
             debug.drawLine(vpos[i0], vpos[i2], colors::Black, true);
+            debug.drawLine(vpos[i0], vpos[i3], colors::Black, true);
             debug.drawLine(vpos[i1], vpos[i2], colors::Black, true);
+            debug.drawLine(vpos[i1], vpos[i3], colors::Black, true);
+            debug.drawLine(vpos[i2], vpos[i3], colors::Black, true);
         }
     }
 

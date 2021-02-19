@@ -2,13 +2,13 @@
     <constraints>
         <link name="link1">
             <vertices start="8" end="16"/>
-            <normals start="8" end="16"/>
+            <faces start="8" end="16"/>
         </link>
         <link name="link2">
             <vertices start="16" end="24"/>
-            <normals start="16" end="24"/>
+            <faces start="16" end="24"/>
         </link>
     </constraints>
     <articulation>two_link_art.xml</articulation>
-    <soft_body_mesh>mesh_carved.obj</soft_body_mesh>
+    <soft_body_mesh>mesh_carved_.msh</soft_body_mesh>
 </metadata>

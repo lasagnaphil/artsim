@@ -5,7 +5,9 @@
 #include <artsim/artsim.h>
 #include <artsim/dynamics.h>
 #include <artsim/utils/xml.h>
+#include <artsim/utils/pymesh/MshLoader.h>
 #include <tinyxml2.h>
+#include <fmt/core.h>
 
 #include <filesystem>
 
@@ -16,95 +18,86 @@ namespace fs = std::filesystem;
 
 int main(int argc, char** argv) {
     if (argc != 3) {
-        printf("Usage: export_sb_art <obj_file> <articulation_file>");
+        printf("Usage: export_sb_art <articulation_file> <mesh_file>");
         exit(EXIT_FAILURE);
     }
-    std::string obj_file = argv[1];
-    std::string art_file = argv[2];
-    auto obj_path = fs::path(obj_file);
+    std::string art_file = argv[1];
+    std::string mesh_file = argv[2];
     auto art_path = fs::path(art_file);
-    auto metadata_path = obj_path.parent_path() / "metadata.xml";
-
-    OBJFile obj;
-    obj.load(obj_file.c_str());
+    auto mesh_path = fs::path(mesh_file);
+    auto out_path = art_path.parent_path();
+    auto metadata_path = out_path / "metadata.xml";
 
     std::vector<uint32_t> contact_indices;
     ArticulatedBody art = load_from_xml(art_file.c_str(), contact_indices);
-
-    std::unordered_map<std::string, std::pair<int, int>> linked_vertices_range;
-    std::unordered_map<std::string, std::pair<int, int>> linked_normals_range;
 
     int num_links = art.get_num_joints();
     std::vector<ttransform<real>> link_trans(num_links), joint_trans(num_links);
     std::vector<real> rest_pose(art.get_num_pos_dofs(), 0);
     calc_transforms(art, rest_pose.data(), link_trans.data(), joint_trans.data());
 
+    OBJFile mesh;
+    mesh.load(mesh_path.c_str());
+
+    // discard normal data
+    mesh.normals.clear();
+    mesh.triangle_normals.clear();
+
+    std::unordered_map<std::string, std::pair<int, int>> linked_vertices_range;
+    std::unordered_map<std::string, std::pair<int, int>> linked_faces_range;
+
     for (int i = 0; i < num_links; i++) {
         auto name = art.names[i];
         auto& link = art.links[i];
         auto& shape = art.links[i].col_shape;
+
+        int vidx = mesh.vertices.size();
+        int tidx = mesh.triangle_vertices.size();
         switch (shape.type) {
             case CollisionShape::Type::Box: {
                 auto hs = 0.5 * shape.box.size;
                 glm::vec3 b1 = link_trans[i].v - hs;
                 glm::vec3 b2 = link_trans[i].v + hs;
-                int vidx = obj.vertices.size();
-                int nidx = obj.normals.size();
 
-                obj.vertices.emplace_back(b1.x, b1.y, b1.z);
-                obj.vertices.emplace_back(b1.x, b1.y, b2.z);
-                obj.vertices.emplace_back(b1.x, b2.y, b1.z);
-                obj.vertices.emplace_back(b1.x, b2.y, b2.z);
-                obj.vertices.emplace_back(b2.x, b1.y, b1.z);
-                obj.vertices.emplace_back(b2.x, b1.y, b2.z);
-                obj.vertices.emplace_back(b2.x, b2.y, b1.z);
-                obj.vertices.emplace_back(b2.x, b2.y, b2.z);
+                mesh.vertices.emplace_back(b1.x, b1.y, b1.z);
+                mesh.vertices.emplace_back(b1.x, b1.y, b2.z);
+                mesh.vertices.emplace_back(b1.x, b2.y, b1.z);
+                mesh.vertices.emplace_back(b1.x, b2.y, b2.z);
+                mesh.vertices.emplace_back(b2.x, b1.y, b1.z);
+                mesh.vertices.emplace_back(b2.x, b1.y, b2.z);
+                mesh.vertices.emplace_back(b2.x, b2.y, b1.z);
+                mesh.vertices.emplace_back(b2.x, b2.y, b2.z);
 
-                obj.normals.emplace_back( 0,  0, -1);
-                obj.normals.emplace_back( 0,  0,  1);
-                obj.normals.emplace_back( 0, -1,  0);
-                obj.normals.emplace_back( 0,  1,  0);
-                obj.normals.emplace_back(-1,  0,  0);
-                obj.normals.emplace_back( 1,  0,  0);
-
-                obj.triangle_vertices.emplace_back(vidx + 1, vidx + 7, vidx + 5);
-                obj.triangle_vertices.emplace_back(vidx + 1, vidx + 3, vidx + 7);
-                obj.triangle_vertices.emplace_back(vidx + 1, vidx + 4, vidx + 3);
-                obj.triangle_vertices.emplace_back(vidx + 1, vidx + 2, vidx + 4);
-                obj.triangle_vertices.emplace_back(vidx + 3, vidx + 8, vidx + 7);
-                obj.triangle_vertices.emplace_back(vidx + 3, vidx + 4, vidx + 8);
-                obj.triangle_vertices.emplace_back(vidx + 5, vidx + 7, vidx + 8);
-                obj.triangle_vertices.emplace_back(vidx + 5, vidx + 8, vidx + 6);
-                obj.triangle_vertices.emplace_back(vidx + 1, vidx + 5, vidx + 6);
-                obj.triangle_vertices.emplace_back(vidx + 1, vidx + 6, vidx + 2);
-                obj.triangle_vertices.emplace_back(vidx + 2, vidx + 6, vidx + 8);
-                obj.triangle_vertices.emplace_back(vidx + 2, vidx + 8, vidx + 4);
-
-                obj.triangle_normals.emplace_back(nidx + 2, nidx + 2, nidx + 2);
-                obj.triangle_normals.emplace_back(nidx + 2, nidx + 2, nidx + 2);
-                obj.triangle_normals.emplace_back(nidx + 6, nidx + 6, nidx + 6);
-                obj.triangle_normals.emplace_back(nidx + 6, nidx + 6, nidx + 6);
-                obj.triangle_normals.emplace_back(nidx + 3, nidx + 3, nidx + 3);
-                obj.triangle_normals.emplace_back(nidx + 3, nidx + 3, nidx + 3);
-                obj.triangle_normals.emplace_back(nidx + 5, nidx + 5, nidx + 5);
-                obj.triangle_normals.emplace_back(nidx + 5, nidx + 5, nidx + 5);
-                obj.triangle_normals.emplace_back(nidx + 4, nidx + 4, nidx + 4);
-                obj.triangle_normals.emplace_back(nidx + 4, nidx + 4, nidx + 4);
-                obj.triangle_normals.emplace_back(nidx + 1, nidx + 1, nidx + 1);
-                obj.triangle_normals.emplace_back(nidx + 1, nidx + 1, nidx + 1);
-
-                linked_vertices_range[name] = {vidx, obj.vertices.size()};
-                linked_normals_range[name] = {nidx, obj.normals.size()};
+                mesh.triangle_vertices.emplace_back(vidx + 1, vidx + 5, vidx + 7);
+                mesh.triangle_vertices.emplace_back(vidx + 1, vidx + 7, vidx + 3);
+                mesh.triangle_vertices.emplace_back(vidx + 1, vidx + 3, vidx + 4);
+                mesh.triangle_vertices.emplace_back(vidx + 1, vidx + 4, vidx + 2);
+                mesh.triangle_vertices.emplace_back(vidx + 3, vidx + 7, vidx + 8);
+                mesh.triangle_vertices.emplace_back(vidx + 3, vidx + 8, vidx + 4);
+                mesh.triangle_vertices.emplace_back(vidx + 5, vidx + 8, vidx + 7);
+                mesh.triangle_vertices.emplace_back(vidx + 5, vidx + 6, vidx + 8);
+                mesh.triangle_vertices.emplace_back(vidx + 1, vidx + 6, vidx + 5);
+                mesh.triangle_vertices.emplace_back(vidx + 1, vidx + 2, vidx + 6);
+                mesh.triangle_vertices.emplace_back(vidx + 2, vidx + 8, vidx + 6);
+                mesh.triangle_vertices.emplace_back(vidx + 2, vidx + 4, vidx + 8);
             } break;
             case CollisionShape::Type::Sphere: {
                 printf("Sphere shapes not supported yet\n");
                 exit(EXIT_FAILURE);
             } break;
         }
+
+        linked_vertices_range[name] = {vidx, mesh.vertices.size()};
+        linked_faces_range[name] = {tidx, mesh.triangle_vertices.size()};
     }
 
-    auto obj_carved_path = obj_path.parent_path() / (obj_path.stem().string() + "_carved.obj");
-    obj.save(obj_carved_path.c_str());
+    auto out_mesh_path = out_path / (mesh_path.stem().string() + "_carved.obj");
+    mesh.save(out_mesh_path.c_str());
+
+    std::cout << "Carved out soft body mesh!" << std::endl;
+
+    auto command = fmt::format("~/dev/TetWild/build/TetWild -l 0.05 {}", out_mesh_path.string());
+    system(command.c_str());
 
     XMLDocument doc;
     auto root_el = doc.NewElement("metadata");
@@ -115,7 +108,8 @@ int main(int argc, char** argv) {
     root_el->InsertEndChild(art_el);
 
     auto soft_body_mesh_el = doc.NewElement("soft_body_mesh");
-    soft_body_mesh_el->SetText(obj_carved_path.filename().c_str());
+    auto out_mesh_tet_path = out_mesh_path.parent_path() / (out_mesh_path.stem().string() + "_.msh");
+    soft_body_mesh_el->SetText(out_mesh_tet_path.filename().c_str());
     root_el->InsertEndChild(soft_body_mesh_el);
 
     auto constraints_el = doc.NewElement("constraints");
@@ -125,7 +119,7 @@ int main(int argc, char** argv) {
             continue;
         }
         auto& vertices = linked_vertices_range[name];
-        auto& normals = linked_normals_range[name];
+        auto& normals = linked_faces_range[name];
         auto link_el = doc.NewElement("link");
         link_el->SetAttribute("name", name.c_str());
         constraints_el->InsertEndChild(link_el);
@@ -133,10 +127,10 @@ int main(int argc, char** argv) {
         vertices_el->SetAttribute("start", vertices.first);
         vertices_el->SetAttribute("end", vertices.second);
         link_el->InsertEndChild(vertices_el);
-        auto indices_el = doc.NewElement("normals");
-        indices_el->SetAttribute("start", vertices.first);
-        indices_el->SetAttribute("end", vertices.second);
-        link_el->InsertEndChild(indices_el);
+        auto faces_el = doc.NewElement("faces");
+        faces_el ->SetAttribute("start", vertices.first);
+        faces_el ->SetAttribute("end", vertices.second);
+        link_el->InsertEndChild(faces_el);
     }
     root_el->InsertFirstChild(constraints_el);
 

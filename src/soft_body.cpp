@@ -65,7 +65,7 @@ void SoftBodyData::load(const PyMesh::MshLoader& msh, const SoftBodyProperties& 
 }
 
 void SoftBodyData::generate_surface_triangles() {
-#if 1
+#if 0
     for (auto& tet : tetrahedrons) {
         triangles.push_back({tet[0], tet[2], tet[1]});
         triangles.push_back({tet[0], tet[1], tet[3]});
@@ -348,7 +348,7 @@ void admm_volume_constraint_local_solve(
         const glm::tvec3<real>* V,
         OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* p) {
 
-// #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];

@@ -4,22 +4,23 @@
 
 #include "artsim/soft_body_with_art.h"
 #include "artsim/dynamics.h"
+#include "artsim/utils/xml.h"
 
 #include <glm/gtx/hash.hpp>
 #include <filesystem>
 
 using namespace glmx;
+using namespace artsim;
 
-glm::ivec3 reorder_tri_indices(glm::ivec3 tri) {
-    while (tri[0] > tri[1] || tri[0] > tri[2]) {
-        std::swap(tri[0], tri[1]);
-        std::swap(tri[1], tri[2]);
-    }
-    return tri;
+SoftBodyWithArtData SoftBodyWithArtData::make_two_link_test() {
+    SoftBodyWithArtData data;
+    std::vector<uint32_t> contact_indices;
+    data.art = load_from_xml("demo/resources/soft_body_with_art/two_link_art.xml", contact_indices);
+
 }
 
-void artsim::SoftBodyWithArtData::load(const artsim::OBJFile& soft_body_obj, const artsim::SoftBodyProperties& soft_body_props,
-                                       const artsim::ArticulatedBody& in_art, const real* rest_pose_data) {
+void SoftBodyWithArtData::load(const OBJFile& soft_body_obj, const SoftBodyProperties& soft_body_props,
+                                       const ArticulatedBody& in_art, const real* rest_pose_data) {
     soft_body.load(soft_body_obj, soft_body_props);
     this->art = in_art;
 
@@ -28,7 +29,7 @@ void artsim::SoftBodyWithArtData::load(const artsim::OBJFile& soft_body_obj, con
     std::copy_n(rest_pose_data, num_pos_dofs, rest_pose.data());
 }
 
-void artsim::SoftBodyWithArtData::precomputation() {
+void SoftBodyWithArtData::precomputation() {
     using namespace Eigen;
     // TODO: reorder vertices so that constrained ones go last
 
@@ -36,7 +37,7 @@ void artsim::SoftBodyWithArtData::precomputation() {
 
     // Calculate vertex jacobians
     std::vector<ttransform<real>> link_trans(num_links), joint_trans(num_links);
-    artsim::calc_transforms(art, rest_pose.data(), link_trans.data(), joint_trans.data());
+    calc_transforms(art, rest_pose.data(), link_trans.data(), joint_trans.data());
 
     std::vector<tscrew<real>> global_joint_S(num_links);
     calc_S(art, rest_pose.data(), global_joint_S.data());
@@ -59,8 +60,9 @@ void artsim::SoftBodyWithArtData::precomputation() {
     // TODO
 }
 
-void artsim::soft_body_dynamics_with_art(const artsim::SoftBodyWithArtData& data, artsim::FEMAlgorithmType alg_type,
-                                         artsim::real dt, const artsim::real* f, artsim::real* pos, artsim::real* vel) {
+
+void soft_body_dynamics_with_art(const SoftBodyWithArtData& data, FEMAlgorithmType alg_type,
+                                         real dt, const real* f, real* pos, real* vel) {
 
 
 }
