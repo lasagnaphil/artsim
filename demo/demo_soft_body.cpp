@@ -55,12 +55,17 @@ public:
         SoftBodyProperties props;
         props.young_modulus = 1e8;
         props.poisson_ratio = 0.499;
-        props.dt = sim_dt;
         soft_body.load(msh, props);
-        // soft_body.add_corotational_energy_full_body(props.calc_corotational_stiffness(), props.calc_mu(), props.calc_lambda());
-        soft_body.add_neohookean_energy_full_body(props.calc_neohookean_stiffness(), props.calc_mu(), props.calc_lambda());
-        // soft_body.add_volume_preservation_energy_full_body(1e5, 1.0, 1.0);
-        soft_body.precomputation();
+
+        real stiffness = props.calc_corotational_stiffness();
+        real mu = props.calc_mu();
+        real lambda = props.calc_lambda();
+        for (int i = 0; i < soft_body.tetrahedrons.size(); i++) {
+            constraints.corotational_energy.push_back({i, stiffness, mu, lambda});
+            // constraints.neohookean_energy.push_back({i, stiffness, mu, lambda});
+        }
+        soft_body_precomputation(soft_body, constraints, sim_dt);
+
         soft_body_render = SoftBodyRender(&soft_body, soft_body_mat);
 
         resetPhysics();
@@ -84,8 +89,8 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
-            soft_body_dynamics(soft_body, FEMAlgorithmType::ADMM, sim_dt, (real*) force.data(),
-                               INOUT (real*)pos.data(), INOUT (real*)vel.data());
+            admm_dynamics(soft_body, constraints, sim_dt, (real*) sb_force.data(),
+                          INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
 
 
             auto t2 = std::chrono::high_resolution_clock::now();
@@ -100,23 +105,23 @@ public:
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
 
-        soft_body_render.render(pbRenderer, pos.data());
-        soft_body_render.render_debug(imRenderer, pos.data());
+        soft_body_render.render(pbRenderer, sb_pos.data());
+        soft_body_render.render_debug(imRenderer, sb_pos.data());
 
         pbRenderer.render();
         imRenderer.render();
 
         ImGui::Begin("FEM Debug");
         if (ImGui::TreeNode("Positions")) {
-            for (int i = 0; i < pos.size(); i++) {
-                auto v = pos[i];
+            for (int i = 0; i < sb_pos.size(); i++) {
+                auto v = sb_pos[i];
                 ImGui::Text("%.6g\t%.6g\t%.6g", v.x, v.y, v.z);
             }
             ImGui::TreePop();
         }
         if (ImGui::TreeNode("Velocities")) {
-            for (int i = 0; i < vel.size(); i++) {
-                auto v = vel[i];
+            for (int i = 0; i < sb_vel.size(); i++) {
+                auto v = sb_vel[i];
                 ImGui::Text("%.6g\t%.6g\t%.6g", v.x, v.y, v.z);
             }
             ImGui::TreePop();
@@ -128,35 +133,32 @@ public:
     }
 
     void resetPhysics() {
-        pos = soft_body.vertices;
+        sb_pos = soft_body.vertices;
         real noise = 0.02;
-        for (int i = 0; i < pos.size(); i++) {
-            pos[i] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
+        for (int i = 0; i < sb_pos.size(); i++) {
+            sb_pos[i] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
         }
-        vel.clear();
-        vel.resize(pos.size(), glm::tvec3<real>(0));
-        force.clear();
-        force.resize(pos.size(), glm::tvec3<real>(0));
+        sb_vel.clear();
+        sb_vel.resize(sb_pos.size(), glm::tvec3<real>(0));
+        sb_force.clear();
+        sb_force.resize(sb_pos.size(), glm::tvec3<real>(0));
     }
 
 private:
-    ArticulatedBody art;
-    MaterialDB material_db;
-    ArticulationState state;
     float sim_dt = 1.0f / 60.0f;
-    bool run_simulation = false;
+    bool run_simulation = true;
     bool render_orig = false;
 
     SoftBodyData soft_body;
-    std::vector<glm::tvec3<real>> pos;
-    std::vector<glm::tvec3<real>> vel;
-    std::vector<glm::tvec3<real>> force;
+    ADMMConstraints constraints;
+    std::vector<glm::tvec3<real>> sb_pos;
+    std::vector<glm::tvec3<real>> sb_vel;
+    std::vector<glm::tvec3<real>> sb_force;
 
     SoftBodyRender soft_body_render;
 
     Ref<PBRMaterial> ground_mat;
     Ref<Mesh> ground_mesh;
-
 
     Ref<PBRMaterial> orig_mesh_mat, joint_mat;
     int art_type = 1;

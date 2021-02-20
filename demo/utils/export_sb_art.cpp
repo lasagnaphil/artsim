@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
     calc_transforms(art, rest_pose.data(), link_trans.data(), joint_trans.data());
 
     OBJFile mesh;
-    mesh.load(mesh_path.c_str());
+    mesh.load_obj(mesh_path.c_str());
 
     // discard normal data
     mesh.normals.clear();
@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
     }
 
     auto out_mesh_path = out_path / (mesh_path.stem().string() + "_carved.obj");
-    mesh.save(out_mesh_path.c_str());
+    mesh.save_obj(out_mesh_path.c_str());
 
     std::cout << "Carved out soft body mesh!" << std::endl;
 

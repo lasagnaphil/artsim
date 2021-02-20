@@ -40,7 +40,7 @@ add_library(artsim
         src/utils/pymesh/MshLoader.cpp src/utils/pymesh/MshSaver.cpp src/utils/pymesh/IOUtils.cpp)
 
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
-set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision)
+set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision stdc++fs)
 if (ARTSIM_USE_OPENMP)
     set(ARTSIM_LIB ${ARTSIM_LIB} OpenMP::OpenMP_CXX)
 endif()

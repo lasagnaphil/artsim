@@ -9,33 +9,23 @@
 
 namespace artsim {
 
-struct SoftBodyWithArtData : public SoftBodyData {
-public:
-    ~SoftBodyWithArtData() = default;
-
-    std::unordered_map<int, std::pair<int, int>> constrained_vertices;
-    int num_constrained_vertices;
-
-    std::vector<glm::tmat3x3<real>> B_m;
-    std::vector<real> W;
-    Eigen::SparseMatrix<real> M;
-    std::vector<glm::tmat4x3<real>> D;
-
-    Eigen::SparseMatrix<real> M_ff;
-    Eigen::SparseMatrix<real> M_cf;
-    Eigen::SparseMatrix<real> J_M_fc;
-    Eigen::SparseMatrix<real> J_M_cc;
-
+struct SoftBodyWithArtData {
+    SoftBodyData sb;
     ArticulatedBody art;
-    std::vector<real> rest_pose;
+
+    std::unordered_map<int, std::pair<int, int>> constrained_vertices_range;
+    int num_constrained_vertices;
+    int constrained_idx_start;
 
     void load(const char* metadata);
-
-    void precomputation();
 };
 
-void soft_body_dynamics_with_art(const SoftBodyWithArtData& data, FEMAlgorithmType alg_type, real dt, const real* f,
-                                 OUT real* pos, OUT real* vel);
+void soft_body_precomputation(SoftBodyWithArtData& body, const ADMMConstraints& constraints, real dt);
+
+void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstraints& constraints,
+                            real dt, const real* sb_f, const real* art_f,
+                            INOUT real* sb_pos, INOUT real* sb_vel, INOUT real* sb_f_contact,
+                            INOUT real* art_pos, INOUT real* art_vel, INOUT real* art_f_contact);
 
 }
 

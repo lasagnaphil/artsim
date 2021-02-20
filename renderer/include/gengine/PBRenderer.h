@@ -22,6 +22,7 @@ struct PBRMaterial {
     Ref<Texture> texMetallic;
     Ref<Texture> texRoughness;
     Ref<Texture> texAO;
+    bool transparent = false;
 
     static Ref<PBRMaterial> quick(
             const std::string& albedo,

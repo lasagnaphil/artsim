@@ -24,8 +24,10 @@ struct OBJFile {
 
     static OBJFile make_cube_tetrahedral(real dL, glm::ivec3 N);
 
-    void load(const char* filename);
-    void save(const char* filename);
+    void load_obj(const char* filename);
+    void save_obj(const char* filename);
+
+    void load_msh(const char* filename);
 };
 
 }

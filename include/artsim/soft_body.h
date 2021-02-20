@@ -19,7 +19,6 @@ struct SoftBodyProperties {
     real density = 1000;
     real young_modulus = 1e8;
     real poisson_ratio = 0.4999;
-    real dt = 1.0 / 60.0f;
 
     real calc_mu() {
         return young_modulus / (1.0 + poisson_ratio);
@@ -45,6 +44,20 @@ struct SoftBodyProperties {
     }
 };
 
+struct LinearStrainEnergyConstraint {
+    int tet_id;
+    real k;
+    real sigma_min;
+    real sigma_max;
+};
+
+struct VolumePreservationEnergyConstraint {
+    int tet_id;
+    real k;
+    real sigma_min;
+    real sigma_max;
+};
+
 struct CorotationalEnergyConstraint {
     int tet_id;
     real k;
@@ -59,63 +72,88 @@ struct NeoHookeanEnergyConstraint {
     real lambda;
 };
 
-struct VolumePreservationEnergyConstraint {
-    int tet_id;
-    real k;
-    real sigma_min;
-    real sigma_max;
+struct PDConstraints {
+    std::vector<LinearStrainEnergyConstraint> linear_strain_energy;
+    std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy;
 };
+
+#define PD_VOLUME_CONSTRAINTS \
+    X(LinearStrainEnergyConstraint, linear_strain_energy) \
+    X(VolumePreservationEnergyConstraint, volume_preservation_energy)
+
+struct ADMMConstraints {
+    std::vector<CorotationalEnergyConstraint> corotational_energy;
+    std::vector<NeoHookeanEnergyConstraint> neohookean_energy;
+};
+
+#define ADMM_VOLUME_CONSTRAINTS \
+    X(CorotationalEnergyConstraint, corotational_energy) \
+    X(NeoHookeanEnergyConstraint, neohookean_energy)
 
 void gen_surface_triangles_from_tet_mesh(const std::vector<glm::ivec4>& tetrahedrons,
                                          OUT std::vector<glm::ivec3>& triangles);
 
 struct SoftBodyData {
 public:
-    ~SoftBodyData() = default;
     std::vector<glm::tvec3<real>> vertices;
     std::vector<glm::ivec3> triangles;
     std::vector<glm::ivec4> tetrahedrons;
 
     std::vector<glm::tmat3x3<real>> B_m;
     std::vector<real> W;
-    Eigen::SparseMatrix<real> M;
     std::vector<glm::tmat4x3<real>> D;
 
+    Eigen::SparseMatrix<real> M;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> M_LDLt;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
 
     SoftBodyProperties props;
 
-    std::vector<CorotationalEnergyConstraint> corotational_energy_constraints;
-    std::vector<NeoHookeanEnergyConstraint> neohookean_energy_constraints;
-    std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy_constraints;
+    bool should_update_system_matrix = false;
 
     void load(const OBJFile& obj, const SoftBodyProperties& props);
     void load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props);
-
-    virtual void precomputation();
-    void update_system_matrix();
-
-    void add_corotational_energy(int tet_id, real k, real mu, real lambda);
-    void add_corotational_energy_full_body(real k, real mu, real lambda);
-
-    void add_neohookean_energy(int tet_id, real k, real mu, real lambda);
-    void add_neohookean_energy_full_body(real k, real mu, real lambda);
-
-    void add_volume_preservation_energy(int tet_id, real k, real sigma_min, real sigma_max);
-    void add_volume_preservation_energy_full_body(real k, real sigma_min, real sigma_max);
-
-    bool should_update_system_matrix = false;
 };
 
-enum class FEMAlgorithmType {
-    ProjectiveDynamics,
-    ADMM
-};
+template <class Constraints>
+void soft_body_precomputation(SoftBodyData& body, const Constraints& constraints, real dt);
 
-void soft_body_dynamics(SoftBodyData& body, FEMAlgorithmType alg_type, real dt, const real* f,
-                        OUT real* pos, OUT real* vel);
+void tetrahedral_mesh_mass_matrix(int num_vertices, real density,
+                                  const glm::ivec4* tets, int num_tets,
+                                  const real* tet_volumes,
+                                  OUT Eigen::SparseMatrix<real>& M);
 
+template <class Constraints>
+void update_system_matrix(SoftBodyData& body, const Constraints& constraints, real dt, OUT Eigen::SparseMatrix<real>& A);
+
+template <class Constraint>
+glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const Constraint& c);
+
+template <class Constraint>
+glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const Constraint& c);
+
+template <class Constraint>
+void projective_dynamics_volume_constraint_local_solve(
+        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
+        const glm::tvec3<real>* V,
+        OUT glm::tmat3x3<real>* p);
+
+
+template <class Constraint>
+void admm_volume_constraint_local_solve(
+        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
+        const glm::tvec3<real>* V,
+        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* p);
+
+template <class Constraint>
+void global_solve_modify_b(const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints, real dt,
+                           const glm::tmat3x3<real>* p, INOUT real* b);
+
+void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, real dt, const real* f,
+                         INOUT real* pos, INOUT real* vel);
+
+void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real dt, const real* f,
+                   INOUT real* pos, INOUT real* vel);
 }
 
 #endif //ARTSIM_SOFT_BODY_H

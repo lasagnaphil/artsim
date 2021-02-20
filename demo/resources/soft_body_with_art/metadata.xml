@@ -8,5 +8,5 @@
         </link>
     </constraints>
     <articulation file="two_link_art.xml"/>
-    <soft_body_mesh file="mesh_carved_.msh" young_modulus="1e8" poisson_ratio="0.499" hz="60"/>
+    <soft_body_mesh file="mesh_carved_.msh" young_modulus="1e8" poisson_ratio="0.499"/>
 </metadata>
