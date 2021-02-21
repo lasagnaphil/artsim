@@ -55,6 +55,12 @@ void DebugRenderer::init() {
     glBindVertexArray(0);
 }
 
+void DebugRenderer::reserveBuffers(int stringBufSize, int pointBufSize, int lineBufSize) {
+    stringData.reserve(stringBufSize);
+    pointData.reserve(pointBufSize);
+    lineData.reserve(lineBufSize);
+}
+
 void DebugRenderer::render() {
     drawDebugPoints();
     drawDebugLines();
@@ -435,4 +441,5 @@ void DebugRenderer::drawXZSquareGrid(float mins, float maxs, float y, float step
         drawLine({i, y, mins}, {i, y, maxs}, color, depthEnabled);
     }
 }
+
 

@@ -8,12 +8,13 @@
 
 // This should also work on the CPU using glm
 // Then you probably should use glm::quat instead of glm::tquat<T>
-// and glm::tmat3x3<T>_cast to convert to glm::tmat3x3<T>.
+// and glm::mat3_cast to convert to glm::tmat3x3<T>.
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <glm/mat3x3.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #ifndef ARTSIM_SVD_H
 #define ARTSIM_SVD_H
@@ -35,7 +36,7 @@ glm::tvec2<T> approx_givens_quat(T s_pp, T s_pq, T s_qq) {
     T s_h2 = s_pq * s_pq;
     T c_h2 = c_h * c_h;
     if (GAMMA * s_h2 < c_h2) {
-        T omega = 1.0f / sqrt(s_h2 + c_h2);
+        T omega = T(1) / sqrt(s_h2 + c_h2);
         return glm::tvec2<T>(omega * c_h, omega * s_pq);
     }
     return glm::tvec2<T>(C_STAR, S_STAR);
@@ -45,7 +46,7 @@ template<class T>
 glm::tmat3x3<T> symmetric_eigenanalysis(glm::tmat3x3<T> A) {
     glm::tmat3x3<T> S = transpose(A) * A;
     // jacobi iteration
-    glm::tmat3x3<T> q = glm::tmat3x3<T>(1.0f);
+    glm::tmat3x3<T> q = glm::tmat3x3<T>(1);
     for (int i = 0; i < 4; i++) {
         glm::tvec2<T> ch_sh = approx_givens_quat(S[0].x, S[0].y, S[1].y);
         glm::tquat<T> ch_sh_quat = glm::tquat<T>(ch_sh.x, 0, 0, ch_sh.y);
@@ -84,7 +85,7 @@ glm::tvec2<T> approx_qr_givens_quat(T a0, T a1) {
         c_h = s_h;
         s_h = temp;
     }
-    T omega = T(1.0) / sqrt(c_h * c_h + s_h * s_h);
+    T omega = T(1) / sqrt(c_h * c_h + s_h * s_h);
     return glm::tvec2<T>(omega * c_h, omega * s_h);
 }
 
@@ -125,8 +126,14 @@ QR_mats<T> qr_decomp(glm::tmat3x3<T> B) {
 template<class T>
 struct SVD_mats {
     glm::tmat3x3<T> U;
-    glm::tmat3x3<T> Sigma;
+    glm::tvec3<T> Sigma;
     glm::tmat3x3<T> V;
+
+    glm::tmat3x3<T> recover_matrix() {
+        // TODO: optimize this
+        glm::tmat3x3<T> S(Sigma.x, 0, 0, 0, Sigma.y, 0, 0, 0, Sigma.z);
+        return U * S * glm::transpose(V);
+    }
 };
 
 template<class T>
@@ -171,7 +178,7 @@ SVD_mats<T> svd(glm::tmat3x3<T> A) {
 
     QR_mats QR = qr_decomp(B);
     svd_result.U = QR.Q;
-    svd_result.Sigma = QR.R;
+    svd_result.Sigma = glm::tvec3<T>(QR.R[0][0], QR.R[1][1], QR.R[2][2]);
     return svd_result;
 }
 

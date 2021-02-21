@@ -20,7 +20,7 @@ OBJFile OBJFile::make_cube_tetrahedral(real dL, glm::ivec3 N) {
     for (int i = 0; i <= N.x; i++) {
         for (int j = 0; j <= N.y; j++) {
             for (int k = 0; k <= N.z; k++) {
-                obj.vertices[INDEX(i,j,k)] = -0.5 * dL * glm::rvec3(N) + glm::rvec3(i,j,k) * dL;
+                obj.vertices[INDEX(i,j,k)] = -real(0.5) * dL * glm::rvec3(N) + glm::rvec3(i,j,k) * dL;
             }
         }
     }

@@ -15,6 +15,7 @@
 #include <gengine/App.h>
 #include <gengine/InputManager.h>
 #include "soft_body_render.h"
+#include <omp.h>
 
 using namespace artsim;
 using namespace glm;
@@ -26,7 +27,8 @@ public:
 
     void loadResources() {
         random_engine = std::default_random_engine(0);
-        Eigen::setNbThreads(16);
+        Eigen::setNbThreads(8);
+        omp_set_num_threads(8);
 
         FlyCamera* camera = dynamic_cast<FlyCamera*>(this->camera.get());
         Ref<Transform> cameraTransform = camera->transform;
@@ -43,19 +45,20 @@ public:
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
 
-        // OBJFile objfile;
-        // objfile.load("resources/soft_body_with_art/mesh_carved_.mesh");
-        // objfile.load("resources/soft_body/octopus.obj");
-        // objfile.load("resources/soft_body/starfish.obj");
-        // objfile.load("resources/soft_body/link_.mesh");
-        // objfile = OBJFile::make_cube_tetrahedral(0.5, {1, 1, 1});
-        PyMesh::MshLoader msh("resources/soft_body_with_art/mesh_carved_.msh");
+        OBJFile objfile;
+        // objfile.load_obj("resources/soft_body_with_art/mesh_carved_.mesh");
+        // objfile.load_obj("resources/soft_body/octopus.obj");
+        // objfile.load_obj("resources/soft_body/starfish.obj");
+        // objfile.load_obj("resources/soft_body/link_.mesh");
+        objfile = OBJFile::make_cube_tetrahedral(0.1, {10, 10, 10});
+        // objfile.load_msh("resources/soft_body_with_art/mesh_carved_.msh");
+        // PyMesh::MshLoader msh("resources/soft_body_with_art/mesh_carved_.msh");
         // PyMesh::MshLoader msh("resources/soft_body/link_.msh");
 
         SoftBodyProperties props;
         props.young_modulus = 1e8;
         props.poisson_ratio = 0.499;
-        soft_body.load(msh, props);
+        soft_body.load(objfile, props);
 
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();
@@ -71,6 +74,8 @@ public:
         resetPhysics();
 
         orig_mesh_mat = PBRMaterial::quick(colors::Green);
+
+        imRenderer.reserveBuffers(0, 0, 16384);
     }
 
     void processInput(SDL_Event &event) override {
@@ -106,7 +111,7 @@ public:
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
 
         soft_body_render.render(pbRenderer, sb_pos.data());
-        soft_body_render.render_debug(imRenderer, sb_pos.data());
+        soft_body_render.render_debug_surface(imRenderer, sb_pos.data());
 
         pbRenderer.render();
         imRenderer.render();

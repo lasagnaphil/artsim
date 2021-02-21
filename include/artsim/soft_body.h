@@ -10,6 +10,7 @@
 #include <artsim/artsim.h>
 #include <artsim/obj_file.h>
 #include <artsim/math/dynmat.h>
+#include <artsim/math/svd.h>
 #include <artsim/utils/pymesh/MshLoader.h>
 #include <Eigen/SparseCholesky>
 
@@ -126,11 +127,14 @@ void tetrahedral_mesh_mass_matrix(int num_vertices, real density,
 template <class Constraints>
 void update_system_matrix(SoftBodyData& body, const Constraints& constraints, real dt, OUT Eigen::SparseMatrix<real>& A);
 
-template <class Constraint>
-glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const Constraint& c);
+glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const LinearStrainEnergyConstraint& c);
+glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const VolumePreservationEnergyConstraint& c);
 
-template <class Constraint>
-glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const Constraint& c);
+glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const CorotationalEnergyConstraint& c);
+glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const NeoHookeanEnergyConstraint& c);
+
+glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const CorotationalEnergyConstraint& c);
+glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const NeoHookeanEnergyConstraint& c);
 
 template <class Constraint>
 void projective_dynamics_volume_constraint_local_solve(
@@ -138,6 +142,12 @@ void projective_dynamics_volume_constraint_local_solve(
         const glm::tvec3<real>* V,
         OUT glm::tmat3x3<real>* p);
 
+template <class Constraint>
+void admm_volume_constraint_local_solve_fast(
+        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
+        const glm::tvec3<real>* V,
+        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* p,
+        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd);
 
 template <class Constraint>
 void admm_volume_constraint_local_solve(

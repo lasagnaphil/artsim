@@ -24,7 +24,18 @@ public:
         renderer.queueRender({mesh, mat, glm::mat4(1.0f)});
     }
 
-    void render_debug(DebugRenderer& debug, const glm::tvec3<artsim::real>* vpos) {
+    void render_debug_surface(DebugRenderer& debug, const glm::tvec3<artsim::real>* vpos) {
+        for (int t = 0; t < data->triangles.size(); t++) {
+            auto i0 = data->triangles[t][0];
+            auto i1 = data->triangles[t][1];
+            auto i2 = data->triangles[t][2];
+            debug.drawLine(vpos[i0], vpos[i1], colors::Black, true);
+            debug.drawLine(vpos[i0], vpos[i2], colors::Black, true);
+            debug.drawLine(vpos[i1], vpos[i2], colors::Black, true);
+        }
+    }
+
+    void render_debug_volume(DebugRenderer& debug, const glm::tvec3<artsim::real>* vpos) {
         for (int t = 0; t < data->tetrahedrons.size(); t++) {
             auto i0 = data->tetrahedrons[t][0];
             auto i1 = data->tetrahedrons[t][1];

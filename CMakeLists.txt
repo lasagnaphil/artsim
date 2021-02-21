@@ -13,7 +13,7 @@ find_package(Eigen3 CONFIG REQUIRED)
 # For URDF exports
 find_package(TinyXML2 REQUIRED)
 
-option(ARTSIM_USE_DOUBLE "Use double instead of float" ON)
+option(ARTSIM_USE_DOUBLE "Use double instead of float" OFF)
 option(ARTSIM_USE_OPENMP "Use OpenMP" ON)
 option(ARTSIM_USE_ASAN "Use Address Sanitizer" OFF)
 option(ARTSIM_BUILD_RENDERER "Build renderer" OFF)
@@ -28,6 +28,7 @@ if (ARTSIM_USE_ASAN)
 endif()
 
 add_subdirectory(libs/bullet_collision)
+add_subdirectory(libs/fastsvd)
 
 add_library(artsim
         src/artsim.cpp src/dynamics.cpp
@@ -35,12 +36,13 @@ add_library(artsim
         src/soft_body.cpp
         src/soft_body_with_art.cpp
         src/obj_file.cpp
+        src/math/fastsvd.cpp
         src/utils/example_articulations.cpp
         src/utils/urdf.cpp src/utils/xml.cpp
         src/utils/pymesh/MshLoader.cpp src/utils/pymesh/MshSaver.cpp src/utils/pymesh/IOUtils.cpp)
 
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
-set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision stdc++fs)
+set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision fastsvd stdc++fs)
 if (ARTSIM_USE_OPENMP)
     set(ARTSIM_LIB ${ARTSIM_LIB} OpenMP::OpenMP_CXX)
 endif()

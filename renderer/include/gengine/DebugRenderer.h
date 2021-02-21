@@ -64,6 +64,7 @@ struct DebugRenderer {
     void setCamera(Camera* camera) { this->camera = camera; }
 
     void init();
+    void reserveBuffers(int stringBufSize, int pointBufSize, int lineBufSize);
     void render();
 
     void drawDebugPoints();

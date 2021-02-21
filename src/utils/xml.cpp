@@ -149,13 +149,13 @@ ArticulatedBody artsim::load_from_xml(const char* filename, std::vector<uint32_t
         else if(joint_type == "Revolute")
         {
             glm::tvec3<real> axis = string_to_vector3d(joint_elem->Attribute("axis"));
-            if (glm::epsilonEqual(axis.x, 1.0, 1e-8)) {
+            if (glm::epsilonEqual<real>(axis.x, 1.0, 1e-8)) {
                 joint = Joint::revolute_x(kp, kd);
             }
-            else if (glm::epsilonEqual(axis.y, 1.0, 1e-8)) {
+            else if (glm::epsilonEqual<real>(axis.y, 1.0, 1e-8)) {
                 joint = Joint::revolute_y(kp, kd);
             }
-            else if (glm::epsilonEqual(axis.z, 1.0, 1e-8)) {
+            else if (glm::epsilonEqual<real>(axis.z, 1.0, 1e-8)) {
                 joint = Joint::revolute_z(kp, kd);
             }
         }
