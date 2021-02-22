@@ -1,12 +1,12 @@
 <metadata>
     <constraints>
         <link name="link1">
-            <vertices>1348 1347 1279 1025 1295 998 1142 901 1294 1281 696 1225 768 700 981 889 800 698 697 694 865 912 1018 1374 1024 1160 980 1280 1053 905 695 0 699 730 </vertices>
+            <vertices>659 658 590 606 309 453 212 605 592 336 7 536 79 11 292 200 111 9 8 5 176 223 329 685 335 471 291 591 364 216 6 10 41 </vertices>
         </link>
         <link name="link2">
-            <vertices>1310 1306 704 1032 1282 1266 1181 1022 1312 0 1002 984 902 784 1198 903 708 1107 705 746 706 702 703 878 950 982 1011 1031 1283 707 983 </vertices>
+            <vertices>621 15 343 593 577 492 333 623 313 295 213 95 509 214 19 418 16 57 17 13 14 189 261 293 322 342 594 18 617 294 </vertices>
         </link>
     </constraints>
-    <articulation file="two_link_art.xml"/>
-    <soft_body_mesh file="mesh_carved_.msh" young_modulus="1e8" poisson_ratio="0.499"/>
+    <articulation>two_link_art.xml</articulation>
+    <soft_body_mesh>mesh_carved_.msh</soft_body_mesh>
 </metadata>

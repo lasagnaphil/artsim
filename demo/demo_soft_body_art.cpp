@@ -46,6 +46,8 @@ public:
         soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
 
         auto& props = soft_body_with_art.sb.props;
+        props.young_modulus = 1e8;
+        props.poisson_ratio = 0.499;
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();
@@ -54,7 +56,7 @@ public:
             // constraints.neohookean_energy.push_back({i, stiffness, mu, lambda});
         }
         soft_body_precomputation(soft_body_with_art, constraints, sim_dt);
-        // soft_body_render = SoftBodyRender(&soft_body, soft_body_mat);
+        soft_body_render = SoftBodyRender(&soft_body_with_art.sb, soft_body_mat);
 
         resetPhysics();
 
@@ -86,7 +88,7 @@ public:
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             // printf("Duration: %lld microsecs\n", duration.count());
 
-            run_simulation = true;
+            run_simulation = false;
         }
     }
 
@@ -97,7 +99,7 @@ public:
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
 
         soft_body_render.render(pbRenderer, sb_pos.data());
-        soft_body_render.render_debug(imRenderer, sb_pos.data());
+        soft_body_render.render_debug_surface(imRenderer, sb_pos.data());
 
         pbRenderer.render();
         imRenderer.render();
@@ -139,7 +141,8 @@ public:
         int art_pos_dofs = soft_body_with_art.art.get_num_pos_dofs();
         int art_vel_dofs = soft_body_with_art.art.get_num_vel_dofs();
         art_pos.clear();
-        art_pos.resize(art_pos_dofs, 0);
+        art_pos.resize(art_pos_dofs);
+        artsim::set_zero_pose(soft_body_with_art.art, art_pos.data());
         art_vel.clear();
         art_vel.resize(art_vel_dofs, 0);
         art_force.clear();

@@ -22,7 +22,6 @@ namespace fs = std::filesystem;
 
 void dist_between_triangle_and_points(glm::rvec3 a, glm::rvec3 b, glm::rvec3 c,
                                       const glm::rvec3* points, int num_points, OUT float* dist) {
-
     rvec3 ba = b - a;
     rvec3 cb = c - b;
     rvec3 ac = a - c;
@@ -40,11 +39,57 @@ void dist_between_triangle_and_points(glm::rvec3 a, glm::rvec3 b, glm::rvec3 c,
                 min( min(
                         length2(ba*clamp<real>(dot(ba,pa)/length2(ba),0,1)-pa),
                         length2(cb*clamp<real>(dot(cb,pb)/length2(cb),0,1)-pb) ),
-                        length2(ac*clamp<real>(dot(ac,pc)/length2(ac),0,1)-pc) )
+                     length2(ac*clamp<real>(dot(ac,pc)/length2(ac),0,1)-pc) )
                 :
                 dot(nor,pa)*dot(nor,pa)/length2(nor) );
     }
 }
+
+/*
+void dist_between_triangle_and_points(glm::rvec3 t1, glm::rvec3 t2, glm::rvec3 t3,
+                                      const glm::rvec3* points, int num_points, OUT float* dist) {
+    using namespace glm;
+
+    rvec3 nx = t1 - t3;
+    rvec3 ny = t2 - t3;
+    rvec3 nz = normalize(cross(nx, ny));
+    real l1 = distance(t2, t3);
+    real l2 = distance(t3, t1);
+    real l3 = distance(t1, t2);
+    for (int i = 0; i < num_points; i++) {
+        rvec3 p_orig = points[i];
+        real p_z = dot(p_orig - t3, nz);
+        rvec3 p = p_orig - p_z * nz;
+        real s1 = dot(cross(t2 - p, t3 - p), nz);
+        real s2 = dot(cross(t3 - p, t1 - p), nz);
+        real s3 = dot(cross(t1 - p, t2 - p), nz);
+        if (s1 > 0 && s2 > 0 && s3 > 0) {
+            dist[i] = p_z;
+        }
+        else if (s2 > 0 && s3 > 0) {
+            dist[i] = length(vec2(abs(s1) / l1, p_z));
+        }
+        else if (s3 > 0 && s1 > 0) {
+            dist[i] = length(vec2(abs(s2) / l2, p_z));
+        }
+        else if (s1 > 0 && s2 > 0) {
+            dist[i] = length(vec2(abs(s3) / l3, p_z));
+        }
+        else if (s1 > 0) {
+            dist[i] = distance(p_orig, t1);
+        }
+        else if (s2 > 0) {
+            dist[i] = distance(p_orig, t2);
+        }
+        else if (s3 > 0) {
+            dist[i] = distance(p_orig, t3);
+        }
+        else {
+            // Not going to happen
+        }
+    }
+}
+ */
 
 int main(int argc, char** argv) {
     if (argc != 3) {
@@ -152,7 +197,7 @@ int main(int argc, char** argv) {
     std::vector<glm::rvec3> tet_mesh_vertices;
     {
         auto& nodes = out_tet_mesh.get_nodes();
-        tet_mesh_vertices.resize(nodes.size()/3);
+        tet_mesh_vertices.reserve(nodes.size()/3);
         for (int i = 0; i < nodes.size()/3; i++) {
             tet_mesh_vertices.emplace_back(nodes[3*i+0], nodes[3*i+1], nodes[3*i+2]);
         }

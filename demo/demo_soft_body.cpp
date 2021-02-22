@@ -27,8 +27,8 @@ public:
 
     void loadResources() {
         random_engine = std::default_random_engine(0);
-        Eigen::setNbThreads(8);
-        omp_set_num_threads(8);
+        Eigen::setNbThreads(0);
+        // omp_set_num_threads(8);
 
         FlyCamera* camera = dynamic_cast<FlyCamera*>(this->camera.get());
         Ref<Transform> cameraTransform = camera->transform;

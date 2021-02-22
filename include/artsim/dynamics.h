@@ -29,6 +29,8 @@ namespace artsim {
         return V;
     }
 
+    void set_zero_pose(const ArticulatedBody& art, OUT real* q);
+
     void calc_S(const ArticulatedBody& art, const real*__restrict q, OUT glmx::tscrew<real>* S);
 
     glmx::ttransform<real> calc_Tinv(const Joint& joint, const Link& link, const real*__restrict q);

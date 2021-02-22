@@ -11,6 +11,26 @@ using namespace glmx;
 
 namespace artsim {
 
+void set_zero_pose(const ArticulatedBody& art, OUT real* q) {
+    for (int i = 0; i < art.get_num_joints(); i++) {
+        const Joint& joint = art.joints[i];
+        const Link& link = art.links[i];
+        uint32_t j = art.joint_vel_dof_starts[i];
+        switch (joint.type) {
+            case JOINT_TYPE_FLOATING: {
+                q[0] = q[1] = q[2] = 0;
+                q[3] = 0; q[4] = 0; q[5] = 0; q[6] = 1;
+            } break;
+            JOINT_DOF_1_CASE {
+                q[j] = 0;
+            } break;
+            case JOINT_TYPE_SPHERICAL: {
+                q[j] = 0; q[j+1] = 0; q[j+2] = 0; q[j+3] = 1;
+            } break;
+        }
+    }
+}
+
 void calc_S(const ArticulatedBody &art, const real *q, tscrew<real> *S) {
     for (int i = 0; i < art.get_num_joints(); i++) {
         const Joint& joint = art.joints[i];

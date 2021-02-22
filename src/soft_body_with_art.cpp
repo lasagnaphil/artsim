@@ -31,7 +31,7 @@ void SoftBodyWithArtData::load(const char* metadata) {
     auto soft_body_mesh_el = root_el->FirstChildElement("soft_body_mesh");
 
     OBJFile soft_body_obj;
-    fs::path soft_body_file = folder / soft_body_mesh_el->Attribute("file");
+    fs::path soft_body_file = folder / soft_body_mesh_el->GetText();
     if (soft_body_file.extension() == ".obj") {
         soft_body_obj.load_obj(soft_body_file.c_str());
     }
@@ -47,7 +47,7 @@ void SoftBodyWithArtData::load(const char* metadata) {
     sb.props.poisson_ratio = soft_body_mesh_el->DoubleAttribute("poisson_ratio");
 
     std::vector<uint32_t> contact_indices;
-    auto art_file = folder / articulation_el->Attribute("file");
+    auto art_file = folder / articulation_el->GetText();
     art = load_from_xml(art_file.c_str(), contact_indices);
 
     // reorder vertices so that constrained ones go last
@@ -74,7 +74,9 @@ void SoftBodyWithArtData::load(const char* metadata) {
     std::vector<int> index_map(soft_body_obj.vertices.size(), -1);
     for (auto& [link_idx, indices] : constrained_vertices) {
         num_constrained_vertices += indices.size();
+        std::cout << num_constrained_vertices << std::endl;
     }
+    std::cout << std::endl;
     constrained_idx_start = soft_body_obj.vertices.size() - num_constrained_vertices;
     int current_index = 0;
     for (int i = 0; i < soft_body_obj.vertices.size(); i++) {
@@ -111,10 +113,30 @@ void SoftBodyWithArtData::load(const char* metadata) {
     }
 
     gen_surface_triangles_from_tet_mesh(sb.tetrahedrons, sb.triangles);
+
+    // Calculate physics parameters
+    int num_art_links = art.links.size();
+    std::vector<real> q_zero(art.get_num_pos_dofs());
+    set_zero_pose(art, OUT q_zero.data());
+
+    std::vector<ttransform<real>> T_link_global(num_art_links), T_joint_global(num_art_links);
+    calc_transforms(art, q_zero.data(), OUT T_link_global.data(), OUT T_joint_global.data());
+
+    for (auto& [link_idx, vidx_range] : constrained_vertices_range) {
+        int joint_vel_dof_start = art.joint_vel_dof_starts[link_idx];
+        int joint_vel_dofs = art.joint_vel_dofs[link_idx];
+        for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
+            for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
+                constrained_vertices_offset[vidx] = sb.vertices[vidx] - T_joint_global[link_idx].v;
+            }
+        }
+    }
 }
 
 void soft_body_precomputation(SoftBodyWithArtData& body, const ADMMConstraints& constraints, real dt) {
     soft_body_precomputation(body.sb, constraints, dt);
+    // std::cout << "M: " << std::endl;
+    // std::cout << body.sb.M << std::endl;
 }
 
 void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstraints& constraints,
@@ -137,27 +159,34 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     int num_constrained_vertices = sb.vertices.size() - data.constrained_idx_start;
     int N_s = num_vertices, N_f = num_free_vertices, N_c = num_constrained_vertices, N_r = num_art_vel_dofs;
 
-    Map<VectorXr> x_s(sb_pos, 3*num_vertices);
-    Map<VectorXr> v_s(sb_vel, 3*num_vertices);
-    Map<VectorXr> x_r(art_pos, 3*num_art_pos_dofs);
-    Map<VectorXr> v_r(art_vel, 3*num_art_vel_dofs);
+    Map<VectorXr> x_s(sb_pos, 3*N_s);
+    Map<VectorXr> v_s(sb_vel, 3*N_s);
+    Map<VectorXr> x_f(sb_pos, 3*N_f);
+    Map<VectorXr> x_c(sb_pos + 3*N_f, 3*N_c);
+    Map<VectorXr> x_r(art_pos, num_art_pos_dofs);
+    Map<VectorXr> v_r(art_vel, N_r);
     Map<const VectorXr> f_s_orig(sb_f, 3*N_s);
-    Map<const VectorXr> f_r_orig(art_f, 3*N_r);
-    VectorXr x_s_orig = x_s;
-    VectorXr x_bar = x_s + dt * v_s + dt*dt * sb.M_LDLt.solve(f_s_orig);
+    Map<const VectorXr> f_r_orig(art_f, N_r);
 
-    VectorXr f_c = VectorXr::Zero(N_c);
-    VectorXr f_r = VectorXr::Zero(N_r);
-    VectorXr x_tilde;
+    VectorXr x_c_orig = x_c;
+    VectorXr x_s_bar = x_s + dt * v_s + dt*dt * sb.M_LDLt.solve(f_s_orig);
+
+    VectorXr v_r_dot(N_r);
+    featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, art_pos, art_vel, art_f, OUT v_r_dot.data());
+    VectorXr v_r_bar = v_r + dt*v_r_dot;
+
+    VectorXr f_c = Map<VectorXr>(sb_f_contact, 3*N_c);
+    VectorXr f_r = Map<VectorXr>(art_f_contact, N_r);
+    f_c.setZero(); f_r.setZero();
 
     std::vector<glm::tmat3x3<real>> u(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
     std::vector<glm::tmat3x3<real>> z(sb.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> p(sb.tetrahedrons.size());
     glm::tvec3<real>* V = (glm::tvec3<real>*) x_s.data();
 
-    for (int iter = 0; iter < 5; iter++) {
-        x_tilde.noalias() = x_bar;
-        x_tilde.rightCols(N_c).noalias() += dt * dt * f_c;
+    for (int iter = 0; iter < 1; iter++) {
+        VectorXr x_s_tilde = x_s_bar;
+        x_s_tilde.bottomRows(3*N_c) += dt * dt * f_c;
 
         // Local solve
 #define X(CTYPE, CFIELD) \
@@ -166,7 +195,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 #undef X
 
         // Global solve
-        VectorXr b = sb.M * x_tilde;
+        VectorXr b = sb.M * x_s_tilde;
 
 #define X(CTYPE, CFIELD) \
         global_solve_modify_b(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), dt, p.data(), OUT b.data());
@@ -174,11 +203,13 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 #undef X
 
         // Calculate vertex jacobians
+
         std::vector<ttransform<real>> link_trans(num_art_links), joint_trans(num_art_links);
         calc_transforms(art, art_pos, link_trans.data(), joint_trans.data());
 
-        std::vector<tscrew<real>> global_joint_S(num_art_links);
+        std::vector<tscrew<real>> global_joint_S(N_r);
         calc_S(art, art_pos, global_joint_S.data());
+
         for (int link_idx = 0; link_idx < num_art_links; link_idx++) {
             global_joint_S[link_idx] = Ad(joint_trans[link_idx], global_joint_S[link_idx]);
         }
@@ -187,27 +218,55 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         J_cr.setZero();
 
         for (auto& [link_idx, vidx_range] : data.constrained_vertices_range) {
-            for (int j = art.joint_vel_dof_starts[link_idx]; j < art.joint_vel_dof_starts[link_idx+1]; j++) {
-                auto joint_axis = global_joint_S[j].w;
-                for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
-                    auto T_v = sb.vertices[vidx] - joint_trans[link_idx].v;
-                    auto vel = glm::cross(joint_axis, T_v);
-                    J_cr(3*vidx+0, j) = vel[0];
-                    J_cr(3*vidx+1, j) = vel[1];
-                    J_cr(3*vidx+2, j) = vel[2];
+            int idx = link_idx;
+            while (idx != -1) {
+                int joint_vel_dof_start = art.joint_vel_dof_starts[idx];
+                int joint_vel_dofs = art.joint_vel_dofs[idx];
+                for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
+                    auto S_j = global_joint_S[j];
+                    for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
+                        glm::rvec3 T_v = data.constrained_vertices_offset.at(vidx);
+                        glm::rvec3 S_prime_v = S_j.v + glm::cross(T_v, S_j.w);
+                        J_cr(3*(vidx-N_f)+0, j) = S_prime_v[0];
+                        J_cr(3*(vidx-N_f)+1, j) = S_prime_v[1];
+                        J_cr(3*(vidx-N_f)+2, j) = S_prime_v[2];
+                    }
                 }
+                idx = art.parents[idx];
             }
         }
 
         // Calculate inverse of articulation matrix M_r^{-1}
-        Eigen::Matrix<real, Dynamic, Dynamic> M_r_inv;
-        dynmat_view<real> M_r_inv_view(M_r_inv.data(), num_art_vel_dofs, num_art_vel_dofs);
+        MatrixXr M_r_inv(N_r, N_r);
+        dynmat_view<real> M_r_inv_view(M_r_inv.data(), N_r, N_r);
         dynmat<real> identity(num_art_vel_dofs, IDENTITY);
         multiply_inverse_mass_matrix(art, dt, art_pos, identity.to_view(), OUT M_r_inv_view);
 
-        // TODO: Do the rest of the f***ing owl!
-        //       Construct the linear system
-        //       Solve it via Uzawa Conjugate Gradient
+        // Calculate Delassus matrix.
+        // TODO: Fix Delassus matrix being singular
+        MatrixXr M_d = J_cr * M_r_inv * J_cr.transpose();
+        std::cout << "M_d: " << std::endl;
+        std::cout << M_d<< std::endl;
+        MatrixXr M_d_inv = M_d.inverse();
+        std::cout << "M_d_inv: " << std::endl;
+        std::cout << M_d_inv << std::endl;
+
+        for (int gs_iter = 0; gs_iter < 1; gs_iter++) {
+            // First step of Gauss-Seidel (projection)
+            VectorXr x_c_bar = x_c_orig + dt*J_cr*v_r_bar;
+            f_c = -(real(1)/(dt*dt)) * M_d_inv * (x_c - x_c_bar);
+            f_r = -(J_cr.transpose() * f_c);
+
+            // Second step of Gauss-Seidel (soft body update)
+            VectorXr b_bar = b;
+            b_bar.bottomRows(3*N_c) += (dt*dt)*f_c;
+            x_s = sb.A_LDLt.solve(b_bar);
+            std::cout << "Iteration " << gs_iter << ": " << std::endl;
+            std::cout << "b_bar: " << b_bar.transpose() << std::endl;
+            std::cout << "x_s: " << x_s.transpose() << std::endl;
+            std::cout << "f_c: " << f_c.transpose() << std::endl;
+            std::cout << "f_r: " << f_r.transpose() << std::endl;
+        }
     }
 
 }
