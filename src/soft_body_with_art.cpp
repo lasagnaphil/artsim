@@ -203,6 +203,44 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     VectorXr f_r = Map<VectorXr>(art_f_contact, N_r);
     f_c.setZero(); f_r.setZero();
 
+    // Calculate vertex jacobians
+    std::vector<ttransform<real>> link_trans(num_art_links), joint_trans(num_art_links);
+    calc_transforms(art, art_pos, link_trans.data(), joint_trans.data());
+
+    std::vector<tscrew<real>> joint_S(N_r);
+    calc_S(art, art_pos, joint_S.data());
+
+    Matrix<real, Dynamic, Dynamic> J_cr(3*N_c, N_r);
+    J_cr.setZero();
+
+    for (auto& [link_idx, vidx_range] : data.constrained_vertices_range) {
+        /*
+        std::vector<tscrew<real>> J(num_art_links);
+        for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
+            glmx::ttransform<real> T_v = data.constrained_vertices_offset.at(vidx);
+            calc_space_jacobian(art, link_idx, T_v, joint_S.data(), joint_trans.data(), J.data());
+        }
+         */
+        int idx = link_idx;
+        while (idx != -1) {
+            int joint_vel_dof_start = art.joint_vel_dof_starts[idx];
+            int joint_vel_dofs = art.joint_vel_dofs[idx];
+            for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
+                auto S_j = joint_S[j];
+                for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
+                    glmx::ttransform<real> T_v = data.constrained_vertices_offset.at(vidx);
+                    glmx::tscrew<real> S_prime = Ad(joint_trans[idx] * T_v, S_j);
+                    J_cr(3*(vidx-N_f)+0, j) = S_prime.v[0];
+                    J_cr(3*(vidx-N_f)+1, j) = S_prime.v[1];
+                    J_cr(3*(vidx-N_f)+2, j) = S_prime.v[2];
+                }
+            }
+            idx = art.parents[idx];
+        }
+    }
+
+    VectorXr x_c_bar = x_c_orig + dt*J_cr*v_r;
+
     std::vector<glm::tmat3x3<real>> u(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
     std::vector<glm::tmat3x3<real>> z(sb.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> p(sb.tetrahedrons.size());
@@ -230,40 +268,6 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         ADMM_VOLUME_CONSTRAINTS
 #undef X
 
-        // Calculate vertex jacobians
-
-        std::vector<ttransform<real>> link_trans(num_art_links), joint_trans(num_art_links);
-        calc_transforms(art, art_pos, link_trans.data(), joint_trans.data());
-
-        std::vector<tscrew<real>> joint_S(N_r);
-        calc_S(art, art_pos, joint_S.data());
-
-        for (int link_idx = 0; link_idx < num_art_links; link_idx++) {
-            joint_S[link_idx] = Ad(joint_trans[link_idx], joint_S[link_idx]);
-        }
-
-        Matrix<real, Dynamic, Dynamic> J_cr(3*N_c, N_r);
-        J_cr.setZero();
-
-        for (auto& [link_idx, vidx_range] : data.constrained_vertices_range) {
-            int idx = link_idx;
-            while (idx != -1) {
-                int joint_vel_dof_start = art.joint_vel_dof_starts[idx];
-                int joint_vel_dofs = art.joint_vel_dofs[idx];
-                for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
-                    auto S_j = joint_S[j];
-                    for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
-                        glmx::ttransform<real> T_v = data.constrained_vertices_offset.at(vidx);
-                        glmx::tscrew<real> S_prime = Ad(T_v, S_j);
-                        J_cr(3*(vidx-N_f)+0, j) = S_prime.v[0];
-                        J_cr(3*(vidx-N_f)+1, j) = S_prime.v[1];
-                        J_cr(3*(vidx-N_f)+2, j) = S_prime.v[2];
-                    }
-                }
-                idx = art.parents[idx];
-            }
-        }
-
         // Calculate inverse of articulation matrix M_r^{-1}
         MatrixXr M_r_inv(N_r, N_r);
         dynmat_view<real> M_r_inv_view(M_r_inv.data(), N_r, N_r);
@@ -277,9 +281,6 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         // real alpha = real(2) / (data.A_sigma_min + data.A_sigma_max);
         // std::cout << "alpha = " << alpha << std::endl;
         real alpha = 0.005;
-
-        VectorXr x_c_bar = x_c_orig + dt*J_cr*v_r;
-        x_c = x_c_bar;
 
         std::cout << "Starting Uzawa CG" << std::endl;
         for (int uzawa_iter = 0; uzawa_iter < 10; uzawa_iter++) {
@@ -310,11 +311,31 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     }
 
     v_s = (x_s - x_s_orig) / dt;
+
     VectorXr f_r_total = f_r_ext + f_r;
     std::cout << f_r_total.transpose() << std::endl;
     featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, art_pos, art_vel, f_r_total.data(),
                                   OUT v_r_dot.data());
     integrate_implicit_euler(art, dt, v_r_dot.data(), art_pos, art_vel);
+
+    x_c = x_c_orig + dt*J_cr*v_r;
+
+    for (auto& [link_idx, vidx_range] : data.constrained_vertices_range) {
+        /*
+        std::vector<tscrew<real>> J(num_art_links);
+        for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
+            glmx::ttransform<real> T_v = data.constrained_vertices_offset.at(vidx);
+            calc_space_jacobian(art, link_idx, T_v, joint_S.data(), joint_trans.data(), J.data());
+        }
+         */
+        for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
+            auto T_v = data.constrained_vertices_offset.at(vidx);
+            auto T = joint_trans[link_idx] * T_v;
+            x_c(3*(vidx-N_f) + 0) = T.v[0];
+            x_c(3*(vidx-N_f) + 1) = T.v[1];
+            x_c(3*(vidx-N_f) + 2) = T.v[2];
+        }
+    }
 }
 
 }

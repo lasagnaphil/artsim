@@ -196,11 +196,10 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
         if (cp.body1_id.is_articulation() && cp.body2_id == BodyId::from_ground()) {
             auto tangent_u = Ez<real>();
             auto tangent_v = glm::cross(cp.normal, tangent_u);
-            auto contact_T = ttransform<real>(cp.pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp.normal));
             auto [art_id, art_link_idx] = cp.body1_id.get_articulation_id();
-            calculate_jacobian_for_local_frame(art, art_link_idx,
-                                               contact_T, T_joint_global.data(), S.data(),
-                                               OUT J_local.data());
+            auto contact_T = ttransform<real>(cp.pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp.normal));
+            contact_T = contact_T / T_joint_global[art_link_idx];
+            calc_body_jacobian(art, art_link_idx, contact_T, S.data(), T_joint_global.data(), OUT J_local.data());
             for (int i = 0; i < num_vel_dofs; i++) {
                 Jc_T(i, 3*c + 0) = J_local[i].v[0];
                 Jc_T(i, 3*c + 1) = J_local[i].v[1];

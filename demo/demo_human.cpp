@@ -105,9 +105,9 @@ public:
     }
 
     void reset() {
-        // art = load_from_xml("demo/resources/human.xml", contact_indices);
+        art = load_from_xml("demo/resources/human.xml", contact_indices);
         // export_to_urdf(art, "human", "demo/resources/human.urdf");
-        art = load_from_xml("demo/resources/soft_body_with_art/two_link_art.xml", contact_indices);
+        // art = load_from_xml("demo/resources/soft_body_with_art/two_link_art.xml", contact_indices);
 
         state = ArticulationState(&art, &material_db, ContactSolverType::PGS, 16);
         state.enable_collision_with_ground = true;

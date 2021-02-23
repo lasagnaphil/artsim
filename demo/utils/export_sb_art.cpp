@@ -6,7 +6,7 @@
 #include <artsim/dynamics.h>
 #include <artsim/utils/xml.h>
 #include <artsim/utils/pymesh/MshLoader.h>
-#include <artsim/core/kdtree.h>
+#include <artsim/math/dist.h>
 #include <tinyxml2.h>
 #include <fmt/core.h>
 #include <glm/gtx/hash.hpp>
@@ -20,6 +20,7 @@ using namespace glmx;
 using namespace tinyxml2;
 namespace fs = std::filesystem;
 
+#if 0
 void dist_between_triangle_and_points(glm::rvec3 a, glm::rvec3 b, glm::rvec3 c,
                                       const glm::rvec3* points, int num_points, OUT float* dist) {
     rvec3 ba = b - a;
@@ -44,8 +45,7 @@ void dist_between_triangle_and_points(glm::rvec3 a, glm::rvec3 b, glm::rvec3 c,
                 dot(nor,pa)*dot(nor,pa)/length2(nor) );
     }
 }
-
-/*
+#else
 void dist_between_triangle_and_points(glm::rvec3 t1, glm::rvec3 t2, glm::rvec3 t3,
                                       const glm::rvec3* points, int num_points, OUT float* dist) {
     using namespace glm;
@@ -63,25 +63,25 @@ void dist_between_triangle_and_points(glm::rvec3 t1, glm::rvec3 t2, glm::rvec3 t
         real s1 = dot(cross(t2 - p, t3 - p), nz);
         real s2 = dot(cross(t3 - p, t1 - p), nz);
         real s3 = dot(cross(t1 - p, t2 - p), nz);
-        if (s1 > 0 && s2 > 0 && s3 > 0) {
+        if (s1 >= 0 && s2 >= 0 && s3 >= 0) {
             dist[i] = p_z;
         }
-        else if (s2 > 0 && s3 > 0) {
+        else if (s2 >= 0 && s3 >= 0) {
             dist[i] = length(vec2(abs(s1) / l1, p_z));
         }
-        else if (s3 > 0 && s1 > 0) {
+        else if (s3 >= 0 && s1 >= 0) {
             dist[i] = length(vec2(abs(s2) / l2, p_z));
         }
-        else if (s1 > 0 && s2 > 0) {
+        else if (s1 >= 0 && s2 >= 0) {
             dist[i] = length(vec2(abs(s3) / l3, p_z));
         }
-        else if (s1 > 0) {
+        else if (s1 >= 0) {
             dist[i] = distance(p_orig, t1);
         }
-        else if (s2 > 0) {
+        else if (s2 >= 0) {
             dist[i] = distance(p_orig, t2);
         }
-        else if (s3 > 0) {
+        else if (s3 >= 0) {
             dist[i] = distance(p_orig, t3);
         }
         else {
@@ -89,7 +89,7 @@ void dist_between_triangle_and_points(glm::rvec3 t1, glm::rvec3 t2, glm::rvec3 t
         }
     }
 }
- */
+#endif
 
 int main(int argc, char** argv) {
     if (argc != 3) {
@@ -151,18 +151,18 @@ int main(int argc, char** argv) {
                 mesh.vertices.emplace_back(b2.x, b2.y, b1.z);
                 mesh.vertices.emplace_back(b2.x, b2.y, b2.z);
 
-                obj.triangle_vertices.emplace_back(1, 5, 7);
-                obj.triangle_vertices.emplace_back(1, 7, 3);
-                obj.triangle_vertices.emplace_back(1, 3, 4);
-                obj.triangle_vertices.emplace_back(1, 4, 2);
-                obj.triangle_vertices.emplace_back(3, 7, 8);
-                obj.triangle_vertices.emplace_back(3, 8, 4);
-                obj.triangle_vertices.emplace_back(5, 8, 7);
-                obj.triangle_vertices.emplace_back(5, 6, 8);
-                obj.triangle_vertices.emplace_back(1, 6, 5);
-                obj.triangle_vertices.emplace_back(1, 2, 6);
-                obj.triangle_vertices.emplace_back(2, 8, 6);
-                obj.triangle_vertices.emplace_back(2, 4, 8);
+                obj.triangle_vertices.emplace_back(1, 7, 5);
+                obj.triangle_vertices.emplace_back(1, 3, 7);
+                obj.triangle_vertices.emplace_back(1, 4, 3);
+                obj.triangle_vertices.emplace_back(1, 2, 4);
+                obj.triangle_vertices.emplace_back(3, 8, 7);
+                obj.triangle_vertices.emplace_back(3, 4, 8);
+                obj.triangle_vertices.emplace_back(5, 7, 8);
+                obj.triangle_vertices.emplace_back(5, 8, 6);
+                obj.triangle_vertices.emplace_back(1, 5, 6);
+                obj.triangle_vertices.emplace_back(1, 6, 2);
+                obj.triangle_vertices.emplace_back(2, 6, 8);
+                obj.triangle_vertices.emplace_back(2, 8, 4);
                 mesh.triangle_vertices.emplace_back(vidx + 1, vidx + 5, vidx + 7);
                 mesh.triangle_vertices.emplace_back(vidx + 1, vidx + 7, vidx + 3);
                 mesh.triangle_vertices.emplace_back(vidx + 1, vidx + 3, vidx + 4);
@@ -235,23 +235,26 @@ int main(int argc, char** argv) {
 
         auto& name = art.names[i];
         auto& link_obj = link_objs[name];
+
+        fmt::print("For link {}: \n", name);
         for (const glm::ivec3& tri : link_obj.triangle_vertices) {
-            std::vector<float> dist(tet_mesh_vertices.size());
             auto v0 = link_obj.vertices[tri[0]];
             auto v1 = link_obj.vertices[tri[1]];
             auto v2 = link_obj.vertices[tri[2]];
-            dist_between_triangle_and_points(v0, v1, v2, tet_mesh_vertices.data(), tet_mesh_vertices.size(),
-                                             OUT dist.data());
+            fmt::print("For triangle with vertices {}, {}, {}\n",
+                       glm::to_string(v0), glm::to_string(v1), glm::to_string(v2));
             for (int j = 0; j < tet_mesh_vertices.size(); j++) {
-                if (dist[j] < threshold && found_vertices.find(tet_mesh_vertices[j]) == found_vertices.end()) {
+                auto res = point_triangle_dist(tet_mesh_vertices[j], v0, v1, v2);
+                if (res.sqrDistance < threshold*threshold &&
+                    found_vertices.find(tet_mesh_vertices[j]) == found_vertices.end()) {
+
+                    fmt::print("Found linked vertex {}\n", glm::to_string(tet_mesh_vertices[j]));
                     found_vertices.insert(tet_mesh_vertices[j]);
                 }
             }
         }
 
-        fmt::print("For link {}: \n", name);
         for (auto& v : found_vertices) {
-            fmt::print("{}\n", glm::to_string(v));
             linked_vertices[name].push_back(vertex_map[v]);
         }
     }

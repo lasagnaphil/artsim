@@ -43,7 +43,7 @@ public:
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
-        soft_body_mat->alpha = 0.2f;
+        soft_body_mat->alpha = 1.0f;
 
         soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
 
@@ -110,7 +110,13 @@ public:
         soft_body_render.render(pbRenderer, sb_pos.data());
         soft_body_render.render_debug_surface(imRenderer, sb_pos.data());
 
-        art_render.render(pbRenderer, art_pos.data());
+        // art_render.render(pbRenderer, art_pos.data());
+
+        int N_f = soft_body_with_art.constrained_idx_start;
+        int N_c = soft_body_with_art.sb.vertices.size() - N_f;
+        for (int i = N_f; i < N_f + N_c; i++) {
+            imRenderer.drawPoint(sb_pos[i], colors::Green, 4.0f, false);
+        }
 
         pbRenderer.render();
         imRenderer.render();

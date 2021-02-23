@@ -93,24 +93,36 @@ tscrew<real> calc_v0(const Joint& joint, const real* u) {
     }
 }
 
-void
-calculate_jacobian_for_local_frame(const ArticulatedBody& art, uint32_t link_idx, const ttransform<real>& T_contact,
-                                   const ttransform<real>* T_joint_global, const tscrew<real>* S,
-                                   tscrew<real>* J_local) {
-    int num_vel_dofs = art.get_num_vel_dofs();
-    int num_joints = art.get_num_joints();
-
-    std::fill_n(J_local, num_vel_dofs, tscrew<real>(IDENTITY));
-
-    int i = link_idx;
-
+void calc_space_jacobian(const ArticulatedBody& art, uint32_t joint_idx, ttransform<real> offset,
+                         const tscrew<real>* S,
+                         const ttransform<real>* T_joint_global,
+                         tscrew<real>* J_s) {
+    std::fill_n(J_s, art.get_num_vel_dofs(), tscrew<real>(IDENTITY));
+    int i = joint_idx;
     do {
-        uint32_t vel_starts = art.joint_vel_dof_starts[i];
-        uint32_t vel_dof = art.joint_vel_dofs[i];
+        int joint_vel_dof_start = art.joint_vel_dof_starts[i];
+        int joint_vel_dofs = art.joint_vel_dofs[i];
+        auto T = T_joint_global[i] * offset;
+        for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
+            J_s[j] = Ad(T, S[j]);
+        }
+        i = art.parents[i];
+    } while (i != -1);
+}
 
-        auto T_rel = T_joint_global[i] / T_contact;
-        for (int j = vel_starts; j < vel_starts + vel_dof; j++) {
-            J_local[j] = Ad(T_rel, S[j]);
+void calc_body_jacobian(const ArticulatedBody& art, uint32_t joint_idx, ttransform<real> offset,
+                        const tscrew<real>* S,
+                        const ttransform<real>* T_joint_global,
+                        tscrew<real>* J_b) {
+    std::fill_n(J_b, art.get_num_vel_dofs(), tscrew<real>(IDENTITY));
+    auto T_joint_trans = T_joint_global[joint_idx] * offset;
+    int i = joint_idx;
+    do {
+        int joint_vel_dof_start = art.joint_vel_dof_starts[i];
+        int joint_vel_dofs = art.joint_vel_dofs[i];
+        auto T = T_joint_global[i] / T_joint_trans;
+        for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
+            J_b[j] = Ad(T, S[j]);
         }
         i = art.parents[i];
     } while (i != -1);
