@@ -11,6 +11,7 @@
 #include <glm/trigonometric.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glad/glad.h>
+#include <artsim/math/se3.h>
 
 #include <vector>
 
@@ -55,6 +56,7 @@ struct Mesh {
     MeshCollider generateCollider();
 
     void rotate(glm::quat rot);
+    void sortVertices(glmx::transform meshTrans, glm::vec3 viewDir);
 
     static Ref<Mesh> fromOBJFile(const std::string& filename, bool onlyVertices = true, bool loadUVs = true);
     static Ref<Mesh> makeCube(const glm::vec3& scale = {1.0f, 1.0f, 1.0f});

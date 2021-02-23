@@ -201,6 +201,7 @@ void Shader::setPBRMaterial(const PBRMaterial &material) const {
     setInt("mat.texMetallic", 1);
     setInt("mat.texRoughness", 2);
     setInt("mat.texAO", 3);
+    setFloat("mat.alpha", material.alpha);
 }
 
 void Shader::setCamera(const Camera* camera) const {

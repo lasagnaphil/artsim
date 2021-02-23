@@ -5,6 +5,7 @@ struct PBRMaterial {
     sampler2D texMetallic;
     sampler2D texRoughness;
     sampler2D texAO;
+    float alpha;
 };
 
 struct PBRMatParams {
@@ -217,6 +218,6 @@ void main() {
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0 / 2.2));
 
-    fragColor = vec4(color, 1.0);
+    fragColor = vec4(color, mat.alpha);
 }
 

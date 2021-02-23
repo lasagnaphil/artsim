@@ -11,7 +11,8 @@ class SoftBodyRender {
 public:
     SoftBodyRender() = default;
 
-    SoftBodyRender(artsim::SoftBodyData* data, Ref<PBRMaterial> mat) : data(data), mat(mat) {
+    SoftBodyRender(artsim::SoftBodyData* data, Ref<PBRMaterial> mat, Camera* camera)
+            : data(data), mat(mat), camera(camera) {
         std::vector<Mesh::Vertex> vertices(3*data->triangles.size());
 
         mesh = Resources::make<Mesh>(vertices);
@@ -77,6 +78,7 @@ public:
             m.vertices[i].normal = glm::normalize(m.vertices[i].normal);
         }
 
+        m.sortVertices(glmx::transform(glmx::IDENTITY), camera->getViewMatrix()[2]);
         m.updateVBO();
     }
 
@@ -84,6 +86,7 @@ private:
     artsim::SoftBodyData* data;
     Ref<Mesh> mesh;
     Ref<PBRMaterial> mat;
+    Camera* camera;
 };
 
 #endif //ARTSIM_SOFT_BODY_RENDER_H

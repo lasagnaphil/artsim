@@ -2,8 +2,10 @@
 // Created by lasagnaphil on 19. 3. 16.
 //
 
-#include <unordered_map>
 #include "gengine/Mesh.h"
+#include <unordered_map>
+#include <algorithm>
+
 #include "tiny_obj_loader.h"
 #include <glm/gtx/norm.hpp>
 
@@ -122,6 +124,39 @@ void Mesh::rotate(glm::quat rot) {
         vertex.normal = rot * vertex.normal;
     }
 }
+
+void Mesh::sortVertices(glmx::transform meshTrans, glm::vec3 viewDir) {
+    if (!indices.empty()) {
+        fprintf(stderr, "sortVertices() not supported for mesh with index buffer\n");
+        exit(EXIT_FAILURE);
+    }
+    struct SortVertex {
+        int i;
+        float z;
+    };
+
+    std::vector<SortVertex> sortedVertices(vertices.size()/3);
+    for (int i = 0; i < vertices.size()/3; i++) {
+        auto& v = sortedVertices[i];
+        v.i = i;
+        auto vpos1 = vertices[3*i+0].pos;
+        auto vpos2 = vertices[3*i+1].pos;
+        auto vpos3 = vertices[3*i+2].pos;
+        v.z = glm::dot(viewDir, meshTrans.R * (vpos1 + vpos2 + vpos3));
+    }
+    std::sort(sortedVertices.begin(), sortedVertices.end(), [](const SortVertex& a, const SortVertex& b) {
+        return a.z < b.z;
+    });
+
+    auto tempVertices = vertices;
+    for (int i = 0; i < vertices.size()/3; i++) {
+        int idx = sortedVertices[i].i;
+        vertices[3*i+0] = tempVertices[3*idx+0];
+        vertices[3*i+1] = tempVertices[3*idx+1];
+        vertices[3*i+2] = tempVertices[3*idx+2];
+    }
+}
+
 
 Ref<Mesh> Mesh::fromOBJFile(const std::string& filename, bool onlyVertices, bool loadUVs) {
     using namespace tinyobj;

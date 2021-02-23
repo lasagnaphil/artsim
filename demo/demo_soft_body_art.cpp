@@ -15,6 +15,7 @@
 #include <gengine/App.h>
 #include <gengine/InputManager.h>
 #include "soft_body_render.h"
+#include "articulation_render.h"
 
 using namespace artsim;
 using namespace glm;
@@ -42,6 +43,7 @@ public:
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
+        soft_body_mat->alpha = 0.2f;
 
         soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
 
@@ -56,7 +58,11 @@ public:
             // constraints.neohookean_energy.push_back({i, stiffness, mu, lambda});
         }
         soft_body_precomputation(soft_body_with_art, constraints, sim_dt);
-        soft_body_render = SoftBodyRender(&soft_body_with_art.sb, soft_body_mat);
+        soft_body_render = SoftBodyRender(&soft_body_with_art.sb, soft_body_mat, camera);
+
+        Ref<PBRMaterial> link_mat = PBRMaterial::quick(colors::Gray);
+        Ref<PBRMaterial> joint_mat = PBRMaterial::quick(colors::Red);
+        art_render = ArticulationRender(&soft_body_with_art.art, link_mat, joint_mat);
 
         resetPhysics();
 
@@ -79,8 +85,6 @@ public:
 
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
-
-            // art_force[1] = -100.0 * (art_pos[1] - M_PI/4);
 
             admm_dynamics_with_art(soft_body_with_art, constraints, sim_dt,
                                    (real*) sb_force.data(), (real*) art_force.data(),
@@ -105,6 +109,8 @@ public:
 
         soft_body_render.render(pbRenderer, sb_pos.data());
         soft_body_render.render_debug_surface(imRenderer, sb_pos.data());
+
+        art_render.render(pbRenderer, art_pos.data());
 
         pbRenderer.render();
         imRenderer.render();
@@ -191,7 +197,6 @@ public:
 
 private:
     MaterialDB material_db;
-    ArticulationState state;
     float sim_dt = 1.0f / 60.0f;
     bool run_simulation = false;
     bool render_orig = false;
@@ -202,6 +207,7 @@ private:
     std::vector<real> art_pos, art_vel, art_force, art_force_contact;
 
     SoftBodyRender soft_body_render;
+    ArticulationRender art_render;
 
     Ref<PBRMaterial> ground_mat;
     Ref<Mesh> ground_mesh;

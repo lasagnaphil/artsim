@@ -23,6 +23,7 @@ PBRMaterial::quick(const std::string &albedo, const std::string &metallic, const
     mat->texMetallic = Texture::fromImage(metallicImage);
     mat->texRoughness = Texture::fromImage(roughnessImage);
     mat->texAO = Texture::fromImage(aoImage);
+    mat->alpha = 1.0f;
 
     albedoImage->dispose();
     metallicImage->dispose();
@@ -178,7 +179,10 @@ void PBRenderer::render(bool shadows) {
     glBindTexture(GL_TEXTURE_2D, depthMap);
     pbrShader->setInt("shadowMap", 8);
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     renderPass(pbrShader);
+    glDisable(GL_BLEND);
 
     renderCommands.clear();
 }

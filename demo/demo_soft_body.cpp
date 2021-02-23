@@ -69,7 +69,7 @@ public:
         }
         soft_body_precomputation(soft_body, constraints, sim_dt);
 
-        soft_body_render = SoftBodyRender(&soft_body, soft_body_mat);
+        soft_body_render = SoftBodyRender(&soft_body, soft_body_mat, camera);
 
         resetPhysics();
 
