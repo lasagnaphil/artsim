@@ -206,11 +206,10 @@ template <class Constraints>
 void soft_body_precomputation(SoftBodyData& body, const Constraints& constraints, real dt) {
     precomputation_essentials(body);
 
-    SparseMatrix<real> A;
-    update_system_matrix(body, constraints, dt, OUT A);
+    update_system_matrix(body, constraints, dt, OUT body.A);
 
-    body.A_LDLt.analyzePattern(A);
-    body.A_LDLt.factorize(A);
+    body.A_LDLt.analyzePattern(body.A);
+    body.A_LDLt.factorize(body.A);
 }
 
 template void soft_body_precomputation<PDConstraints>(SoftBodyData& body, const PDConstraints& constraints, real dt);

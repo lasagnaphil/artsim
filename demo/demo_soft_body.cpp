@@ -40,7 +40,7 @@ public:
         pbRenderer.shadowFramebufferSize = {2048, 2048};
 
         pbRenderer.dirLight.enabled = true;
-        pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, 2.0f});
+        pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, -2.0f});
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);

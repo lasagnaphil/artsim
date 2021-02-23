@@ -106,6 +106,7 @@ public:
 
     Eigen::SparseMatrix<real> M;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> M_LDLt;
+    Eigen::SparseMatrix<real> A;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
 
     SoftBodyProperties props;

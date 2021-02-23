@@ -38,7 +38,7 @@ public:
         pbRenderer.shadowFramebufferSize = {2048, 2048};
 
         pbRenderer.dirLight.enabled = true;
-        pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, 2.0f});
+        pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, -2.0f});
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
@@ -67,6 +67,7 @@ public:
     }
 
     void update(float dt) override {
+        static float t = 0.0f;
         auto inputMgr = InputManager::get();
 
         if (inputMgr->isKeyEntered(SDL_SCANCODE_SPACE)) {
@@ -79,6 +80,8 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
+            // art_force[1] = -100.0 * (art_pos[1] - M_PI/4);
+
             admm_dynamics_with_art(soft_body_with_art, constraints, sim_dt,
                                    (real*) sb_force.data(), (real*) art_force.data(),
                                    INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data(), INOUT (real*)sb_force_contact.data(),
@@ -86,9 +89,11 @@ public:
 
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-            // printf("Duration: %lld microsecs\n", duration.count());
+            printf("Duration: %lld microsecs\n", duration.count());
 
-            run_simulation = false;
+            // run_simulation = false;
+
+            t += dt;
         }
     }
 
@@ -104,20 +109,51 @@ public:
         pbRenderer.render();
         imRenderer.render();
 
-        ImGui::Begin("FEM Debug");
-        if (ImGui::TreeNode("Positions")) {
-            for (int i = 0; i < sb_pos.size(); i++) {
-                auto v = sb_pos[i];
-                ImGui::Text("%.6g\t%.6g\t%.6g", v.x, v.y, v.z);
+        ImGui::Begin("Debug");
+        if (ImGui::CollapsingHeader("Soft Body")) {
+            if (ImGui::TreeNode("Positions##sb_pos")) {
+                for (int i = 0; i < sb_pos.size(); i++) {
+                    auto v = sb_pos[i];
+                    ImGui::Text("%.6g\t%.6g\t%.6g", v.x, v.y, v.z);
+                }
+                ImGui::TreePop();
             }
-            ImGui::TreePop();
+            if (ImGui::TreeNode("Velocities##sb_vel")) {
+                for (int i = 0; i < sb_vel.size(); i++) {
+                    auto v = sb_vel[i];
+                    ImGui::Text("%.6g\t%.6g\t%.6g", v.x, v.y, v.z);
+                }
+                ImGui::TreePop();
+            }
         }
-        if (ImGui::TreeNode("Velocities")) {
-            for (int i = 0; i < sb_vel.size(); i++) {
-                auto v = sb_vel[i];
-                ImGui::Text("%.6g\t%.6g\t%.6g", v.x, v.y, v.z);
+        if (ImGui::CollapsingHeader("Articulation")) {
+            if (ImGui::TreeNode("Positions##art_pos")) {
+                double pos_min = -2*M_PI;
+                double pos_max = 2*M_PI;
+                for (int i = 0; i < art_pos.size(); i++) {
+                    auto label = fmt::format("##art_pos_{}", i);
+                    ImGui::SliderScalar(label.c_str(), ImGuiDataType_Double, &art_pos[i], &pos_min, &pos_max, "%.6g");
+                }
+                ImGui::TreePop();
             }
-            ImGui::TreePop();
+            if (ImGui::TreeNode("Velocities##art_vel")) {
+                double vel_min = -2*M_PI;
+                double vel_max = 2*M_PI;
+                for (int i = 0; i < art_vel.size(); i++) {
+                    auto label = fmt::format("##art_vel_{}", i);
+                    ImGui::SliderScalar(label.c_str(), ImGuiDataType_Double, &art_vel[i], &vel_min, &vel_max, "%.6g");
+                }
+                ImGui::TreePop();
+            }
+            if (ImGui::TreeNode("Force##art_force")) {
+                double fmin = -100;
+                double fmax= 100;
+                for (int i = 0; i < art_force.size(); i++) {
+                    auto label = fmt::format("##art_force_{}", i);
+                    ImGui::SliderScalar(label.c_str(), ImGuiDataType_Double, &art_force[i], &fmin, &fmax, "%.6g");
+                }
+                ImGui::TreePop();
+            }
         }
         ImGui::End();
     }
@@ -127,10 +163,12 @@ public:
 
     void resetPhysics() {
         sb_pos = soft_body_with_art.sb.vertices;
+        /*
         real noise = 0.02;
         for (int i = 0; i < sb_pos.size(); i++) {
             sb_pos[i] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
         }
+         */
         sb_vel.clear();
         sb_vel.resize(sb_pos.size(), glm::tvec3<real>(0));
         sb_force.clear();

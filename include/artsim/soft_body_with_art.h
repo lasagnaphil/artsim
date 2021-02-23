@@ -14,9 +14,11 @@ struct SoftBodyWithArtData {
     ArticulatedBody art;
 
     std::unordered_map<int, std::pair<int, int>> constrained_vertices_range;
-    std::unordered_map<int, glm::rvec3> constrained_vertices_offset;
+    std::unordered_map<int, glmx::ttransform<real>> constrained_vertices_offset;
     int num_constrained_vertices;
     int constrained_idx_start;
+
+    real A_sigma_min, A_sigma_max;
 
     void load(const char* metadata);
 };

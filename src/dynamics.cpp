@@ -15,7 +15,7 @@ void set_zero_pose(const ArticulatedBody& art, OUT real* q) {
     for (int i = 0; i < art.get_num_joints(); i++) {
         const Joint& joint = art.joints[i];
         const Link& link = art.links[i];
-        uint32_t j = art.joint_vel_dof_starts[i];
+        uint32_t j = art.joint_pos_dof_starts[i];
         switch (joint.type) {
             case JOINT_TYPE_FLOATING: {
                 q[0] = q[1] = q[2] = 0;

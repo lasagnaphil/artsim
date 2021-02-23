@@ -85,8 +85,8 @@ void SoftBodyWithArtData::load(const char* metadata) {
             current_index++;
         }
     }
-    // TODO: Debug on why this assert isn't true
     assert(current_index == constrained_idx_start);
+
     for (auto& [link_idx, indices] : constrained_vertices) {
         std::pair<int, int> vertices_range;
         vertices_range.first = current_index;
@@ -127,16 +127,38 @@ void SoftBodyWithArtData::load(const char* metadata) {
         int joint_vel_dofs = art.joint_vel_dofs[link_idx];
         for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
             for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
-                constrained_vertices_offset[vidx] = sb.vertices[vidx] - T_joint_global[link_idx].v;
+                auto vert_trans = ttransform<real>(sb.vertices[vidx]);
+                constrained_vertices_offset[vidx] = vert_trans / T_joint_global[link_idx];
             }
         }
     }
 }
 
 void soft_body_precomputation(SoftBodyWithArtData& body, const ADMMConstraints& constraints, real dt) {
+    using namespace Eigen;
+    using real = artsim::real;
+    using MatrixXr = Matrix<real, Dynamic, Dynamic>;
+    using VectorXr = Matrix<real, Dynamic, 1>;
+
     soft_body_precomputation(body.sb, constraints, dt);
-    // std::cout << "M: " << std::endl;
-    // std::cout << body.sb.M << std::endl;
+
+    auto& A = body.sb.A;
+    int N_f = body.constrained_idx_start;
+    int N_c = body.sb.vertices.size() - body.constrained_idx_start;
+    MatrixXr A_cc(3*N_c, 3*N_c);
+    A_cc.setZero();
+
+    for (int k=0; k<A.outerSize(); ++k) {
+        for (SparseMatrix<real>::InnerIterator it(A,k); it; ++it) {
+            if (it.row() >= 3*N_f && it.col() >= 3*N_f) {
+                A_cc(it.row()-3*N_f, it.col()-3*N_f) = it.value();
+            }
+        }
+    }
+
+    VectorXr eigvals = A_cc.eigenvalues().real();
+    body.A_sigma_min = A_cc.minCoeff();
+    body.A_sigma_max = A_cc.maxCoeff();
 }
 
 void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstraints& constraints,
@@ -165,15 +187,17 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     Map<VectorXr> x_c(sb_pos + 3*N_f, 3*N_c);
     Map<VectorXr> x_r(art_pos, num_art_pos_dofs);
     Map<VectorXr> v_r(art_vel, N_r);
-    Map<const VectorXr> f_s_orig(sb_f, 3*N_s);
-    Map<const VectorXr> f_r_orig(art_f, N_r);
+    Map<const VectorXr> f_s_ext(sb_f, 3*N_s);
+    Map<const VectorXr> f_r_ext(art_f, N_r);
 
+    VectorXr x_s_orig = x_s;
     VectorXr x_c_orig = x_c;
-    VectorXr x_s_bar = x_s + dt * v_s + dt*dt * sb.M_LDLt.solve(f_s_orig);
+    VectorXr x_s_bar = x_s + dt * v_s + dt*dt * sb.M_LDLt.solve(f_s_ext);
 
     VectorXr v_r_dot(N_r);
     featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, art_pos, art_vel, art_f, OUT v_r_dot.data());
-    VectorXr v_r_bar = v_r + dt*v_r_dot;
+    v_r += dt * v_r_dot;
+    // integrate_implicit_euler(art, dt, v_r_dot.data(), art_pos, art_vel);
 
     VectorXr f_c = Map<VectorXr>(sb_f_contact, 3*N_c);
     VectorXr f_r = Map<VectorXr>(art_f_contact, N_r);
@@ -182,15 +206,19 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     std::vector<glm::tmat3x3<real>> u(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
     std::vector<glm::tmat3x3<real>> z(sb.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> p(sb.tetrahedrons.size());
+    std::vector<glm::tmat3x3<real>> F(sb.tetrahedrons.size());
+    std::vector<glmx::SVD_mats<real>> F_svd(sb.tetrahedrons.size());
     glm::tvec3<real>* V = (glm::tvec3<real>*) x_s.data();
 
-    for (int iter = 0; iter < 1; iter++) {
+    std::cout << "Starting ADMM loop" << std::endl;
+    for (int iter = 0; iter < 10; iter++) {
         VectorXr x_s_tilde = x_s_bar;
         x_s_tilde.bottomRows(3*N_c) += dt * dt * f_c;
 
         // Local solve
 #define X(CTYPE, CFIELD) \
-        admm_volume_constraint_local_solve(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), V, OUT z.data(), OUT u.data(), OUT p.data());
+        admm_volume_constraint_local_solve_fast(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), V, \
+            OUT z.data(), OUT u.data(), OUT p.data(), OUT F.data(), OUT F_svd.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
 
@@ -207,11 +235,11 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         std::vector<ttransform<real>> link_trans(num_art_links), joint_trans(num_art_links);
         calc_transforms(art, art_pos, link_trans.data(), joint_trans.data());
 
-        std::vector<tscrew<real>> global_joint_S(N_r);
-        calc_S(art, art_pos, global_joint_S.data());
+        std::vector<tscrew<real>> joint_S(N_r);
+        calc_S(art, art_pos, joint_S.data());
 
         for (int link_idx = 0; link_idx < num_art_links; link_idx++) {
-            global_joint_S[link_idx] = Ad(joint_trans[link_idx], global_joint_S[link_idx]);
+            joint_S[link_idx] = Ad(joint_trans[link_idx], joint_S[link_idx]);
         }
 
         Matrix<real, Dynamic, Dynamic> J_cr(3*N_c, N_r);
@@ -223,13 +251,13 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
                 int joint_vel_dof_start = art.joint_vel_dof_starts[idx];
                 int joint_vel_dofs = art.joint_vel_dofs[idx];
                 for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
-                    auto S_j = global_joint_S[j];
+                    auto S_j = joint_S[j];
                     for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
-                        glm::rvec3 T_v = data.constrained_vertices_offset.at(vidx);
-                        glm::rvec3 S_prime_v = S_j.v + glm::cross(T_v, S_j.w);
-                        J_cr(3*(vidx-N_f)+0, j) = S_prime_v[0];
-                        J_cr(3*(vidx-N_f)+1, j) = S_prime_v[1];
-                        J_cr(3*(vidx-N_f)+2, j) = S_prime_v[2];
+                        glmx::ttransform<real> T_v = data.constrained_vertices_offset.at(vidx);
+                        glmx::tscrew<real> S_prime = Ad(T_v, S_j);
+                        J_cr(3*(vidx-N_f)+0, j) = S_prime.v[0];
+                        J_cr(3*(vidx-N_f)+1, j) = S_prime.v[1];
+                        J_cr(3*(vidx-N_f)+2, j) = S_prime.v[2];
                     }
                 }
                 idx = art.parents[idx];
@@ -243,32 +271,50 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         multiply_inverse_mass_matrix(art, dt, art_pos, identity.to_view(), OUT M_r_inv_view);
 
         // Calculate Delassus matrix.
-        // TODO: Fix Delassus matrix being singular
         MatrixXr M_d = J_cr * M_r_inv * J_cr.transpose();
-        std::cout << "M_d: " << std::endl;
-        std::cout << M_d<< std::endl;
-        MatrixXr M_d_inv = M_d.inverse();
-        std::cout << "M_d_inv: " << std::endl;
-        std::cout << M_d_inv << std::endl;
+        // LDLT<MatrixXr> M_d_T_M_d_LDLt = (M_d.transpose() * M_d).ldlt();
+        // TODO: To get optimal alpha, (approximately) calculate min/max eigenvalues of schur complement matrix.
+        // real alpha = real(2) / (data.A_sigma_min + data.A_sigma_max);
+        // std::cout << "alpha = " << alpha << std::endl;
+        real alpha = 0.005;
 
-        for (int gs_iter = 0; gs_iter < 1; gs_iter++) {
-            // First step of Gauss-Seidel (projection)
-            VectorXr x_c_bar = x_c_orig + dt*J_cr*v_r_bar;
-            f_c = -(real(1)/(dt*dt)) * M_d_inv * (x_c - x_c_bar);
-            f_r = -(J_cr.transpose() * f_c);
+        VectorXr x_c_bar = x_c_orig + dt*J_cr*v_r;
+        x_c = x_c_bar;
 
-            // Second step of Gauss-Seidel (soft body update)
+        std::cout << "Starting Uzawa CG" << std::endl;
+        for (int uzawa_iter = 0; uzawa_iter < 10; uzawa_iter++) {
+            /*
+            f_c = M_d_T_M_d_LDLt.solve(M_d.transpose() * (x_c_bar - x_c) / (dt*dt));
             VectorXr b_bar = b;
             b_bar.bottomRows(3*N_c) += (dt*dt)*f_c;
             x_s = sb.A_LDLt.solve(b_bar);
-            std::cout << "Iteration " << gs_iter << ": " << std::endl;
-            std::cout << "b_bar: " << b_bar.transpose() << std::endl;
-            std::cout << "x_s: " << x_s.transpose() << std::endl;
-            std::cout << "f_c: " << f_c.transpose() << std::endl;
-            std::cout << "f_r: " << f_r.transpose() << std::endl;
+             */
+            VectorXr b_bar = b;
+            b_bar.bottomRows(3*N_c) += (dt*dt)*f_c;
+            x_s = sb.A_LDLt.solve(b_bar);
+
+            f_c -= alpha * ((x_c - x_c_bar)/(dt*dt) + M_d * f_c);
+
+            // VectorXr error = (M_d * f_c + (x_c - x_c_bar) / (dt*dt));
+            // std::cout << "Error: " << error.lpNorm<2>() << std::endl;
+            // std::cout << "Iteration " << uzawa_iter << ": " << std::endl;
+            // std::cout << "b_bar: " << b_bar.transpose() << std::endl;
+            // std::cout << "x_s: " << x_s.transpose() << std::endl;
+            // std::cout << "f_c: " << f_c.transpose() << std::endl;
+            // std::cout << "f_r: " << f_r.transpose() << std::endl;
         }
+        f_r = -J_cr.transpose() * f_c;
+
+        VectorXr error = (M_d * f_c + (x_c - x_c_bar) / (dt*dt));
+        std::cout << "Error: " << error.lpNorm<2>() << std::endl;
     }
 
+    v_s = (x_s - x_s_orig) / dt;
+    VectorXr f_r_total = f_r_ext + f_r;
+    std::cout << f_r_total.transpose() << std::endl;
+    featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, art_pos, art_vel, f_r_total.data(),
+                                  OUT v_r_dot.data());
+    integrate_implicit_euler(art, dt, v_r_dot.data(), art_pos, art_vel);
 }
 
 }
