@@ -43,7 +43,7 @@ public:
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
-        soft_body_mat->alpha = 1.0f;
+        soft_body_mat->alpha = 0.2f;
 
         soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
 
@@ -95,9 +95,9 @@ public:
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             printf("Duration: %lld microsecs\n", duration.count());
 
-            // run_simulation = false;
+            run_simulation = false;
 
-            t += dt;
+            t += sim_dt;
         }
     }
 
@@ -107,16 +107,18 @@ public:
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
 
-        soft_body_render.render(pbRenderer, sb_pos.data());
+        // soft_body_render.render(pbRenderer, sb_pos.data());
         soft_body_render.render_debug_surface(imRenderer, sb_pos.data());
 
-        // art_render.render(pbRenderer, art_pos.data());
+        art_render.render(pbRenderer, art_pos.data());
 
+        /*
         int N_f = soft_body_with_art.constrained_idx_start;
         int N_c = soft_body_with_art.sb.vertices.size() - N_f;
         for (int i = N_f; i < N_f + N_c; i++) {
             imRenderer.drawPoint(sb_pos[i], colors::Green, 4.0f, false);
         }
+        */
 
         pbRenderer.render();
         imRenderer.render();
@@ -203,7 +205,7 @@ public:
 
 private:
     MaterialDB material_db;
-    float sim_dt = 1.0f / 60.0f;
+    float sim_dt = 1.0f / 600.0f;
     bool run_simulation = false;
     bool render_orig = false;
 

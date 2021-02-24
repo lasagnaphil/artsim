@@ -192,12 +192,11 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 
     VectorXr x_s_orig = x_s;
     VectorXr x_c_orig = x_c;
-    VectorXr x_s_bar = x_s + dt * v_s + dt*dt * sb.M_LDLt.solve(f_s_ext);
+    VectorXr x_s_bar = x_s + dt * v_s + (dt*dt) * sb.M_LDLt.solve(f_s_ext);
 
     VectorXr v_r_dot(N_r);
     featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, art_pos, art_vel, art_f, OUT v_r_dot.data());
     v_r += dt * v_r_dot;
-    // integrate_implicit_euler(art, dt, v_r_dot.data(), art_pos, art_vel);
 
     VectorXr f_c = Map<VectorXr>(sb_f_contact, 3*N_c);
     VectorXr f_r = Map<VectorXr>(art_f_contact, N_r);
@@ -214,13 +213,6 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     J_cr.setZero();
 
     for (auto& [link_idx, vidx_range] : data.constrained_vertices_range) {
-        /*
-        std::vector<tscrew<real>> J(num_art_links);
-        for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
-            glmx::ttransform<real> T_v = data.constrained_vertices_offset.at(vidx);
-            calc_space_jacobian(art, link_idx, T_v, joint_S.data(), joint_trans.data(), J.data());
-        }
-         */
         int idx = link_idx;
         while (idx != -1) {
             int joint_vel_dof_start = art.joint_vel_dof_starts[idx];
@@ -228,18 +220,17 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
             for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
                 auto S_j = joint_S[j];
                 for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
-                    glmx::ttransform<real> T_v = data.constrained_vertices_offset.at(vidx);
-                    glmx::tscrew<real> S_prime = Ad(joint_trans[idx] * T_v, S_j);
-                    J_cr(3*(vidx-N_f)+0, j) = S_prime.v[0];
-                    J_cr(3*(vidx-N_f)+1, j) = S_prime.v[1];
-                    J_cr(3*(vidx-N_f)+2, j) = S_prime.v[2];
+                    glmx::ttransform<real> T_v = joint_trans[link_idx] * data.constrained_vertices_offset.at(vidx);
+                    glmx::tscrew<real> S_prime = Ad(joint_trans[idx] / T_v, S_j);
+                    rvec3 S_v = T_v.R * S_prime.v;
+                    J_cr(3*(vidx-N_f)+0, j) = S_v[0];
+                    J_cr(3*(vidx-N_f)+1, j) = S_v[1];
+                    J_cr(3*(vidx-N_f)+2, j) = S_v[2];
                 }
             }
             idx = art.parents[idx];
         }
     }
-
-    VectorXr x_c_bar = x_c_orig + dt*J_cr*v_r;
 
     std::vector<glm::tmat3x3<real>> u(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
     std::vector<glm::tmat3x3<real>> z(sb.tetrahedrons.size());
@@ -251,7 +242,9 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     std::cout << "Starting ADMM loop" << std::endl;
     for (int iter = 0; iter < 10; iter++) {
         VectorXr x_s_tilde = x_s_bar;
-        x_s_tilde.bottomRows(3*N_c) += dt * dt * f_c;
+        VectorXr f_s = VectorXr::Zero(3*N_s);
+        f_s.bottomRows(3*N_c) = f_c;
+        x_s_tilde += dt * dt * sb.M_LDLt.solve(f_s);
 
         // Local solve
 #define X(CTYPE, CFIELD) \
@@ -276,58 +269,44 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 
         // Calculate Delassus matrix.
         MatrixXr M_d = J_cr * M_r_inv * J_cr.transpose();
-        // LDLT<MatrixXr> M_d_T_M_d_LDLt = (M_d.transpose() * M_d).ldlt();
-        // TODO: To get optimal alpha, (approximately) calculate min/max eigenvalues of schur complement matrix.
-        // real alpha = real(2) / (data.A_sigma_min + data.A_sigma_max);
-        // std::cout << "alpha = " << alpha << std::endl;
-        real alpha = 0.005;
 
-        std::cout << "Starting Uzawa CG" << std::endl;
-        for (int uzawa_iter = 0; uzawa_iter < 10; uzawa_iter++) {
-            /*
-            f_c = M_d_T_M_d_LDLt.solve(M_d.transpose() * (x_c_bar - x_c) / (dt*dt));
-            VectorXr b_bar = b;
-            b_bar.bottomRows(3*N_c) += (dt*dt)*f_c;
-            x_s = sb.A_LDLt.solve(b_bar);
-             */
-            VectorXr b_bar = b;
-            b_bar.bottomRows(3*N_c) += (dt*dt)*f_c;
-            x_s = sb.A_LDLt.solve(b_bar);
-
-            f_c -= alpha * ((x_c - x_c_bar)/(dt*dt) + M_d * f_c);
-
-            // VectorXr error = (M_d * f_c + (x_c - x_c_bar) / (dt*dt));
-            // std::cout << "Error: " << error.lpNorm<2>() << std::endl;
-            // std::cout << "Iteration " << uzawa_iter << ": " << std::endl;
-            // std::cout << "b_bar: " << b_bar.transpose() << std::endl;
-            // std::cout << "x_s: " << x_s.transpose() << std::endl;
-            // std::cout << "f_c: " << f_c.transpose() << std::endl;
-            // std::cout << "f_r: " << f_r.transpose() << std::endl;
+        std::cout << "Uzawa CG:" << std::endl;
+        VectorXr b_bar = b;
+        b_bar.bottomRows(3*N_c) += (dt*dt)*f_c;
+        x_s = sb.A_LDLt.solve(b_bar);
+        // VectorXr x_c_bar = x_s_tilde.bottomRows(3*N_c);
+        VectorXr x_c_bar = x_c_orig + dt*J_cr*v_r;
+        VectorXr r_c = x_c_bar - x_c - (dt*dt)*M_d*f_c;
+        VectorXr s_c = r_c;
+        while (r_c.norm() > 1e-4) {
+            VectorXr s_c_p = VectorXr::Zero(3*N_s);
+            s_c_p.bottomRows(3*N_c) = s_c;
+            VectorXr s_x = sb.A_LDLt.solve(s_c_p);
+            VectorXr a_c = s_x.bottomRows(3*N_c);
+            real alpha = s_c.dot(r_c) / s_c.dot(a_c);
+            x_s -= alpha * s_x;
+            f_c += alpha * s_c;
+            r_c -= alpha * a_c;
+            real beta = r_c.dot(a_c) / s_c.dot(a_c);
+            s_c = r_c - beta*s_c;
         }
-        f_r = -J_cr.transpose() * f_c;
+        std::cout << "Error: " << r_c.norm() << std::endl;
 
-        VectorXr error = (M_d * f_c + (x_c - x_c_bar) / (dt*dt));
-        std::cout << "Error: " << error.lpNorm<2>() << std::endl;
+        f_r = -J_cr.transpose() * f_c;
+        std::cout << f_r.transpose() << std::endl;
+
+        VectorXr f_r_total = f_r_ext + f_r;
+        featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, art_pos, art_vel, f_r_total.data(),
+                                      OUT v_r_dot.data());
+        integrate_implicit_euler(art, dt, v_r_dot.data(), x_r.data(), v_r.data());
+
+        // x_c = x_c_orig + dt*J_cr*v_r;
     }
 
     v_s = (x_s - x_s_orig) / dt;
 
-    VectorXr f_r_total = f_r_ext + f_r;
-    std::cout << f_r_total.transpose() << std::endl;
-    featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, art_pos, art_vel, f_r_total.data(),
-                                  OUT v_r_dot.data());
-    integrate_implicit_euler(art, dt, v_r_dot.data(), art_pos, art_vel);
-
-    x_c = x_c_orig + dt*J_cr*v_r;
-
+    /*
     for (auto& [link_idx, vidx_range] : data.constrained_vertices_range) {
-        /*
-        std::vector<tscrew<real>> J(num_art_links);
-        for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
-            glmx::ttransform<real> T_v = data.constrained_vertices_offset.at(vidx);
-            calc_space_jacobian(art, link_idx, T_v, joint_S.data(), joint_trans.data(), J.data());
-        }
-         */
         for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
             auto T_v = data.constrained_vertices_offset.at(vidx);
             auto T = joint_trans[link_idx] * T_v;
@@ -336,6 +315,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
             x_c(3*(vidx-N_f) + 2) = T.v[2];
         }
     }
+     */
 }
 
 }

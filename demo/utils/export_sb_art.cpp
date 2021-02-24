@@ -181,7 +181,7 @@ int main(int argc, char** argv) {
                 exit(EXIT_FAILURE);
             } break;
         }
-        link_objs[name] = obj;
+        link_objs.insert({name, obj});
     }
 
     auto out_mesh_path = out_path / (mesh_path.stem().string() + "_carved.obj");
@@ -238,9 +238,9 @@ int main(int argc, char** argv) {
 
         fmt::print("For link {}: \n", name);
         for (const glm::ivec3& tri : link_obj.triangle_vertices) {
-            auto v0 = link_obj.vertices[tri[0]];
-            auto v1 = link_obj.vertices[tri[1]];
-            auto v2 = link_obj.vertices[tri[2]];
+            auto v0 = link_obj.vertices[tri[0]-1];
+            auto v1 = link_obj.vertices[tri[1]-1];
+            auto v2 = link_obj.vertices[tri[2]-1];
             fmt::print("For triangle with vertices {}, {}, {}\n",
                        glm::to_string(v0), glm::to_string(v1), glm::to_string(v2));
             for (int j = 0; j < tet_mesh_vertices.size(); j++) {

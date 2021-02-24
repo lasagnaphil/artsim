@@ -115,12 +115,12 @@ void calc_body_jacobian(const ArticulatedBody& art, uint32_t joint_idx, ttransfo
                         const ttransform<real>* T_joint_global,
                         tscrew<real>* J_b) {
     std::fill_n(J_b, art.get_num_vel_dofs(), tscrew<real>(IDENTITY));
-    auto T_joint_trans = T_joint_global[joint_idx] * offset;
+    auto T_m = T_joint_global[joint_idx] * offset;
     int i = joint_idx;
     do {
         int joint_vel_dof_start = art.joint_vel_dof_starts[i];
         int joint_vel_dofs = art.joint_vel_dofs[i];
-        auto T = T_joint_global[i] / T_joint_trans;
+        auto T = T_joint_global[i] / T_m;
         for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
             J_b[j] = Ad(T, S[j]);
         }
