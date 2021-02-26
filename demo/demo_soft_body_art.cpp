@@ -107,7 +107,7 @@ public:
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
 
-        soft_body_render.render(pbRenderer, sb_pos.data());
+        // soft_body_render.render(pbRenderer, sb_pos.data());
         soft_body_render.render_debug_volume(imRenderer, sb_pos.data());
 
         art_render.render(pbRenderer, art_pos.data());
@@ -199,7 +199,6 @@ public:
         art_vel.resize(art_vel_dofs, 0);
         art_force.clear();
         art_force.resize(art_vel_dofs, 0);
-        art_force[1] = 10;
         art_force_contact.clear();
         art_force_contact.resize(art_vel_dofs, 0);
     }

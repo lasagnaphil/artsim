@@ -203,6 +203,7 @@ void admm_dynamics_with_art_update_b(
     }
 }
 
+// TODO: Need to fix local updates on soft body not working
 void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstraints& constraints,
                             real dt, const real* sb_f, const real* art_f,
                             INOUT real* sb_pos, INOUT real* sb_vel,
@@ -264,19 +265,6 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     dynmat<real> identity(num_art_vel_dofs, IDENTITY);
     multiply_inverse_mass_matrix(art, dt, art_pos, identity.to_view(), OUT M_r_inv_view);
 
-    // Project constrained vertices to articulation
-    /*
-    for (auto& [link_idx, vidx_range] : data.constrained_vertices_range) {
-        for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
-            auto T_v = data.constrained_vertices_offset.at(vidx);
-            auto T = joint_trans[link_idx] * T_v;
-            sb_pos[3*(vidx) + 0] = T.v[0];
-            sb_pos[3*(vidx) + 1] = T.v[1];
-            sb_pos[3*(vidx) + 2] = T.v[2];
-        }
-    }
-     */
-
     Map<VectorXr> x_s(sb_pos, 3*N_s);
     Map<VectorXr> x_f(sb_pos, 3*N_f);
     Map<VectorXr> x_c(sb_pos + 3*N_f, 3*N_c);
@@ -305,7 +293,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     std::cout << "Starting ADMM loop" << std::endl;
     v_s = v_s_tilde;
     v_r = v_r_tilde;
-    for (int iter = 0; iter < 30; iter++) {
+    for (int iter = 0; iter < 10; iter++) {
         VectorXr x_s_pred = x_s_orig + dt*v_s;
 
         // Local solve
@@ -360,10 +348,17 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     x_s = x_s_orig + dt*v_s;
     integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
 
-    // std::cout << "v_s: " << v_s.transpose() << std::endl;
-    // std::cout << "v_r: " << v_r.transpose() << std::endl;
-
-    // integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
+    // Project constrained vertices to articulation
+    calc_transforms(art, art_pos, link_trans.data(), joint_trans.data());
+    for (auto& [link_idx, vidx_range] : data.constrained_vertices_range) {
+        for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
+            auto T_v = data.constrained_vertices_offset.at(vidx);
+            auto T = joint_trans[link_idx] * T_v;
+            sb_pos[3*(vidx) + 0] = T.v[0];
+            sb_pos[3*(vidx) + 1] = T.v[1];
+            sb_pos[3*(vidx) + 2] = T.v[2];
+        }
+    }
 }
 
 }

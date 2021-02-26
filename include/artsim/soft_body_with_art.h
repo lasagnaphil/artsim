@@ -21,7 +21,7 @@ struct SoftBodyWithArtData {
     int constrained_idx_start;
 
     // TODO: what is the best value for k_c?
-    real k_c = 0.2;
+    real k_c = 0.3;
 
     void load(const char* metadata);
 };
