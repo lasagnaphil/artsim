@@ -13,12 +13,15 @@ struct SoftBodyWithArtData {
     SoftBodyData sb;
     ArticulatedBody art;
 
+    Eigen::SparseMatrix<real> A_inv;
+
     std::unordered_map<int, std::pair<int, int>> constrained_vertices_range;
     std::unordered_map<int, glmx::ttransform<real>> constrained_vertices_offset;
     int num_constrained_vertices;
     int constrained_idx_start;
 
-    real A_sigma_min, A_sigma_max;
+    // TODO: what is the best value for k_c?
+    real k_c = 0.2;
 
     void load(const char* metadata);
 };
@@ -27,8 +30,8 @@ void soft_body_precomputation(SoftBodyWithArtData& body, const ADMMConstraints& 
 
 void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstraints& constraints,
                             real dt, const real* sb_f, const real* art_f,
-                            INOUT real* sb_pos, INOUT real* sb_vel, INOUT real* sb_f_contact,
-                            INOUT real* art_pos, INOUT real* art_vel, INOUT real* art_f_contact);
+                            INOUT real* sb_pos, INOUT real* sb_vel,
+                            INOUT real* art_pos, INOUT real* art_vel);
 
 }
 

@@ -117,6 +117,8 @@ public:
     void load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props);
 };
 
+void precomputation_essentials(SoftBodyData& body);
+
 template <class Constraints>
 void soft_body_precomputation(SoftBodyData& body, const Constraints& constraints, real dt);
 

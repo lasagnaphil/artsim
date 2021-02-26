@@ -88,14 +88,14 @@ public:
 
             admm_dynamics_with_art(soft_body_with_art, constraints, sim_dt,
                                    (real*) sb_force.data(), (real*) art_force.data(),
-                                   INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data(), INOUT (real*)sb_force_contact.data(),
-                                   INOUT art_pos.data(), INOUT art_vel.data(), INOUT art_force_contact.data());
+                                   INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data(),
+                                   INOUT art_pos.data(), INOUT art_vel.data());
 
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             printf("Duration: %lld microsecs\n", duration.count());
 
-            run_simulation = false;
+            // run_simulation = false;
 
             t += sim_dt;
         }
@@ -107,8 +107,8 @@ public:
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
 
-        // soft_body_render.render(pbRenderer, sb_pos.data());
-        soft_body_render.render_debug_surface(imRenderer, sb_pos.data());
+        soft_body_render.render(pbRenderer, sb_pos.data());
+        soft_body_render.render_debug_volume(imRenderer, sb_pos.data());
 
         art_render.render(pbRenderer, art_pos.data());
 
@@ -177,12 +177,12 @@ public:
 
     void resetPhysics() {
         sb_pos = soft_body_with_art.sb.vertices;
-        /*
         real noise = 0.02;
-        for (int i = 0; i < sb_pos.size(); i++) {
-            sb_pos[i] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
+        for (int i = 0; i < soft_body_with_art.constrained_idx_start; i++) {
+            sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
+            sb_pos[i][1] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
+            sb_pos[i][2] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
         }
-         */
         sb_vel.clear();
         sb_vel.resize(sb_pos.size(), glm::tvec3<real>(0));
         sb_force.clear();
@@ -199,13 +199,14 @@ public:
         art_vel.resize(art_vel_dofs, 0);
         art_force.clear();
         art_force.resize(art_vel_dofs, 0);
+        art_force[1] = 10;
         art_force_contact.clear();
         art_force_contact.resize(art_vel_dofs, 0);
     }
 
 private:
     MaterialDB material_db;
-    float sim_dt = 1.0f / 600.0f;
+    float sim_dt = 1.0f / 60.0f;
     bool run_simulation = false;
     bool render_orig = false;
 

@@ -93,23 +93,6 @@ tscrew<real> calc_v0(const Joint& joint, const real* u) {
     }
 }
 
-void calc_space_jacobian(const ArticulatedBody& art, uint32_t joint_idx, ttransform<real> offset,
-                         const tscrew<real>* S,
-                         const ttransform<real>* T_joint_global,
-                         tscrew<real>* J_s) {
-    std::fill_n(J_s, art.get_num_vel_dofs(), tscrew<real>(IDENTITY));
-    int i = joint_idx;
-    do {
-        int joint_vel_dof_start = art.joint_vel_dof_starts[i];
-        int joint_vel_dofs = art.joint_vel_dofs[i];
-        auto T = T_joint_global[i] * offset;
-        for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
-            J_s[j] = Ad(T, S[j]);
-        }
-        i = art.parents[i];
-    } while (i != -1);
-}
-
 void calc_body_jacobian(const ArticulatedBody& art, uint32_t joint_idx, ttransform<real> offset,
                         const tscrew<real>* S,
                         const ttransform<real>* T_joint_global,
@@ -670,8 +653,10 @@ void forward_dynamics_using_rnea(const ArticulatedBody& art, glm::tvec3<real> gr
 }
 
 void integrate_implicit_euler(const ArticulatedBody& art, real dt, const real* udot, real* q, real* u) {
-    for (int d = 0; d < art.get_num_vel_dofs(); d++) {
-        u[d] += udot[d] * dt;
+    if (udot) {
+        for (int d = 0; d < art.get_num_vel_dofs(); d++) {
+            u[d] += udot[d] * dt;
+        }
     }
     real* qi = q; real* qdi = u;
     for (int i = 0; i < art.get_num_joints(); i++) {
