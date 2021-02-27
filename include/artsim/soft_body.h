@@ -146,21 +146,15 @@ void projective_dynamics_volume_constraint_local_solve(
         OUT glm::tmat3x3<real>* p);
 
 template <class Constraint>
-void admm_volume_constraint_local_solve_fast(
-        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-        const glm::tvec3<real>* V,
-        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* p,
-        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd);
-
-template <class Constraint>
 void admm_volume_constraint_local_solve(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
         const glm::tvec3<real>* V,
-        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* p);
+        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
+        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd);
 
 template <class Constraint>
 void global_solve_modify_b(const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints, real dt,
-                           const glm::tmat3x3<real>* p, INOUT real* b);
+                           const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0, INOUT real* b);
 
 void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, real dt, const real* f,
                          INOUT real* pos, INOUT real* vel);

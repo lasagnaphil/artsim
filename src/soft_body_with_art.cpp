@@ -194,7 +194,7 @@ void admm_dynamics_with_art_update_b(
         }
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
-                glm::tvec3<real> db = k_s * dt * glm::dot(body.D[c.tet_id][j], body.D[c.tet_id][k]) * x0[tet[k]];
+                glm::tvec3<real> db = k_s * dt * glm::dot(D_i[j], D_i[k]) * x0[tet[k]];
                 b[3*tet[j]+0] -= db[0];
                 b[3*tet[j]+1] -= db[0];
                 b[3*tet[j]+2] -= db[0];

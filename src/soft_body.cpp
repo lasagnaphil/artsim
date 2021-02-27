@@ -302,7 +302,7 @@ void projective_dynamics_volume_constraint_local_solve(
         const glm::tvec3<real>* V,
         OUT glm::tmat3x3<real>* p) {
 
-#pragma omp parallel for schedule(static)
+// #pragma omp parallel for schedule(static)
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
@@ -319,24 +319,18 @@ PD_VOLUME_CONSTRAINTS
 #undef X
 
 template <class Constraint>
-void admm_volume_constraint_local_solve_fast(
+void admm_volume_constraint_local_solve(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-        const glm::tvec3<real>* V,
-        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* p,
+        const glm::tvec3<real>* x,
+        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
         OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd) {
 
 // #pragma omp parallel for schedule(static)
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
-        glm::rmat3 D_s(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
-        F[c.tet_id] = D_s * body.B_m[c.tet_id] + u[c.tet_id];
-        /*
-        glm::rmat3 F = D_s * body.B_m[c.tet_id] + u[c.tet_id]
-        z[c.tet_id] = proximal(F, c);
-        u[c.tet_id] = F - z[c.tet_id];
-        p[c.tet_id] = z[c.tet_id] - u[c.tet_id];
-         */
+        auto D_x = glm::rmat3(x[tet[0]] - x[tet[3]], x[tet[1]] - x[tet[3]], x[tet[2]] - x[tet[3]]) * body.B_m[c.tet_id];
+        F[c.tet_id] = D_x + u[c.tet_id];
     }
 
     glmx::fastsvd(F, num_constraints, F_svd);
@@ -347,25 +341,6 @@ void admm_volume_constraint_local_solve_fast(
         F_svd[c.tet_id].Sigma = proximal_eigvec(F_svd[c.tet_id].Sigma, c);
         z[c.tet_id] = F_svd[c.tet_id].recover_matrix();
         u[c.tet_id] = F[c.tet_id] - z[c.tet_id];
-        p[c.tet_id] = z[c.tet_id] - u[c.tet_id];
-    }
-}
-
-template <class Constraint>
-void admm_volume_constraint_local_solve(
-        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-        const glm::tvec3<real>* V,
-        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* p) {
-
-// #pragma omp parallel for schedule(static)
-    for (int cidx = 0; cidx < num_constraints; cidx++) {
-        auto& c = constraints[cidx];
-        glm::ivec4 tet = body.tetrahedrons[c.tet_id];
-        glm::rmat3 D_s(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
-        glm::rmat3 F = D_s * body.B_m[c.tet_id] + u[c.tet_id];
-        z[c.tet_id] = proximal(F, c);
-        u[c.tet_id] = F - z[c.tet_id];
-        p[c.tet_id] = z[c.tet_id] - u[c.tet_id];
     }
 }
 
@@ -373,43 +348,50 @@ void admm_volume_constraint_local_solve(
 template void admm_volume_constraint_local_solve_fast( \
         const SoftBodyData&, const CTYPE*, uint32_t, \
         const glm::tvec3<real>*, \
-        OUT glm::tmat3x3<real>*, OUT glm::tmat3x3<real>*, OUT glm::tmat3x3<real>*, \
+        OUT glm::tmat3x3<real>*, OUT glm::tmat3x3<real>*, \
         OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd); \
-template void admm_volume_constraint_local_solve( \
-        const SoftBodyData&, const CTYPE*, uint32_t, \
-        const glm::tvec3<real>*, \
-        OUT glm::tmat3x3<real>*, OUT glm::tmat3x3<real>*, OUT glm::tmat3x3<real>*);
 ADMM_VOLUME_CONSTRAINTS
 #undef X
 
 template <class Constraint>
 void global_solve_modify_b(const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-                         real dt,
-                         const glm::tmat3x3<real>* p, INOUT real* b) {
+                         real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0,
+                         INOUT real* b) {
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
-        auto& p_mat = p[c.tet_id];
-        auto& D_i = body.D[c.tet_id];
-        real k_s = dt * dt * c.k * body.W[c.tet_id];
+        auto p = z[c.tet_id] - u[c.tet_id];
+        auto D_i = body.D[c.tet_id];
+        auto D_x0 = glm::rmat3(x0[tet[0]] - x0[tet[3]], x0[tet[1]] - x0[tet[3]], x0[tet[2]] - x0[tet[3]]) * body.B_m[c.tet_id];
+        real k_s = dt * c.k * body.W[c.tet_id];
         for (int j = 0; j < 4; j++) {
-            glm::tvec3<real> db = k_s * (p_mat * D_i[j]);
+            glm::tvec3<real> db = k_s * ((p - D_x0) * D_i[j]);
             b[3*tet[j]+0] += db[0];
             b[3*tet[j]+1] += db[1];
             b[3*tet[j]+2] += db[2];
         }
+        /*
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 4; k++) {
+                glm::tvec3<real> db = k_s * glm::dot(D_i[j], D_i[k]) * x0[tet[k]];
+                b[3*tet[j]+0] -= db[0];
+                b[3*tet[j]+1] -= db[0];
+                b[3*tet[j]+2] -= db[0];
+            }
+        }
+         */
     }
 }
 
 #define X(CTYPE, CFIELD) \
 template void global_solve_modify_b( \
         const SoftBodyData& body, const CTYPE* constraints, uint32_t num_constraints, \
-        real dt, \
-        const glm::tmat3x3<real>* p, INOUT real* b);
+        real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0, INOUT real* b);
 PD_VOLUME_CONSTRAINTS
 ADMM_VOLUME_CONSTRAINTS
 #undef X
 
+/*
 void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, real dt, const real* f,
                          INOUT real* pos, INOUT real* vel) {
     Map<VectorXr> x(pos, 3*body.vertices.size());
@@ -428,7 +410,8 @@ void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, r
     for (int iter = 0; iter < 5; iter++) {
         // Local solve
 #define X(CTYPE, CFIELD) \
-        projective_dynamics_volume_constraint_local_solve(body, constraints.CFIELD.data(), constraints.CFIELD.size(), V, OUT p.data());
+        projective_dynamics_volume_constraint_local_solve(body, constraints.CFIELD.data(), constraints.CFIELD.size(), V, \
+            OUT p.data());
         PD_VOLUME_CONSTRAINTS
 #undef X
 
@@ -452,6 +435,7 @@ void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, r
     }
     v = (x - x_orig) / dt;
 }
+ */
 
 void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real dt, const real* f,
                    INOUT real* pos, INOUT real* vel) {
@@ -460,37 +444,29 @@ void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real 
     Map<VectorXr> v(vel, 3*body.vertices.size());
     Map<const VectorXr> f_ext(f, 3*body.vertices.size());
     VectorXr x_orig = x;
-    x += dt * v + dt*dt * body.M_LDLt.solve(f_ext);
-    VectorXr x_tilde = x;
+    VectorXr v_tilde = v + dt*body.M_LDLt.solve(f_ext);
+    v = v_tilde;
+    x = x_orig + dt*v;
 
     std::vector<glm::tmat3x3<real>> u(body.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
     std::vector<glm::tmat3x3<real>> z(body.tetrahedrons.size());
-    std::vector<glm::tmat3x3<real>> p(body.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> F(body.tetrahedrons.size());
     std::vector<glmx::SVD_mats<real>> F_svd(body.tetrahedrons.size());
-    glm::tvec3<real>* V = (glm::tvec3<real>*) pos;
 
     for (int iter = 0; iter < 5; iter++) {
         // Local solve
-#if 1
 #define X(CTYPE, CFIELD) \
-        admm_volume_constraint_local_solve_fast(body, constraints.CFIELD.data(), constraints.CFIELD.size(), V, \
-            OUT z.data(), OUT u.data(), OUT p.data(), OUT F.data(), OUT F_svd.data());
+        admm_volume_constraint_local_solve(body, constraints.CFIELD.data(), constraints.CFIELD.size(), \
+            (glm::rvec3*) x.data(), OUT z.data(), OUT u.data(), OUT F.data(), OUT F_svd.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
-#else
-#define X(CTYPE, CFIELD) \
-        admm_volume_constraint_local_solve(body, constraints.CFIELD.data(), constraints.CFIELD.size(), V, \
-            OUT z.data(), OUT u.data(), OUT p.data());
-        ADMM_VOLUME_CONSTRAINTS
-#undef X
-#endif
 
         // Global solve
-        VectorXr b = body.M * x_tilde;
+        VectorXr b = body.M * v_tilde;
 
 #define X(CTYPE, CFIELD) \
-        global_solve_modify_b(body, constraints.CFIELD.data(), constraints.CFIELD.size(), dt, p.data(), OUT b.data());
+        global_solve_modify_b(body, constraints.CFIELD.data(), constraints.CFIELD.size(), dt, z.data(), u.data(), \
+            (glm::rvec3*) x_orig.data(), OUT b.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
 
@@ -502,8 +478,8 @@ void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real 
             body.should_update_system_matrix = false;
         }
 
-        x = body.A_LDLt.solve(b);
+        v = body.A_LDLt.solve(b);
+        x = x_orig + dt*v;
     }
-    v = (x - x_orig) / dt;
 }
 }
