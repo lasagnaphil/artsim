@@ -50,8 +50,8 @@ public:
         // objfile.load_obj("resources/soft_body/octopus.obj");
         // objfile.load_obj("resources/soft_body/starfish.obj");
         // objfile.load_obj("resources/soft_body/link_.mesh");
-        objfile = OBJFile::make_cube_tetrahedral(0.1, {10, 10, 10});
-        // objfile.load_msh("resources/soft_body_with_art/mesh_carved_.msh");
+        // objfile = OBJFile::make_cube_tetrahedral(0.1, {10, 10, 10});
+        objfile.load_msh("resources/soft_body_with_art/mesh_carved_.msh");
         // PyMesh::MshLoader msh("resources/soft_body_with_art/mesh_carved_.msh");
         // PyMesh::MshLoader msh("resources/soft_body/link_.msh");
 
@@ -143,7 +143,9 @@ public:
         sb_pos = soft_body.vertices;
         real noise = 0.02;
         for (int i = 0; i < sb_pos.size(); i++) {
-            sb_pos[i] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
+            sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
+            sb_pos[i][1] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
+            sb_pos[i][2] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
         }
         sb_vel.clear();
         sb_vel.resize(sb_pos.size(), glm::tvec3<real>(0));

@@ -244,7 +244,7 @@ glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const VolumePreservat
 
 glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const CorotationalEnergyConstraint& c) {
     real A_diag = 2*c.mu + c.lambda + c.k;
-    glm::tmat3x3<real> A(A_diag, c.lambda, c.lambda, c.lambda, A_diag, c.lambda, c.lambda, c.lambda, A_diag);
+    glmx::tsmat3x3<real> A(A_diag, A_diag, A_diag, c.lambda, c.lambda, c.lambda);
     glm::tvec3<real> b(2*c.mu + 3*c.lambda + c.k*sigma.x,
                        2*c.mu + 3*c.lambda + c.k*sigma.y,
                        2*c.mu + 3*c.lambda + c.k*sigma.z);
@@ -283,6 +283,7 @@ glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const NeoHookeanEnergyC
         }
          */
         S -= glmx::inverse(H) * grad;
+        S = glm::max(S, glm::rvec3(0)); // Prevent volume from becoming negative
     }
     // std::cout << "opt finished" << std::endl;
     return S;
@@ -361,7 +362,7 @@ void global_solve_modify_b(const SoftBodyData& body, const Constraint* constrain
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
         auto p = z[c.tet_id] - u[c.tet_id];
-        auto D_i = body.D[c.tet_id];
+        auto& D_i = body.D[c.tet_id];
         auto D_x0 = glm::rmat3(x0[tet[0]] - x0[tet[3]], x0[tet[1]] - x0[tet[3]], x0[tet[2]] - x0[tet[3]]) * body.B_m[c.tet_id];
         real k_s = dt * c.k * body.W[c.tet_id];
         for (int j = 0; j < 4; j++) {
@@ -370,16 +371,6 @@ void global_solve_modify_b(const SoftBodyData& body, const Constraint* constrain
             b[3*tet[j]+1] += db[1];
             b[3*tet[j]+2] += db[2];
         }
-        /*
-        for (int j = 0; j < 4; j++) {
-            for (int k = 0; k < 4; k++) {
-                glm::tvec3<real> db = k_s * glm::dot(D_i[j], D_i[k]) * x0[tet[k]];
-                b[3*tet[j]+0] -= db[0];
-                b[3*tet[j]+1] -= db[0];
-                b[3*tet[j]+2] -= db[0];
-            }
-        }
-         */
     }
 }
 
@@ -445,8 +436,8 @@ void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real 
     Map<const VectorXr> f_ext(f, 3*body.vertices.size());
     VectorXr x_orig = x;
     VectorXr v_tilde = v + dt*body.M_LDLt.solve(f_ext);
-    v = v_tilde;
-    x = x_orig + dt*v;
+    v.noalias() = v_tilde;
+    x.noalias() = x_orig + dt*v;
 
     std::vector<glm::tmat3x3<real>> u(body.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
     std::vector<glm::tmat3x3<real>> z(body.tetrahedrons.size());
@@ -478,8 +469,8 @@ void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real 
             body.should_update_system_matrix = false;
         }
 
-        v = body.A_LDLt.solve(b);
-        x = x_orig + dt*v;
+        v.noalias() = body.A_LDLt.solve(b);
+        x.noalias() = x_orig + dt*v;
     }
 }
 }
