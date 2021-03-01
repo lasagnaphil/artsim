@@ -217,6 +217,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     int num_constrained_vertices = sb.vertices.size() - data.constrained_idx_start;
     int N_s = num_vertices, N_f = num_free_vertices, N_c = num_constrained_vertices, N_r = num_art_vel_dofs;
 
+    // TODO: investigate if jacobian calculation is bugged!!!
     // Calculate vertex jacobians
     std::vector<ttransform<real>> link_trans(num_art_links), joint_trans(num_art_links);
     calc_transforms(art, art_pos, link_trans.data(), joint_trans.data());
@@ -295,7 +296,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     std::vector<glmx::SVD_mats<real>> F_svd(sb.tetrahedrons.size());
 
     std::cout << "Starting ADMM loop" << std::endl;
-    for (int iter = 0; iter < 10; iter++) {
+    for (int iter = 0; iter < 30; iter++) {
 
         // Local solve
 #define X(CTYPE, CFIELD) \
@@ -351,10 +352,27 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         std::cout << "coupling error: " << (v_c - J_cr * v_r).norm() << std::endl;
 
         x_s = x_s_orig + dt*v_s;
-        integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
+        integrate_implicit_euler(art, dt, nullptr, x_r_orig.data(), v_r.data());
     }
 
-    // Project constrained vertices to articulation
+    // Baumgarte stabilization
+    /*
+    VectorXr dV(3*N_s);
+    dV.topRows(3*N_f).setZero();
+    dV.bottomRows(3*N_c) = v_c - J_cr * v_r;
+    real k_baum = 1;
+    VectorXr f_baum = -k_baum * sb.M_LDLt.solve(dV);
+    v_s += dt*f_baum;
+    x_s += dt*dt*f_baum;
+     */
+
+    // TODO: Remove this projection step
+    // Project constrained velocities to articulation
+    v_c = J_cr * v_r;
+    x_s = x_s_orig + dt*v_s;
+    integrate_implicit_euler(art, dt, nullptr, x_r_orig.data(), v_r.data());
+
+    // Project constrained positions to articulation
     /*
     calc_transforms(art, art_pos, link_trans.data(), joint_trans.data());
     for (auto& [link_idx, vidx_range] : data.constrained_vertices_range) {

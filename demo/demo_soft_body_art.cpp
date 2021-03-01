@@ -48,8 +48,8 @@ public:
         soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
 
         auto& props = soft_body_with_art.sb.props;
-        props.young_modulus = 1e8;
-        props.poisson_ratio = 0.499;
+        props.young_modulus = 1e7;
+        props.poisson_ratio = 0.49;
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();
@@ -108,17 +108,27 @@ public:
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
 
         // soft_body_render.render(pbRenderer, sb_pos.data());
-        soft_body_render.render_debug_volume(imRenderer, sb_pos.data());
+        soft_body_render.render_debug_surface(imRenderer, sb_pos.data());
+        // soft_body_render.render_debug_volume(imRenderer, sb_pos.data());
 
         art_render.render(pbRenderer, art_pos.data());
 
-        /*
         int N_f = soft_body_with_art.constrained_idx_start;
         int N_c = soft_body_with_art.sb.vertices.size() - N_f;
         for (int i = N_f; i < N_f + N_c; i++) {
-            imRenderer.drawPoint(sb_pos[i], colors::Green, 4.0f, false);
+            imRenderer.drawPoint(sb_pos[i], colors::Green, 4.0f, true);
         }
-        */
+
+        auto& sb_art = soft_body_with_art;
+        std::vector<ttransform<real>> joint_trans(sb_art.art.get_num_joints());
+        calc_transforms(sb_art.art, art_pos.data(), nullptr, joint_trans.data());
+        for (auto& [link_idx, vidx_range] : sb_art.constrained_vertices_range) {
+            for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
+                auto offset = sb_art.constrained_vertices_offset[vidx];
+                auto vert_trans = joint_trans[link_idx] * offset;
+                imRenderer.drawPoint(vert_trans.v, colors::Blue, 4.0f, true);
+            }
+        }
 
         pbRenderer.render();
         imRenderer.render();
@@ -177,7 +187,7 @@ public:
 
     void resetPhysics() {
         sb_pos = soft_body_with_art.sb.vertices;
-        real noise = 0.02;
+        real noise = 0.002;
         for (int i = 0; i < soft_body_with_art.constrained_idx_start; i++) {
             sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
             sb_pos[i][1] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
@@ -199,6 +209,7 @@ public:
         art_vel.resize(art_vel_dofs, 0);
         art_force.clear();
         art_force.resize(art_vel_dofs, 0);
+        art_force[1] = 50;
         art_force_contact.clear();
         art_force_contact.resize(art_vel_dofs, 0);
     }
@@ -232,7 +243,7 @@ int main(int argc, char** argv)
     //--------------------------------------------------------------------------------------
     auto settings = AppSettings::defaultPBR();
     settings.useDisplayFPS = false;
-    settings.updateFPS = 60;
+    settings.updateFPS = 30;
     MyApp app(settings);
     app.load();
     app.startMainLoop();
