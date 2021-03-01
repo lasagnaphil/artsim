@@ -37,22 +37,10 @@ namespace artsim {
 
     glmx::tscrew<real> calc_v0(const Joint& joint, const real*__restrict u);
 
-    void calc_space_jacobian(const ArticulatedBody& art, uint32_t joint_idx, glmx::ttransform<real> offset,
-                             const glmx::tscrew<real>* S,
-                             const glmx::ttransform<real>* T_joint_global,
-                             OUT glmx::tscrew<real>* J_s);
-
     void calc_body_jacobian(const ArticulatedBody& art, uint32_t joint_idx, glmx::ttransform<real> offset,
                              const glmx::tscrew<real>* S,
                              const glmx::ttransform<real>* T_joint_global,
                              OUT glmx::tscrew<real>* J_s);
-
-    void calculate_jacobian_for_local_frame(const ArticulatedBody& art,
-                                      uint32_t link_idx,
-                                      const glmx::ttransform<real>& T_contact,
-                                      const glmx::ttransform<real>*__restrict T_joint_global,
-                                      const glmx::tscrew<real>*__restrict S,
-                                      OUT glmx::tscrew<real>* J_local);
 
     void rne_inverse_dynamics(const ArticulatedBody& art,
                               glm::tvec3<real> gravity, real dt,

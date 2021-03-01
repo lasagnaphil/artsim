@@ -83,3 +83,21 @@ TEST_CASE("inv_transform") {
 
     compare_eigen(G_a_g, G_a_e);
 }
+
+TEST_CASE("se(3) log/exp") {
+    ttransform<real> T;
+    tscrew<real> V;
+
+    get_random(engine, V);
+    T = exp(V);
+    tscrew<real> dV = log(T) - V;
+    CHECK(doctest::Approx(length(dV.w)).epsilon(1e-6) == 0);
+    CHECK(doctest::Approx(length(dV.v)).epsilon(1e-6) == 0);
+
+    get_random(engine, T);
+    V = log(T);
+    ttransform<real> dT = T / exp(V);
+
+    CHECK(doctest::Approx(length(dT.v)).epsilon(1e-6) == 0);
+    CHECK(doctest::Approx(length(log_mat(dT.R))).epsilon(1e-6) == 0);
+}

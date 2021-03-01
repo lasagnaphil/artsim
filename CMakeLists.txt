@@ -33,6 +33,7 @@ add_subdirectory(libs/fastsvd)
 add_library(artsim
         src/artsim.cpp src/dynamics.cpp
         src/contacts.cpp
+        src/ik.cpp
         src/soft_body.cpp
         src/soft_body_with_art.cpp
         src/obj_file.cpp

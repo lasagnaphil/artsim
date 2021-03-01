@@ -56,12 +56,21 @@ void get_random(std::default_random_engine& engine, glm::tquat<Real>& q) {
     q[1] = std::uniform_real_distribution<Real>(-1, 1)(engine);
     q[2] = std::uniform_real_distribution<Real>(-1, 1)(engine);
     q[3] = std::uniform_real_distribution<Real>(-1, 1)(engine);
+    q = glm::normalize(q);
 }
 
 template <class Real>
 void get_random(std::default_random_engine& engine, ttransform<Real>& T) {
     get_random<glm::tvec3<Real>, Real>(engine, T.v);
-    get_random<glm::tmat3x3<Real>, Real>(engine, T.R);
+    glm::tquat<Real> q;
+    get_random(engine, q);
+    T.R = glm::mat3_cast(q);
+}
+
+template <class Real>
+void get_random(std::default_random_engine& engine, tscrew<Real>& V) {
+    get_random<glm::tvec3<Real>, Real>(engine, V.v);
+    get_random<glm::tvec3<Real>, Real>(engine, V.w);
 }
 
 template <class T, class U>

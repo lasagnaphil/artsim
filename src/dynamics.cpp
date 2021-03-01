@@ -720,7 +720,11 @@ void calc_transforms(const ArticulatedBody& art, const real* q, ttransform<real>
                 T_joint_globals[i] = T_joint_global_parent * ttransform<real>(v_j, glm::mat3_cast(q_j));
             } break;
         }
-        T_link_globals[i] = T_joint_globals[i] * ttransform<real>(link.local_link_pose);
+    }
+    if (T_link_globals) {
+        for (int i = 0; i < art.get_num_joints(); i++) {
+            T_link_globals[i] = T_joint_globals[i] * ttransform<real>(art.links[i].local_link_pose);
+        }
     }
 }
 

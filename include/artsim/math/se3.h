@@ -186,6 +186,31 @@ namespace glmx {
     }
 
     template <class T>
+    inline ttransform<T> exp(tscrew<T> V) {
+        T theta = length(V.w);
+        if (theta <= glm::epsilon<T>()) {
+            return ttransform<T>(V.v, glm::tmat3x3<T>(1));
+        }
+        return move(V/theta, theta);
+    }
+
+    // Calculates the matrix logarithm of SE(3).
+    template <class T>
+    inline tscrew<T> log(ttransform<T> t) {
+        if (length(t.R - glm::tmat3x3<T>(1)) < glm::epsilon<T>()) {
+            return tscrew<T>(glm::tvec3<T>(0), t.v);
+        }
+        glm::tvec3<T> w = log_mat(t.R);
+        T theta = glm::length(w);
+        glm::tvec3<T> w_hat = w / theta;
+        glm::tvec3<T> w_hat_cross_v = glm::cross(w_hat, t.v);
+        T half_theta = T(0.5) * theta;
+        glm::tvec3<T> v = t.v - half_theta * w_hat_cross_v
+                + (T(1) - half_theta / glm::tan(half_theta)) * glm::cross(w_hat, w_hat_cross_v);
+        return tscrew<T>(w, v);
+    }
+
+    template <class T>
     inline tscrew<T> Ad(ttransform<T> t, tscrew<T> V) {
         glm::tvec3<T> w = t.R * V.w;
         return tscrew<T>(w, glm::cross(t.v, w) + t.R * V.v);

@@ -7,6 +7,7 @@
 
 #include <glm/vec3.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/norm.hpp>
 
 namespace glmx {
     template <class T>
@@ -175,17 +176,30 @@ namespace glmx {
         glm::tvec3<T> u = v / theta;
         glm::tmat3x3<T> K = skew_symmetric(u);
         R += glm::sin(theta) * K;
-        R += (1 - glm::cos(theta)) * K * K;
+        R += (T(1) - glm::cos(theta)) * K * K;
         return R;
     }
 
     template <class T>
     inline glm::tvec3<T> log_mat(const glm::tmat3x3<T> &R) {
         T theta = glm::acos((R[0][0] + R[1][1] + R[2][2] - 1) / 2);
-        if (glm::epsilonEqual(theta, T(0), T(1e-8))) {
-            return glm::tvec3<T>(0);
+        auto v = glm::tvec3<T>(R[1][2] - R[2][1], R[2][0] - R[0][2], R[0][1] - R[1][0]);
+        if (glm::epsilonEqual<T>(theta, 0, 1e-6)) {
+            return T(0.5) * v;
         }
-        return glm::tvec3<T>(R[1][2] - R[2][1], R[2][0] - R[0][2], R[0][1] - R[1][0]) * (theta / (2*glm::sin(theta)));
+        else {
+            return v * (theta / (2*glm::sin(theta)));
+        }
+    }
+
+    template <class T>
+    inline T length2(const glm::tmat3x3<T>& M) {
+        return glm::length2(M[0]) + glm::length2(M[1]) + glm::length2(M[2]);
+    }
+
+    template <class T>
+    inline T length(const glm::tmat3x3<T>& M) {
+        return sqrt(length2(M));
     }
 }
 
