@@ -63,8 +63,9 @@ public:
         calc_transforms(*art, q, T_link_global.data(), T_joint_global.data());
         for (int i = 0; i < num_joints; i++) {
             glm::mat4 link_trans = glmx::mat4_cast(T_link_global[i]);
-            glm::mat4 joint_trans = glmx::mat4_cast(T_link_global[i]);
+            glm::mat4 joint_trans = glmx::mat4_cast(T_joint_global[i]);
             renderer.queueRender(PBRCommand {link_meshes[i], link_mat, link_trans});
+            if (i == 0 && art->floating) continue;
             renderer.queueRender(PBRCommand {joint_meshes[i], joint_mat, joint_trans});
         }
     }
