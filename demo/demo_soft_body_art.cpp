@@ -102,6 +102,11 @@ public:
     }
 
     void render() override {
+        using namespace Eigen;
+        using real = artsim::real;
+        using MatrixXr = Matrix<real, Dynamic, Dynamic>;
+        using VectorXr = Matrix<real, Dynamic, 1>;
+
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -113,15 +118,20 @@ public:
 
         art_render.render(pbRenderer, art_pos.data());
 
+        // render constrained vertex positions/velocities on soft body
         int N_f = soft_body_with_art.constrained_idx_start;
         int N_c = soft_body_with_art.sb.vertices.size() - N_f;
         for (int i = N_f; i < N_f + N_c; i++) {
             imRenderer.drawPoint(sb_pos[i], colors::Green, 4.0f, true);
+            imRenderer.drawArrow(sb_pos[i], sb_pos[i] + 0.1*sb_vel[i], colors::Green, 0.01f, true);
         }
 
+        // render constrained vertex positions/velocities on articulation
         auto& sb_art = soft_body_with_art;
         std::vector<ttransform<real>> joint_trans(sb_art.art.get_num_joints());
         calc_transforms(sb_art.art, art_pos.data(), nullptr, joint_trans.data());
+        Map<VectorXr> v_r(art_vel.data(), sb_art.art.get_num_vel_dofs());
+
         for (auto& [link_idx, vidx_range] : sb_art.constrained_vertices_range) {
             for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
                 auto offset = sb_art.constrained_vertices_offset[vidx];
@@ -170,8 +180,8 @@ public:
                 ImGui::TreePop();
             }
             if (ImGui::TreeNode("Force##art_force")) {
-                double fmin = -100;
-                double fmax= 100;
+                double fmin = -10000;
+                double fmax = 10000;
                 for (int i = 0; i < art_force.size(); i++) {
                     auto label = fmt::format("##art_force_{}", i);
                     ImGui::SliderScalar(label.c_str(), ImGuiDataType_Double, &art_force[i], &fmin, &fmax, "%.6g");
@@ -187,7 +197,7 @@ public:
 
     void resetPhysics() {
         sb_pos = soft_body_with_art.sb.vertices;
-        real noise = 0.002;
+        real noise = 0.0;
         for (int i = 0; i < soft_body_with_art.constrained_idx_start; i++) {
             sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
             sb_pos[i][1] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
@@ -209,14 +219,13 @@ public:
         art_vel.resize(art_vel_dofs, 0);
         art_force.clear();
         art_force.resize(art_vel_dofs, 0);
-        art_force[1] = 50;
         art_force_contact.clear();
         art_force_contact.resize(art_vel_dofs, 0);
     }
 
 private:
     MaterialDB material_db;
-    float sim_dt = 1.0f / 60.0f;
+    float sim_dt = 1.0f / 600.0f;
     bool run_simulation = false;
     bool render_orig = false;
 

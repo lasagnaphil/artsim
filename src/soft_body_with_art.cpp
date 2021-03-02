@@ -234,10 +234,9 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
             int joint_vel_dof_start = art.joint_vel_dof_starts[idx];
             int joint_vel_dofs = art.joint_vel_dofs[idx];
             for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
-                auto S_j = joint_S[j];
                 for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
                     glmx::ttransform<real> T_v = joint_trans[link_idx] * data.constrained_vertices_offset.at(vidx);
-                    glmx::tscrew<real> S_prime = Ad(joint_trans[idx] / T_v, S_j);
+                    glmx::tscrew<real> S_prime = Ad(joint_trans[idx] / T_v, joint_S[j]);
                     rvec3 S_v = T_v.R * S_prime.v;
                     J_cr(3*(vidx-N_f)+0, j) = S_v[0];
                     J_cr(3*(vidx-N_f)+1, j) = S_v[1];
@@ -318,8 +317,6 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 #undef X
 
         b.bottomRows(N_r) = M_r * v_r_tilde + k_c * J_cr.transpose() * u_c;
-        // std::cout << b.middleRows(3*N_f, 3*N_c).transpose() << std::endl;
-        // std::cout << b.bottomRows(N_r).transpose() << std::endl;
 
         // MatrixXr Linv_J_cr(3*N_s, N_r);
         // Linv_J_cr.topRows(3*N_f).setZero();
