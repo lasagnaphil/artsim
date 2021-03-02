@@ -11,25 +11,39 @@ class SoftBodyRender {
 public:
     SoftBodyRender() = default;
 
-    SoftBodyRender(artsim::SoftBodyData* data, Ref<PBRMaterial> mat, Camera* camera)
-            : data(data), mat(mat), camera(camera) {
-        std::vector<Mesh::Vertex> vertices(3*data->triangles.size());
-
-        mesh = Resources::make<Mesh>(vertices);
-        mesh->initVBO(Mesh::DrawMode::Dynamic);
-        update_mesh(data->vertices.data());
+    SoftBodyRender(const artsim::SoftBodyData& data, Ref<PBRMaterial> mat, Camera* camera) :
+            mat(mat), camera(camera),
+        triangles(data.triangles.data()), tetrahedrons(data.tetrahedrons.data()),
+        num_triangles(data.triangles.size()), num_tetrahedrons(data.tetrahedrons.size()) {
+        setup(data.vertices.data());
     }
 
-    void render(PBRenderer& renderer, const glm::tvec3<artsim::real>* vpos) {
+    SoftBodyRender(const artsim::SoftBodyWithArtData& data, Ref<PBRMaterial> mat, Camera* camera) :
+            mat(mat), camera(camera),
+            triangles(data.triangles.data()), tetrahedrons(data.tetrahedrons.data()),
+            num_triangles(data.triangles.size()), num_tetrahedrons(data.tetrahedrons.size()) {
+        setup(data.vertices.data());
+    }
+
+private:
+    void setup(const glm::rvec3* vpos) {
+        std::vector<Mesh::Vertex> vertices(3*num_triangles);
+        mesh = Resources::make<Mesh>(vertices);
+        mesh->initVBO(Mesh::DrawMode::Dynamic);
+        update_mesh(vpos);
+    }
+public:
+
+    void render(PBRenderer& renderer, const glm::rvec3* vpos) {
         update_mesh(vpos);
         renderer.queueRender({mesh, mat, glm::mat4(1.0f)});
     }
 
     void render_debug_surface(DebugRenderer& debug, const glm::tvec3<artsim::real>* vpos) {
-        for (int t = 0; t < data->triangles.size(); t++) {
-            auto i0 = data->triangles[t][0];
-            auto i1 = data->triangles[t][1];
-            auto i2 = data->triangles[t][2];
+        for (int t = 0; t < num_triangles; t++) {
+            auto i0 = triangles[t][0];
+            auto i1 = triangles[t][1];
+            auto i2 = triangles[t][2];
             debug.drawLine(vpos[i0], vpos[i1], colors::Black, true);
             debug.drawLine(vpos[i0], vpos[i2], colors::Black, true);
             debug.drawLine(vpos[i1], vpos[i2], colors::Black, true);
@@ -37,11 +51,11 @@ public:
     }
 
     void render_debug_volume(DebugRenderer& debug, const glm::tvec3<artsim::real>* vpos) {
-        for (int t = 0; t < data->tetrahedrons.size(); t++) {
-            auto i0 = data->tetrahedrons[t][0];
-            auto i1 = data->tetrahedrons[t][1];
-            auto i2 = data->tetrahedrons[t][2];
-            auto i3 = data->tetrahedrons[t][3];
+        for (int t = 0; t < num_tetrahedrons; t++) {
+            auto i0 = tetrahedrons[t][0];
+            auto i1 = tetrahedrons[t][1];
+            auto i2 = tetrahedrons[t][2];
+            auto i3 = tetrahedrons[t][3];
             debug.drawLine(vpos[i0], vpos[i1], colors::Black, true);
             debug.drawLine(vpos[i0], vpos[i2], colors::Black, true);
             debug.drawLine(vpos[i0], vpos[i3], colors::Black, true);
@@ -53,19 +67,19 @@ public:
 
     void update_mesh(const glm::tvec3<artsim::real>* vpos) {
         Mesh& m = *mesh;
-        for (int t = 0; t < data->triangles.size(); t++) {
-            m.vertices[3*t+0].pos = vpos[data->triangles[t][0]];
+        for (int t = 0; t < num_triangles; t++) {
+            m.vertices[3*t+0].pos = vpos[triangles[t][0]];
             m.vertices[3*t+0].normal = glm::vec3(0);
             m.vertices[3*t+0].uv = glm::vec2(0);
-            m.vertices[3*t+1].pos = vpos[data->triangles[t][1]];
+            m.vertices[3*t+1].pos = vpos[triangles[t][1]];
             m.vertices[3*t+1].normal = glm::vec3(0);
             m.vertices[3*t+1].uv = glm::vec2(0);
-            m.vertices[3*t+2].pos = vpos[data->triangles[t][2]];
+            m.vertices[3*t+2].pos = vpos[triangles[t][2]];
             m.vertices[3*t+2].normal = glm::vec3(0);
             m.vertices[3*t+2].uv = glm::vec2(0);
         }
 
-        for (int t = 0; t < data->triangles.size(); t++) {
+        for (int t = 0; t < num_triangles; t++) {
             auto v0 = m.vertices[3*t+0].pos;
             auto v1 = m.vertices[3*t+1].pos;
             auto v2 = m.vertices[3*t+2].pos;
@@ -83,7 +97,11 @@ public:
     }
 
 private:
-    artsim::SoftBodyData* data;
+    const glm::ivec3* triangles;
+    const glm::ivec4* tetrahedrons;
+    int num_triangles;
+    int num_tetrahedrons;
+
     Ref<Mesh> mesh;
     Ref<PBRMaterial> mat;
     Camera* camera;

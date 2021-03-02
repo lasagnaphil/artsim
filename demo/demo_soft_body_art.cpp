@@ -47,18 +47,18 @@ public:
 
         soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
 
-        auto& props = soft_body_with_art.sb.props;
+        auto& props = soft_body_with_art.props;
         props.young_modulus = 1e7;
         props.poisson_ratio = 0.49;
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();
-        for (int i = 0; i < soft_body_with_art.sb.tetrahedrons.size(); i++) {
+        for (int i = 0; i < soft_body_with_art.tetrahedrons.size(); i++) {
             constraints.corotational_energy.push_back({i, stiffness, mu, lambda});
             // constraints.neohookean_energy.push_back({i, stiffness, mu, lambda});
         }
         soft_body_precomputation(soft_body_with_art, constraints, sim_dt);
-        soft_body_render = SoftBodyRender(&soft_body_with_art.sb, soft_body_mat, camera);
+        soft_body_render = SoftBodyRender(soft_body_with_art, soft_body_mat, camera);
 
         Ref<PBRMaterial> link_mat = PBRMaterial::quick(colors::Gray);
         Ref<PBRMaterial> joint_mat = PBRMaterial::quick(colors::Red);
@@ -120,7 +120,7 @@ public:
 
         // render constrained vertex positions/velocities on soft body
         int N_f = soft_body_with_art.constrained_idx_start;
-        int N_c = soft_body_with_art.sb.vertices.size() - N_f;
+        int N_c = soft_body_with_art.vertices.size() - N_f;
         for (int i = N_f; i < N_f + N_c; i++) {
             imRenderer.drawPoint(sb_pos[i], colors::Green, 4.0f, true);
             imRenderer.drawArrow(sb_pos[i], sb_pos[i] + 0.1*sb_vel[i], colors::Green, 0.01f, true);
@@ -196,7 +196,7 @@ public:
     }
 
     void resetPhysics() {
-        sb_pos = soft_body_with_art.sb.vertices;
+        sb_pos = soft_body_with_art.vertices;
         real noise = 0.0;
         for (int i = 0; i < soft_body_with_art.constrained_idx_start; i++) {
             sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
@@ -225,7 +225,7 @@ public:
 
 private:
     MaterialDB material_db;
-    float sim_dt = 1.0f / 600.0f;
+    float sim_dt = 1.0f / 60.0f;
     bool run_simulation = false;
     bool render_orig = false;
 

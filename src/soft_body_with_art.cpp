@@ -15,6 +15,12 @@
 
 using namespace glmx;
 using namespace tinyxml2;
+
+using namespace Eigen;
+using real = artsim::real;
+using MatrixXr = Matrix<artsim::real, Dynamic, Dynamic>;
+using VectorXr = Matrix<artsim::real, Dynamic, 1>;
+
 namespace fs = std::filesystem;
 
 namespace artsim {
@@ -44,9 +50,6 @@ void SoftBodyWithArtData::load(const char* metadata) {
         exit(EXIT_FAILURE);
     }
 
-    sb.props.young_modulus = soft_body_mesh_el->DoubleAttribute("young_modulus");
-    sb.props.poisson_ratio = soft_body_mesh_el->DoubleAttribute("poisson_ratio");
-
     std::vector<uint32_t> contact_indices;
     auto art_file = folder / articulation_el->GetText();
     art = load_from_xml(art_file.c_str(), contact_indices);
@@ -71,7 +74,7 @@ void SoftBodyWithArtData::load(const char* metadata) {
         }
     }
 
-    num_constrained_vertices = 0;
+    int num_constrained_vertices = 0;
     std::vector<int> index_map(soft_body_obj.vertices.size(), -1);
     for (auto& [link_idx, indices] : constrained_vertices) {
         num_constrained_vertices += indices.size();
@@ -99,21 +102,21 @@ void SoftBodyWithArtData::load(const char* metadata) {
         constrained_vertices_range[link_idx] = vertices_range;
     }
 
-    sb.vertices.resize(soft_body_obj.vertices.size());
+    vertices.resize(soft_body_obj.vertices.size());
     for (int old_idx = 0; old_idx < index_map.size(); old_idx++) {
         int new_idx = index_map[old_idx];
-        sb.vertices[new_idx] = soft_body_obj.vertices[old_idx];
+        vertices[new_idx] = soft_body_obj.vertices[old_idx];
     }
-    sb.tetrahedrons.resize(soft_body_obj.tetrahedrons.size());
+    tetrahedrons.resize(soft_body_obj.tetrahedrons.size());
     for (int i = 0; i < soft_body_obj.tetrahedrons.size(); i++) {
         auto old_tet = soft_body_obj.tetrahedrons[i];
-        sb.tetrahedrons[i][0] = index_map[old_tet[0]];
-        sb.tetrahedrons[i][1] = index_map[old_tet[1]];
-        sb.tetrahedrons[i][2] = index_map[old_tet[2]];
-        sb.tetrahedrons[i][3] = index_map[old_tet[3]];
+        tetrahedrons[i][0] = index_map[old_tet[0]];
+        tetrahedrons[i][1] = index_map[old_tet[1]];
+        tetrahedrons[i][2] = index_map[old_tet[2]];
+        tetrahedrons[i][3] = index_map[old_tet[3]];
     }
 
-    gen_surface_triangles_from_tet_mesh(sb.tetrahedrons, sb.triangles);
+    gen_surface_triangles_from_tet_mesh(tetrahedrons, triangles);
 
     // Calculate physics parameters
     int num_art_links = art.links.size();
@@ -128,30 +131,127 @@ void SoftBodyWithArtData::load(const char* metadata) {
         int joint_vel_dofs = art.joint_vel_dofs[link_idx];
         for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
             for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
-                auto vert_trans = ttransform<real>(sb.vertices[vidx]);
+                auto vert_trans = ttransform<real>(vertices[vidx]);
                 constrained_vertices_offset[vidx] = vert_trans / T_joint_global[link_idx];
             }
         }
     }
+
+    int num_vertices = vertices.size();
+    int num_art_pos_dofs = art.get_num_pos_dofs();
+    int num_art_vel_dofs = art.get_num_vel_dofs();
+    int num_free_vertices = constrained_idx_start;
+    N_s = num_vertices, N_f = num_free_vertices, N_c = num_constrained_vertices, N_r = num_art_vel_dofs;
+
 }
 
 void soft_body_precomputation(SoftBodyWithArtData& body, const ADMMConstraints& constraints, real dt) {
-    precomputation_essentials(body.sb);
-
-    update_system_matrix(body.sb, constraints, dt, OUT body.sb.A);
-    int N_f = body.constrained_idx_start;
-    int N_s = body.sb.vertices.size();
-    for (int i = 3*N_f; i < 3*N_s; i++) {
-        body.sb.A.coeffRef(i, i) += body.k_c;
+    body.B_m.resize(body.tetrahedrons.size());
+    body.W.resize(body.tetrahedrons.size());
+    body.D.resize(body.tetrahedrons.size());
+    for (int i = 0; i < body.tetrahedrons.size(); i++) {
+        auto& V = body.vertices;
+        glm::ivec4& tet = body.tetrahedrons[i];
+        glm::tmat3x3<real> D_m(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
+        body.W[i] = glm::determinant(D_m) / 6.0;
+        if (body.W[i] < 0) {
+            body.W[i] = -body.W[i];
+            std::swap(tet[2], tet[3]);
+            D_m = glm::tmat3x3<real>(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
+        }
+        body.B_m[i] = glm::inverse(D_m);
+        glm::tmat3x3<real> D_i = glm::transpose(body.B_m[i]);
+        body.D[i][0] = D_i[0];
+        body.D[i][1] = D_i[1];
+        body.D[i][2] = D_i[2];
+        body.D[i][3] = -D_i[0] - D_i[1] - D_i[2];
     }
 
-    body.sb.A_LDLt.analyzePattern(body.sb.A);
-    body.sb.A_LDLt.factorize(body.sb.A);
+    using namespace Eigen;
+
+    // Calculate mass matrix blocks
+
+    tetrahedral_mesh_mass_matrix(body.vertices.size(), body.props.density,
+                                 body.tetrahedrons.data(), body.tetrahedrons.size(), body.W.data(),
+                                 body.M);
+
+    int N_f = body.N_f; int N_c = body.N_c; int N_r = body.N_r;
+
+    VectorXi M_ff_nz_count = VectorXi::Zero(3*N_f);
+    VectorXi M_fc_nz_count = VectorXi::Zero(3*N_c);
+    VectorXi M_cc_nz_count = VectorXi::Zero(3*N_c);
+
+    for (int k = 0; k < body.M.outerSize(); ++k) {
+        for (SparseMatrix<real>::InnerIterator it(body.M, k); it; ++it) {
+            int row = it.row(), col = it.col();
+            if (row > col) continue;
+            if (row < 3*N_f && col < 3*N_f) {
+                M_ff_nz_count(col)++;
+            }
+            else if (row < 3*N_f && col > 3*N_f) {
+                M_fc_nz_count(col-3*N_f)++;
+            }
+            else {
+                M_cc_nz_count(col-3*N_f)++;
+            }
+        }
+    }
+
+    body.M_ff = SparseMatrix<real>(3*N_f, 3*N_f);
+    body.M_fc = SparseMatrix<real>(3*N_f, 3*N_c);
+    body.M_cc = SparseMatrix<real>(3*N_c, 3*N_c);
+    body.M_ff.reserve(M_ff_nz_count);
+    body.M_fc.reserve(M_fc_nz_count);
+    body.M_cc.reserve(M_cc_nz_count);
+
+    // Calculate system matrix A_ff used for ADMM
+    // (A_fr and A_rr are obtained while running simulation)
+    for (int k = 0; k < body.M.outerSize(); ++k) {
+        for (SparseMatrix<real>::InnerIterator it(body.M, k); it; ++it) {
+            int row = it.row(), col = it.col();
+            if (row > col) continue;
+            if (row < 3*N_f && col < 3*N_f) {
+                body.M_ff.insert(row, col) = it.value();
+            }
+            else if (row < 3*N_f && col >= 3*N_f) {
+                body.M_fc.insert(row, col-3*N_f) = it.value();
+            }
+            else {
+                body.M_cc.insert(row-3*N_f, col-3*N_f) = it.value();
+            }
+        }
+    }
+    body.A_ff = body.M_ff;
+
+#define X(CTYPE, CFIELD) \
+    for (const auto& c : constraints.CFIELD) { \
+        auto& D = body.D[c.tet_id]; \
+        glm::ivec4 tet = body.tetrahedrons[c.tet_id]; \
+        for (int j = 0; j < 4; j++) { \
+            for (int k = 0; k < 4; k++) { \
+                real dA = dt * dt * c.k * body.W[c.tet_id] * glm::dot(D[j], D[k]); \
+                if (tet[j] < N_f && tet[k] < N_f) { \
+                    body.A_ff.coeffRef(3*tet[j]+0, 3*tet[k]+0) += dA; \
+                    body.A_ff.coeffRef(3*tet[j]+1, 3*tet[k]+1) += dA; \
+                    body.A_ff.coeffRef(3*tet[j]+2, 3*tet[k]+2) += dA; \
+                } \
+            } \
+        } \
+    }
+    ADMM_VOLUME_CONSTRAINTS
+#undef X
+
+    // Pre-factorize system matrices
+    body.M_LDLt.analyzePattern(body.M);
+    body.M_LDLt.factorize(body.M);
+
+    body.A_ff_LDLt.analyzePattern(body.A_ff);
+    body.A_ff_LDLt.factorize(body.A_ff);
 }
 
 template <class Constraint>
 void admm_dynamics_with_art_volume_local_solve(
-        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
+        const SoftBodyWithArtData& body, const Constraint* constraints, uint32_t num_constraints,
         const glm::tvec3<real>* x,
         OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
         OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd) {
@@ -176,22 +276,67 @@ void admm_dynamics_with_art_volume_local_solve(
 }
 
 template <class Constraint>
+void admm_dynamics_with_art_update_A_constrained(
+        const SoftBodyWithArtData& body, const Constraint* constraints, uint32_t num_constraints, real dt,
+        const Matrix<real, Dynamic, Dynamic>& J_cr,
+        INOUT Matrix<real, Dynamic, Dynamic>& A_fr, INOUT Matrix<real, Dynamic, Dynamic>& A_rr) {
+
+    using Matrix3r = Matrix<real, 3, 3>;
+
+    int N_f = body.N_f;
+    for (int cidx = 0; cidx < num_constraints; cidx++) {
+        auto& c = constraints[cidx];
+        auto& D = body.D[c.tet_id];
+        glm::ivec4 tet = body.tetrahedrons[c.tet_id];
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 4; k++) {
+                if (tet[j] > tet[k] || (tet[j] < N_f && tet[k] < N_f)) {
+                    continue;
+                }
+                real D_jk = glm::dot(D[j], D[k]);
+                real dA = dt * dt * c.k * body.W[c.tet_id] * D_jk;
+                Matrix<real, 3, Dynamic> J_k = J_cr.middleRows<3>(3*(tet[k]-N_f));
+                if (tet[j] < N_f && tet[k] >= N_f) {
+                    A_fr.row(3*tet[j]+0) += dA * J_k.row(0);
+                    A_fr.row(3*tet[j]+1) += dA * J_k.row(1);
+                    A_fr.row(3*tet[j]+2) += dA * J_k.row(2);
+                }
+                else if (tet[j] >= N_f && tet[k] >= N_f) {
+                    Matrix<real, 3, Dynamic> J_j = J_cr.middleRows<3>(3*(tet[j]-N_f));
+                    A_rr += dA * J_j.transpose() * J_k;
+                }
+            }
+        }
+    }
+}
+
+template <class Constraint>
 void admm_dynamics_with_art_update_b(
-        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-        real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u_s, const glm::tvec3<real>* x0,
+        const SoftBodyWithArtData& body, const Constraint* constraints, uint32_t num_constraints,
+        real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0,
+        const MatrixXr& J_cr,
         INOUT real* b) {
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
-        glm::rmat3 p = z[c.tet_id] - u_s[c.tet_id];
+        glm::rmat3 p = z[c.tet_id] - u[c.tet_id];
         auto& D_i = body.D[c.tet_id];
         auto D_x0 = glm::rmat3(x0[tet[0]] - x0[tet[3]], x0[tet[1]] - x0[tet[3]], x0[tet[2]] - x0[tet[3]]) * body.B_m[c.tet_id];
         real k_s = dt * c.k * body.W[c.tet_id];
         for (int j = 0; j < 4; j++) {
             glm::tvec3<real> db = k_s * ((p - D_x0) * D_i[j]);
-            b[3*tet[j]+0] += db[0];
-            b[3*tet[j]+1] += db[1];
-            b[3*tet[j]+2] += db[2];
+            if (tet[j] < body.N_f) {
+                b[3*tet[j]+0] += db[0];
+                b[3*tet[j]+1] += db[1];
+                b[3*tet[j]+2] += db[2];
+            }
+            else {
+                Matrix<real, 3, Dynamic> J_j = J_cr.middleRows<3>(3*(tet[j]-body.N_f));
+                Map<Matrix<real, 3, 1>> db_eigen((real*)&db);
+                VectorXr db_r = J_j.transpose() * db_eigen;
+                Map<VectorXr> b_r_eigen(b + 3*body.N_f, body.N_r);
+                b_r_eigen += db_r;
+            }
         }
     }
 }
@@ -202,22 +347,11 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
                             INOUT real* sb_pos, INOUT real* sb_vel,
                             INOUT real* art_pos, INOUT real* art_vel) {
 
-    using namespace Eigen;
-    using real = artsim::real;
-    using MatrixXr = Matrix<real, Dynamic, Dynamic>;
-    using VectorXr = Matrix<real, Dynamic, 1>;
-
-    auto& sb = data.sb;
     auto& art = data.art;
-    int num_vertices = sb.vertices.size();
     int num_art_links = art.get_num_joints();
     int num_art_pos_dofs = art.get_num_pos_dofs();
-    int num_art_vel_dofs = art.get_num_vel_dofs();
-    int num_free_vertices = data.constrained_idx_start;
-    int num_constrained_vertices = sb.vertices.size() - data.constrained_idx_start;
-    int N_s = num_vertices, N_f = num_free_vertices, N_c = num_constrained_vertices, N_r = num_art_vel_dofs;
+    int N_s = data.N_s, N_f = data.N_f, N_c = data.N_c, N_r = data.N_r;
 
-    // TODO: investigate if jacobian calculation is bugged!!!
     // Calculate vertex jacobians
     std::vector<ttransform<real>> link_trans(num_art_links), joint_trans(num_art_links);
     calc_transforms(art, art_pos, link_trans.data(), joint_trans.data());
@@ -266,87 +400,83 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     Map<VectorXr> x_r(art_pos, num_art_pos_dofs);
 
     Map<VectorXr> v_s(sb_vel, 3*N_s);
+    Map<VectorXr> v_f(sb_vel, 3*N_f);
     Map<VectorXr> v_c(sb_vel + 3*N_f, 3*N_c);
     Map<VectorXr> v_r(art_vel, N_r);
+
     Map<const VectorXr> f_s_ext(sb_f, 3*N_s);
     Map<const VectorXr> f_r_ext(art_f, N_r);
 
     VectorXr x_s_orig = x_s;
-    VectorXr v_s_tilde = v_s + dt * sb.M_LDLt.solve(f_s_ext);
+    VectorXr v_s_tilde = v_s + dt * data.M_LDLt.solve(f_s_ext);
+    Map<VectorXr> v_f_tilde(v_s_tilde.data(), 3*N_f);
+    Map<VectorXr> v_c_tilde(v_s_tilde.data() + 3*N_f, 3*N_c);
 
     VectorXr x_r_orig = x_r;
     VectorXr v_r_dot(N_r);
     featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, art_pos, art_vel, art_f, OUT v_r_dot.data());
     VectorXr v_r_tilde = v_r + dt * v_r_dot;
 
-    // v_s_tilde.bottomRows(3*N_c) = J_cr * v_r_tilde;
+    v_c_tilde = J_cr * v_r_tilde;
 
+    // Precalculate system matrices A_fr and A_rr
+    MatrixXr A_fr = data.M_fc * J_cr;
+    MatrixXr A_rr = M_r + J_cr.transpose() * data.M_cc * J_cr;
+
+#define X(CTYPE, CFIELD) \
+    admm_dynamics_with_art_update_A_constrained(data, constraints.CFIELD.data(), constraints.CFIELD.size(), dt, \
+        J_cr, INOUT A_fr, INOUT A_rr);
+    ADMM_VOLUME_CONSTRAINTS
+#undef X
+
+    // Precalculate system vector b0
+    VectorXr b0(3*N_f + N_r);
+    b0.topRows(3*N_f) = (data.M * v_s_tilde).topRows(3*N_f);
+    b0.bottomRows(N_r) = M_r * v_r_tilde
+                         + (data.M_fc * J_cr).transpose() * v_f_tilde
+                         + (data.M_cc * J_cr).transpose() * v_c_tilde;
+
+    // Set initial values
     v_s = v_s_tilde;
     v_r = v_r_tilde;
     x_s = x_s_orig + dt*v_s;
     integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
 
-    real k_c = data.k_c;
-    std::vector<glm::tmat3x3<real>> u_s(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
-    VectorXr u_c = VectorXr::Zero(3*N_c);
-    std::vector<glm::tmat3x3<real>> z(sb.tetrahedrons.size());
-    std::vector<glm::tmat3x3<real>> p(sb.tetrahedrons.size());
-    std::vector<glm::tmat3x3<real>> F(sb.tetrahedrons.size());
-    std::vector<glmx::SVD_mats<real>> F_svd(sb.tetrahedrons.size());
+    // Other temporary variables used for ADMM
+    std::vector<glm::tmat3x3<real>> u(data.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
+    std::vector<glm::tmat3x3<real>> z(data.tetrahedrons.size());
+    std::vector<glm::tmat3x3<real>> p(data.tetrahedrons.size());
+    std::vector<glm::tmat3x3<real>> F(data.tetrahedrons.size());
+    std::vector<glmx::SVD_mats<real>> F_svd(data.tetrahedrons.size());
 
     std::cout << "Starting ADMM loop" << std::endl;
-    for (int iter = 0; iter < 30; iter++) {
+    for (int iter = 0; iter < 10; iter++) {
 
         // Local solve
 #define X(CTYPE, CFIELD) \
-        admm_dynamics_with_art_volume_local_solve(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
-            (glm::rvec3*)x_s.data(), OUT z.data(), OUT u_s.data(), OUT F.data(), OUT F_svd.data());
+        admm_dynamics_with_art_volume_local_solve(data, constraints.CFIELD.data(), constraints.CFIELD.size(), \
+            (glm::rvec3*)x_s.data(), OUT z.data(), OUT u.data(), OUT F.data(), OUT F_svd.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
-        u_c += (v_c - J_cr * v_r);
 
         // Global solve
-        VectorXr b(3*N_s + N_r);
-        b.topRows(3*N_s) = sb.M * v_s_tilde;
-        b.middleRows(3*N_f, 3*N_c) -= k_c * u_c;
+        VectorXr b = b0;
+        Map<VectorXr> b_f(b.data(), 3*N_f);
+        Map<VectorXr> b_r(b.data() + 3*N_f, N_r);
 
 #define X(CTYPE, CFIELD) \
-        admm_dynamics_with_art_update_b(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
-            dt, z.data(), u_s.data(), (glm::rvec3*)x_s_orig.data(), OUT b.data());
+        admm_dynamics_with_art_update_b(data, constraints.CFIELD.data(), constraints.CFIELD.size(), \
+            dt, z.data(), u.data(), (glm::rvec3*)x_s_orig.data(), J_cr, OUT b.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
+        // std::cout << "b: " << b.transpose() << std::endl;
 
-        b.bottomRows(N_r) = M_r * v_r_tilde + k_c * J_cr.transpose() * u_c;
-
-        // MatrixXr Linv_J_cr(3*N_s, N_r);
-        // Linv_J_cr.topRows(3*N_f).setZero();
-        // Linv_J_cr.bottomRows(3*N_c) = J_cr;
-        // sb.A_LDLt.matrixL().solveInPlace(Linv_J_cr);
-        // MatrixXr A_r = M_r + k_c * J_cr.transpose() * J_cr;
-        // MatrixXr A_r_prime = A_r - (k_c*k_c) * Linv_J_cr.transpose() * sb.A_LDLt.vectorD().asDiagonal() * Linv_J_cr;
-        // v_r = A_r_prime.jacobiSvd(ComputeThinU | ComputeThinV).solve(b_r_prime);
-
-        MatrixXr A_r = M_r + k_c * J_cr.transpose() * J_cr;
-        MatrixXr J_sr(3*N_s, N_r);
-        J_sr.topRows(3*N_f).setZero();
-        J_sr.bottomRows(3*N_c) = J_cr;
-        MatrixXr A_r_prime = A_r - (k_c*k_c) * J_sr.transpose() * sb.A_LDLt.solve(J_sr);
-
-        VectorXr A_s_inv_b_s = sb.A_LDLt.solve(b.topRows(3*N_s));
-        VectorXr b_r_prime = b.bottomRows(N_r) - data.k_c * J_cr.transpose() * A_s_inv_b_s.bottomRows(3*N_c);
-        v_r = A_r_prime.jacobiSvd(ComputeThinU | ComputeThinV).solve(b_r_prime);
-
-        VectorXr b_s_prime = b.topRows(3*N_s);
-        b_s_prime.bottomRows(3*N_c) -= k_c * J_cr * v_r;
-        v_s = sb.A_LDLt.solve(b_s_prime);
-
-        /*
-        MatrixXr A_r = M_r + k_c * J_cr.transpose() * J_cr;
-        v_s = sb.A_LDLt.solve(b.topRows(3*N_s));
-        v_r = A_r.jacobiSvd(ComputeThinU | ComputeThinV).solve(b.bottomRows(N_r));
-         */
-
-        std::cout << "coupling error: " << (v_c - J_cr * v_r).norm() << std::endl;
+        // Solve system using Schur complement
+        MatrixXr A_comp = A_rr - A_fr.transpose() * data.A_ff_LDLt.solve(A_fr);
+        VectorXr b_comp = b_r - A_fr.transpose() * data.A_ff_LDLt.solve(b_f);
+        v_r = A_comp.bdcSvd(ComputeThinU | ComputeThinV).solve(b_comp); // TODO: is LDLT good enough?
+        v_f = data.A_ff_LDLt.solve(b_f - A_fr*v_r);
+        v_c = J_cr * v_r;
 
         x_s = x_s_orig + dt*v_s;
         integrate_implicit_euler(art, dt, nullptr, x_r_orig.data(), v_r.data());
@@ -365,9 +495,11 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 
     // TODO: Remove this projection step
     // Project constrained velocities to articulation
+    /*
     v_c = J_cr * v_r;
     x_s = x_s_orig + dt*v_s;
     integrate_implicit_euler(art, dt, nullptr, x_r_orig.data(), v_r.data());
+     */
 
     // Project constrained positions to articulation
     /*
