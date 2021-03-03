@@ -225,7 +225,7 @@ public:
 
 private:
     MaterialDB material_db;
-    float sim_dt = 1.0f / 600.0f;
+    float sim_dt = 1.0f / 240.0f;
     bool run_simulation = false;
     bool render_orig = false;
 

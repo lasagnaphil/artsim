@@ -284,7 +284,6 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     v_s = v_s_tilde;
     v_r = v_r_tilde;
     x_s = x_s_orig + dt*v_s;
-    integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
 
     real k_c = data.k_c;
     std::vector<glm::tmat3x3<real>> u_s(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
@@ -349,11 +348,11 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         std::cout << "coupling error: " << (v_c - J_cr * v_r).norm() << std::endl;
 
         x_s = x_s_orig + dt*v_s;
-        integrate_implicit_euler(art, dt, nullptr, x_r_orig.data(), v_r.data());
     }
 
+    integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
+
     // Baumgarte stabilization
-    /*
     VectorXr dV(3*N_s);
     dV.topRows(3*N_f).setZero();
     dV.bottomRows(3*N_c) = v_c - J_cr * v_r;
@@ -361,13 +360,14 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     VectorXr f_baum = -k_baum * sb.M_LDLt.solve(dV);
     v_s += dt*f_baum;
     x_s += dt*dt*f_baum;
-     */
 
     // TODO: Remove this projection step
     // Project constrained velocities to articulation
+    /*
     v_c = J_cr * v_r;
     x_s = x_s_orig + dt*v_s;
     integrate_implicit_euler(art, dt, nullptr, x_r_orig.data(), v_r.data());
+     */
 
     // Project constrained positions to articulation
     /*
