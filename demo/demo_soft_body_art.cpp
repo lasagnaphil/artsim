@@ -48,8 +48,8 @@ public:
         soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
 
         auto& props = soft_body_with_art.props;
-        props.young_modulus = 1e7;
-        props.poisson_ratio = 0.49;
+        props.young_modulus = 1e8;
+        props.poisson_ratio = 0.48;
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();
@@ -180,8 +180,8 @@ public:
                 ImGui::TreePop();
             }
             if (ImGui::TreeNode("Force##art_force")) {
-                double fmin = -10000;
-                double fmax = 10000;
+                double fmin = -1000;
+                double fmax = 1000;
                 for (int i = 0; i < art_force.size(); i++) {
                     auto label = fmt::format("##art_force_{}", i);
                     ImGui::SliderScalar(label.c_str(), ImGuiDataType_Double, &art_force[i], &fmin, &fmax, "%.6g");
@@ -244,6 +244,8 @@ private:
     int art_type = 1;
 
     std::default_random_engine random_engine;
+
+    glm::tvec3<real> gravity = {0.0, -9.8, 0.0};
 };
 
 int main(int argc, char** argv)

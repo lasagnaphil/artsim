@@ -1,6 +1,6 @@
 <Skeleton name="two_link_art">
     <Node name="link1" parent="None" >
-        <Body type="Box" mass="10.0" contact="Off" size="0.6 0.2 0.2">
+        <Body type="Box" mass="5.0" contact="Off" size="0.6 0.2 0.2">
             <Transformation linear="1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0" translation="-0.5 0 0"/>
         </Body>
         <Joint type="Revolute" axis="0 0 1">
@@ -9,7 +9,7 @@
     </Node>
 
     <Node name="link2" parent="link1" >
-        <Body type="Box" mass="10.0" contact="Off" size="0.6 0.2 0.2">
+        <Body type="Box" mass="5.0" contact="Off" size="0.6 0.2 0.2">
             <Transformation linear="1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0" translation="0.5 0 0"/>
         </Body>
         <Joint type="Revolute" axis="0 0 1">

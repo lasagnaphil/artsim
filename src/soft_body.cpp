@@ -283,7 +283,7 @@ glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const NeoHookeanEnergyC
         }
          */
         S -= glmx::inverse(H) * grad;
-        S = glm::max(S, glm::rvec3(0)); // Prevent volume from becoming negative
+        // S = glm::max(S, glm::rvec3(0)); // Prevent volume from becoming negative
     }
     // std::cout << "opt finished" << std::endl;
     return S;

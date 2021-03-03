@@ -26,7 +26,6 @@ namespace fs = std::filesystem;
 namespace artsim {
 
 void SoftBodyWithArtData::load(const char* metadata) {
-
     fs::path metadata_path(metadata);
     fs::path folder = metadata_path.parent_path();
 
@@ -170,7 +169,6 @@ void soft_body_precomputation(SoftBodyWithArtData& body, const ADMMConstraints& 
     using namespace Eigen;
 
     // Calculate mass matrix blocks
-
     tetrahedral_mesh_mass_matrix(body.vertices.size(), body.props.density,
                                  body.tetrahedrons.data(), body.tetrahedrons.size(), body.W.data(),
                                  body.M);
@@ -188,7 +186,7 @@ void soft_body_precomputation(SoftBodyWithArtData& body, const ADMMConstraints& 
             if (row < 3*N_f && col < 3*N_f) {
                 M_ff_nz_count(col)++;
             }
-            else if (row < 3*N_f && col > 3*N_f) {
+            else if (row < 3*N_f && col >= 3*N_f) {
                 M_fc_nz_count(col-3*N_f)++;
             }
             else {
@@ -440,7 +438,6 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     v_s = v_s_tilde;
     v_r = v_r_tilde;
     x_s = x_s_orig + dt*v_s;
-    integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
 
     // Other temporary variables used for ADMM
     std::vector<glm::tmat3x3<real>> u(data.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
@@ -450,7 +447,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     std::vector<glmx::SVD_mats<real>> F_svd(data.tetrahedrons.size());
 
     std::cout << "Starting ADMM loop" << std::endl;
-    for (int iter = 0; iter < 10; iter++) {
+    for (int iter = 0; iter < 20; iter++) {
 
         // Local solve
 #define X(CTYPE, CFIELD) \
@@ -479,19 +476,17 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         v_c = J_cr * v_r;
 
         x_s = x_s_orig + dt*v_s;
-        integrate_implicit_euler(art, dt, nullptr, x_r_orig.data(), v_r.data());
     }
 
+    integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
     // Baumgarte stabilization
-    /*
     VectorXr dV(3*N_s);
     dV.topRows(3*N_f).setZero();
     dV.bottomRows(3*N_c) = v_c - J_cr * v_r;
     real k_baum = 1;
-    VectorXr f_baum = -k_baum * sb.M_LDLt.solve(dV);
+    VectorXr f_baum = -k_baum * data.M_LDLt.solve(dV);
     v_s += dt*f_baum;
     x_s += dt*dt*f_baum;
-     */
 
     // TODO: Remove this projection step
     // Project constrained velocities to articulation
