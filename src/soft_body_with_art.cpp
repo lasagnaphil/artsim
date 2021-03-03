@@ -198,7 +198,7 @@ void admm_dynamics_with_art_update_b(
 
 // TODO: Need to fix local updates on soft body not working
 void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstraints& constraints,
-                            real dt, const real* sb_f, const real* art_f,
+                            real dt, glm::rvec3 gravity, const real* sb_f, const real* art_f,
                             INOUT real* sb_pos, INOUT real* sb_vel,
                             INOUT real* art_pos, INOUT real* art_vel) {
 
@@ -271,12 +271,24 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     Map<const VectorXr> f_s_ext(sb_f, 3*N_s);
     Map<const VectorXr> f_r_ext(art_f, N_r);
 
+    // Add gravity to total force
+    VectorXr f_s_tot = f_s_ext;
+    auto f_s_tot_ptr = (glm::rvec3*) f_s_tot.data();
+    for (int t = 0; t < data.sb.tetrahedrons.size(); t++) {
+        glm::ivec4 tet = data.sb.tetrahedrons[t];
+        glm::rvec3 f_g = (1. / 4.) * data.sb.props.density * data.sb.W[t] * gravity;
+        f_s_tot_ptr[tet[0]] += f_g;
+        f_s_tot_ptr[tet[1]] += f_g;
+        f_s_tot_ptr[tet[2]] += f_g;
+        f_s_tot_ptr[tet[3]] += f_g;
+    }
+
     VectorXr x_s_orig = x_s;
-    VectorXr v_s_tilde = v_s + dt * sb.M_LDLt.solve(f_s_ext);
+    VectorXr v_s_tilde = v_s + dt * sb.M_LDLt.solve(f_s_tot);
 
     VectorXr x_r_orig = x_r;
     VectorXr v_r_dot(N_r);
-    featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, art_pos, art_vel, art_f, OUT v_r_dot.data());
+    featherstone_forward_dynamics(art, gravity, dt, nullptr, art_pos, art_vel, art_f, OUT v_r_dot.data());
     VectorXr v_r_tilde = v_r + dt * v_r_dot;
 
     // v_s_tilde.bottomRows(3*N_c) = J_cr * v_r_tilde;
@@ -333,7 +345,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 
         VectorXr A_s_inv_b_s = sb.A_LDLt.solve(b.topRows(3*N_s));
         VectorXr b_r_prime = b.bottomRows(N_r) - data.k_c * J_cr.transpose() * A_s_inv_b_s.bottomRows(3*N_c);
-        v_r = A_r_prime.jacobiSvd(ComputeThinU | ComputeThinV).solve(b_r_prime);
+        v_r = A_r_prime.ldlt().solve(b_r_prime);
 
         VectorXr b_s_prime = b.topRows(3*N_s);
         b_s_prime.bottomRows(3*N_c) -= k_c * J_cr * v_r;

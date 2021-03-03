@@ -86,7 +86,7 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
-            admm_dynamics_with_art(soft_body_with_art, constraints, sim_dt,
+            admm_dynamics_with_art(soft_body_with_art, constraints, sim_dt, gravity,
                                    (real*) sb_force.data(), (real*) art_force.data(),
                                    INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data(),
                                    INOUT art_pos.data(), INOUT art_vel.data());
@@ -144,6 +144,11 @@ public:
         imRenderer.render();
 
         ImGui::Begin("Debug");
+        if (ImGui::CollapsingHeader("World Properties")) {
+            double grav_min = -10;
+            double grav_max = 10;
+            ImGui::SliderScalarN("gravity", ImGuiDataType_Double, (real*)&gravity, 3, &grav_min, &grav_max);
+        }
         if (ImGui::CollapsingHeader("Soft Body")) {
             if (ImGui::TreeNode("Positions##sb_pos")) {
                 for (int i = 0; i < sb_pos.size(); i++) {
@@ -244,6 +249,8 @@ private:
     int art_type = 1;
 
     std::default_random_engine random_engine;
+
+    glm::rvec3 gravity = {0.0, -9.8, 0.0};
 };
 
 int main(int argc, char** argv)

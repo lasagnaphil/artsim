@@ -444,7 +444,7 @@ void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real 
     std::vector<glm::tmat3x3<real>> F(body.tetrahedrons.size());
     std::vector<glmx::SVD_mats<real>> F_svd(body.tetrahedrons.size());
 
-    for (int iter = 0; iter < 5; iter++) {
+    for (int iter = 0; iter < 10; iter++) {
         // Local solve
 #define X(CTYPE, CFIELD) \
         admm_volume_constraint_local_solve(body, constraints.CFIELD.data(), constraints.CFIELD.size(), \

@@ -27,7 +27,7 @@ struct SoftBodyWithArtData {
 void soft_body_precomputation(SoftBodyWithArtData& body, const ADMMConstraints& constraints, real dt);
 
 void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstraints& constraints,
-                            real dt, const real* sb_f, const real* art_f,
+                            real dt, glm::rvec3 gravity, const real* sb_f, const real* art_f,
                             INOUT real* sb_pos, INOUT real* sb_vel,
                             INOUT real* art_pos, INOUT real* art_vel);
 
