@@ -428,14 +428,26 @@ void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, r
 }
  */
 
-void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real dt, const real* f,
+void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real dt, glm::rvec3 gravity, const real* f,
                    INOUT real* pos, INOUT real* vel) {
 
     Map<VectorXr> x(pos, 3*body.vertices.size());
     Map<VectorXr> v(vel, 3*body.vertices.size());
     Map<const VectorXr> f_ext(f, 3*body.vertices.size());
+
+    // Add gravity to total force
+    VectorXr f_tot = f_ext;
+    auto f_tot_ptr = (glm::rvec3*) f_tot.data();
+    for (int t = 0; t < body.tetrahedrons.size(); t++) {
+        glm::ivec4 tet = body.tetrahedrons[t];
+        glm::rvec3 f_g = (1. / 4.) * body.props.density * body.W[t] * gravity;
+        f_tot_ptr[tet[0]] += f_g;
+        f_tot_ptr[tet[1]] += f_g;
+        f_tot_ptr[tet[2]] += f_g;
+        f_tot_ptr[tet[3]] += f_g;
+    }
     VectorXr x_orig = x;
-    VectorXr v_tilde = v + dt*body.M_LDLt.solve(f_ext);
+    VectorXr v_tilde = v + dt*body.M_LDLt.solve(f_tot);
     v.noalias() = v_tilde;
     x.noalias() = x_orig + dt*v;
 
@@ -444,7 +456,7 @@ void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real 
     std::vector<glm::tmat3x3<real>> F(body.tetrahedrons.size());
     std::vector<glmx::SVD_mats<real>> F_svd(body.tetrahedrons.size());
 
-    for (int iter = 0; iter < 5; iter++) {
+    for (int iter = 0; iter < 10; iter++) {
         // Local solve
 #define X(CTYPE, CFIELD) \
         admm_volume_constraint_local_solve(body, constraints.CFIELD.data(), constraints.CFIELD.size(), \

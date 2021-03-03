@@ -159,8 +159,8 @@ void global_solve_modify_b(const SoftBodyData& body, const Constraint* constrain
 void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, real dt, const real* f,
                          INOUT real* pos, INOUT real* vel);
 
-void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real dt, const real* f,
-                   INOUT real* pos, INOUT real* vel);
+void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real dt, glm::rvec3 gravity,
+                   const real* f, INOUT real* pos, INOUT real* vel);
 }
 
 #endif //ARTSIM_SOFT_BODY_H

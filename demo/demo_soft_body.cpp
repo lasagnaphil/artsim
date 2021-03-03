@@ -94,8 +94,8 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
-            admm_dynamics(soft_body, constraints, sim_dt, (real*) sb_force.data(),
-                          INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
+            admm_dynamics(soft_body, constraints, sim_dt, gravity,
+                          (real*) sb_force.data(), INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
 
 
             auto t2 = std::chrono::high_resolution_clock::now();
@@ -119,6 +119,12 @@ public:
         imRenderer.render();
 
         ImGui::Begin("FEM Debug");
+        if (ImGui::TreeNode("World Properties")) {
+            double grav_min = -10;
+            double grav_max = 10;
+            ImGui::SliderScalarN("gravity", ImGuiDataType_Double, (real*)&gravity, 3, &grav_min, &grav_max);
+            ImGui::TreePop();
+        }
         if (ImGui::TreeNode("Positions")) {
             for (int i = 0; i < sb_pos.size(); i++) {
                 auto v = sb_pos[i];
@@ -173,6 +179,8 @@ private:
     int art_type = 1;
 
     std::default_random_engine random_engine;
+
+    glm::tvec3<real> gravity = {0.0, 0.0, 0.0};
 };
 
 int main(int argc, char** argv)

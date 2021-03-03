@@ -48,6 +48,7 @@ public:
         soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
 
         auto& props = soft_body_with_art.props;
+        props.density = 1000;
         props.young_modulus = 1e8;
         props.poisson_ratio = 0.48;
         real stiffness = props.calc_corotational_stiffness();
@@ -86,7 +87,7 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
-            admm_dynamics_with_art(soft_body_with_art, constraints, sim_dt,
+            admm_dynamics_with_art(soft_body_with_art, constraints, sim_dt, gravity,
                                    (real*) sb_force.data(), (real*) art_force.data(),
                                    INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data(),
                                    INOUT art_pos.data(), INOUT art_vel.data());
@@ -144,6 +145,11 @@ public:
         imRenderer.render();
 
         ImGui::Begin("Debug");
+        if (ImGui::CollapsingHeader("World Properties")) {
+            double grav_min = -10;
+            double grav_max = 10;
+            ImGui::SliderScalarN("gravity", ImGuiDataType_Double, (real*)&gravity, 3, &grav_min, &grav_max);
+        }
         if (ImGui::CollapsingHeader("Soft Body")) {
             if (ImGui::TreeNode("Positions##sb_pos")) {
                 for (int i = 0; i < sb_pos.size(); i++) {
