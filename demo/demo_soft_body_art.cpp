@@ -48,8 +48,8 @@ public:
         soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
 
         auto& props = soft_body_with_art.sb.props;
-        props.young_modulus = 1e7;
-        props.poisson_ratio = 0.49;
+        props.young_modulus = 1e8;
+        props.poisson_ratio = 0.48;
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();

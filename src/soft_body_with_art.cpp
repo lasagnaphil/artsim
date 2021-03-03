@@ -362,9 +362,8 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         x_s = x_s_orig + dt*v_s;
     }
 
-    integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
-
     // Baumgarte stabilization
+    /*
     VectorXr dV(3*N_s);
     dV.topRows(3*N_f).setZero();
     dV.bottomRows(3*N_c) = v_c - J_cr * v_r;
@@ -372,14 +371,15 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     VectorXr f_baum = -k_baum * sb.M_LDLt.solve(dV);
     v_s += dt*f_baum;
     x_s += dt*dt*f_baum;
+     */
+
+    // integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
 
     // TODO: Remove this projection step
     // Project constrained velocities to articulation
-    /*
     v_c = J_cr * v_r;
     x_s = x_s_orig + dt*v_s;
-    integrate_implicit_euler(art, dt, nullptr, x_r_orig.data(), v_r.data());
-     */
+    integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
 
     // Project constrained positions to articulation
     /*
