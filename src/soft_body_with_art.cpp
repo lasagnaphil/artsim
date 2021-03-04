@@ -339,6 +339,24 @@ void admm_dynamics_with_art_update_b(
     }
 }
 
+template <class Constraint>
+void admm_dynamics_with_art_update_residuals(
+        const SoftBodyWithArtData& body, const Constraint* constraints, uint32_t num_constraints,
+        const glm::tmat3x3<real>* z_prev, const glm::tmat3x3<real>* z_next, const glm::tvec3<real>* x,
+        INOUT real& primal_res_sq, INOUT real& dual_res_sq) {
+    for (int cidx = 0; cidx < num_constraints; cidx++) {
+        auto& c = constraints[cidx];
+        real k_sqrt = glm::sqrt(c.k);
+        glm::ivec4 tet = body.tetrahedrons[c.tet_id];
+        auto& D_i = body.D[c.tet_id];
+        auto D_x = glm::rmat3(x[tet[0]] - x[tet[3]], x[tet[1]] - x[tet[3]], x[tet[2]] - x[tet[3]]) * body.B_m[c.tet_id];
+        primal_res_sq += k_sqrt * length2(D_x - z_next[c.tet_id]);
+        for (int j = 0; j < 4; j++) {
+            dual_res_sq += c.k * glm::length2((z_next[c.tet_id] - z_prev[c.tet_id]) * D_i[j]);
+        }
+    }
+}
+
 void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstraints& constraints,
                             real dt, glm::rvec3 gravity, const real* sb_f, const real* art_f,
                             INOUT real* sb_pos, INOUT real* sb_vel,
@@ -452,12 +470,14 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 
     // Other temporary variables used for ADMM
     std::vector<glm::tmat3x3<real>> u(data.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
-    std::vector<glm::tmat3x3<real>> z(data.tetrahedrons.size());
+    std::vector<glm::tmat3x3<real>> z(data.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
+    std::vector<glm::tmat3x3<real>> z_prev(data.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> p(data.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> F(data.tetrahedrons.size());
     std::vector<glmx::SVD_mats<real>> F_svd(data.tetrahedrons.size());
 
-    for (int iter = 0; iter < 10; iter++) {
+    for (int iter = 0; iter < 20; iter++) {
+        z_prev = z;
 
         // Local solve
 #define X(CTYPE, CFIELD) \
@@ -476,6 +496,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
             dt, z.data(), u.data(), (glm::rvec3*)x_s_orig.data(), J_cr, OUT b.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
+
         // std::cout << "b: " << b.transpose() << std::endl;
 
         // Solve system using Schur complement
@@ -486,6 +507,16 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         v_c = J_cr * v_r;
 
         x_s = x_s_orig + dt*v_s;
+
+        real primal_res_sq = 0, dual_res_sq = 0;
+#define X(CTYPE, CFIELD) \
+        admm_dynamics_with_art_update_residuals(data, constraints.CFIELD.data(), constraints.CFIELD.size(), \
+            z_prev.data(), z.data(), (glm::rvec3*)x_s.data(), INOUT primal_res_sq, INOUT dual_res_sq);
+        ADMM_VOLUME_CONSTRAINTS
+#undef X
+
+        std::cout << "primal_res = " << sqrt(primal_res_sq) << ", dual_res= " << sqrt(dual_res_sq) << std::endl;
+
     }
 
     integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
