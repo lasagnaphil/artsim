@@ -185,8 +185,8 @@ public:
                 ImGui::TreePop();
             }
             if (ImGui::TreeNode("Force##art_force")) {
-                double fmin = -10000;
-                double fmax = 10000;
+                double fmin = -100000;
+                double fmax = 100000;
                 for (int i = 0; i < art_force.size(); i++) {
                     auto label = fmt::format("##art_force_{}", i);
                     ImGui::SliderScalar(label.c_str(), ImGuiDataType_Double, &art_force[i], &fmin, &fmax, "%.6g");
@@ -202,7 +202,7 @@ public:
 
     void resetPhysics() {
         sb_pos = soft_body_with_art.sb.vertices;
-        real noise = 0.0;
+        real noise = 0.02;
         for (int i = 0; i < soft_body_with_art.constrained_idx_start; i++) {
             sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
             sb_pos[i][1] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
@@ -230,7 +230,7 @@ public:
 
 private:
     MaterialDB material_db;
-    float sim_dt = 1.0f / 240.0f;
+    float sim_dt = 1.0f / 60.0f;
     bool run_simulation = false;
     bool render_orig = false;
 
@@ -250,7 +250,7 @@ private:
 
     std::default_random_engine random_engine;
 
-    glm::rvec3 gravity = {0.0, -9.8, 0.0};
+    glm::rvec3 gravity = {0.0, 0.0, 0.0};
 };
 
 int main(int argc, char** argv)
@@ -259,7 +259,7 @@ int main(int argc, char** argv)
     //--------------------------------------------------------------------------------------
     auto settings = AppSettings::defaultPBR();
     settings.useDisplayFPS = false;
-    settings.updateFPS = 30;
+    settings.updateFPS = 60;
     MyApp app(settings);
     app.load();
     app.startMainLoop();

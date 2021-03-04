@@ -139,11 +139,13 @@ void soft_body_precomputation(SoftBodyWithArtData& body, const ADMMConstraints& 
     precomputation_essentials(body.sb);
 
     update_system_matrix(body.sb, constraints, dt, OUT body.sb.A);
+    /*
     int N_f = body.constrained_idx_start;
     int N_s = body.sb.vertices.size();
     for (int i = 3*N_f; i < 3*N_s; i++) {
         body.sb.A.coeffRef(i, i) += body.k_c;
     }
+     */
 
     body.sb.A_LDLt.analyzePattern(body.sb.A);
     body.sb.A_LDLt.factorize(body.sb.A);
@@ -253,12 +255,10 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     mass_matrix(art, dt, art_pos, M_r_view);
 
     // Calculate inverse of articulation matrix M_r^{-1}
-    /*
     MatrixXr M_r_inv(N_r, N_r);
     dynmat_view<real> M_r_inv_view(M_r_inv.data(), N_r, N_r);
     dynmat<real> identity(num_art_vel_dofs, IDENTITY);
     multiply_inverse_mass_matrix(art, dt, art_pos, identity.to_view(), OUT M_r_inv_view);
-     */
 
     Map<VectorXr> x_s(sb_pos, 3*N_s);
     Map<VectorXr> x_f(sb_pos, 3*N_f);
@@ -299,14 +299,14 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 
     real k_c = data.k_c;
     std::vector<glm::tmat3x3<real>> u_s(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
-    VectorXr u_c = VectorXr::Zero(3*N_c);
+    // VectorXr u_c = VectorXr::Zero(3*N_c);
     std::vector<glm::tmat3x3<real>> z(sb.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> p(sb.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> F(sb.tetrahedrons.size());
     std::vector<glmx::SVD_mats<real>> F_svd(sb.tetrahedrons.size());
 
     std::cout << "Starting ADMM loop" << std::endl;
-    for (int iter = 0; iter < 30; iter++) {
+    for (int iter = 0; iter < 5; iter++) {
 
         // Local solve
 #define X(CTYPE, CFIELD) \
@@ -314,50 +314,50 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
             (glm::rvec3*)x_s.data(), OUT z.data(), OUT u_s.data(), OUT F.data(), OUT F_svd.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
-        u_c += (v_c - J_cr * v_r);
 
         // Global solve
-        VectorXr b(3*N_s + N_r);
-        b.topRows(3*N_s) = sb.M * v_s_tilde;
-        b.middleRows(3*N_f, 3*N_c) -= k_c * u_c;
+        VectorXr b_s = sb.M * v_s_tilde;
+        VectorXr b_r = M_r * v_r_tilde;
 
 #define X(CTYPE, CFIELD) \
         admm_dynamics_with_art_update_b(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
-            dt, z.data(), u_s.data(), (glm::rvec3*)x_s_orig.data(), OUT b.data());
+            dt, z.data(), u_s.data(), (glm::rvec3*)x_s_orig.data(), OUT b_s.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
 
-        b.bottomRows(N_r) = M_r * v_r_tilde + k_c * J_cr.transpose() * u_c;
+        VectorXr f_c = VectorXr::Zero(3*N_c);
 
-        // MatrixXr Linv_J_cr(3*N_s, N_r);
-        // Linv_J_cr.topRows(3*N_f).setZero();
-        // Linv_J_cr.bottomRows(3*N_c) = J_cr;
-        // sb.A_LDLt.matrixL().solveInPlace(Linv_J_cr);
-        // MatrixXr A_r = M_r + k_c * J_cr.transpose() * J_cr;
-        // MatrixXr A_r_prime = A_r - (k_c*k_c) * Linv_J_cr.transpose() * sb.A_LDLt.vectorD().asDiagonal() * Linv_J_cr;
-        // v_r = A_r_prime.jacobiSvd(ComputeThinU | ComputeThinV).solve(b_r_prime);
+        b_s.bottomRows(3*N_c) -= f_c;
+        b_r += J_cr.transpose() * f_c;
 
-        MatrixXr A_r = M_r + k_c * J_cr.transpose() * J_cr;
-        MatrixXr J_sr(3*N_s, N_r);
-        J_sr.topRows(3*N_f).setZero();
-        J_sr.bottomRows(3*N_c) = J_cr;
-        MatrixXr A_r_prime = A_r - (k_c*k_c) * J_sr.transpose() * sb.A_LDLt.solve(J_sr);
+        v_s = sb.A_LDLt.solve(b_s);
+        v_r = M_r_inv * b_r;
 
-        VectorXr A_s_inv_b_s = sb.A_LDLt.solve(b.topRows(3*N_s));
-        VectorXr b_r_prime = b.bottomRows(N_r) - data.k_c * J_cr.transpose() * A_s_inv_b_s.bottomRows(3*N_c);
-        v_r = A_r_prime.ldlt().solve(b_r_prime);
+        VectorXr r_f = v_c - J_cr * v_r;
+        VectorXr s_f = r_f;
+        VectorXr s_v(3*N_s + N_r);
 
-        VectorXr b_s_prime = b.topRows(3*N_s);
-        b_s_prime.bottomRows(3*N_c) -= k_c * J_cr * v_r;
-        v_s = sb.A_LDLt.solve(b_s_prime);
+        int uzawa_iter = 0;
+        while (r_f.squaredNorm() > 1e-4) {
+            VectorXr s_f_s(3*N_s);
+            s_f_s.topRows(3*N_f).setZero();
+            s_f_s.bottomRows(3*N_c) = s_f;
+            s_v.topRows(3*N_s) = sb.A_LDLt.solve(s_f_s);
+            s_v.bottomRows(N_r) = -M_r_inv * J_cr.transpose() * s_f;
+            VectorXr a_f = s_v.middleRows(3*N_f, 3*N_c) - J_cr * s_v.bottomRows(N_r);
+            real s_f_a_f = s_f.dot(a_f);
+            real alpha = s_f.dot(r_f) / s_f_a_f;
+            v_s -= alpha * s_v.topRows(3*N_s);
+            v_r -= alpha * s_v.bottomRows(N_r);
+            f_c += alpha * s_f;
+            r_f -= alpha * a_f;
+            real beta = r_f.dot(a_f) / s_f_a_f;
+            s_f = r_f - beta*s_f;
+            uzawa_iter++;
+        }
 
-        /*
-        MatrixXr A_r = M_r + k_c * J_cr.transpose() * J_cr;
-        v_s = sb.A_LDLt.solve(b.topRows(3*N_s));
-        v_r = A_r.jacobiSvd(ComputeThinU | ComputeThinV).solve(b.bottomRows(N_r));
-         */
-
-        std::cout << "coupling error: " << (v_c - J_cr * v_r).norm() << std::endl;
+        std::cout << "Uzawa iter converged in " << uzawa_iter << " iters!" << std::endl;
+        std::cout << "Residual: " << r_f.norm() << std::endl;
 
         x_s = x_s_orig + dt*v_s;
     }
@@ -375,14 +375,13 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 
     // integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
 
-    // TODO: Remove this projection step
-    // Project constrained velocities to articulation
-    v_c = J_cr * v_r;
-    x_s = x_s_orig + dt*v_s;
+    // Optional: Project constrained velocities to articulation
+    // v_c = J_cr * v_r;
+    // x_s = x_s_orig + dt*v_s;
+
     integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
 
     // Project constrained positions to articulation
-    /*
     calc_transforms(art, art_pos, link_trans.data(), joint_trans.data());
     for (auto& [link_idx, vidx_range] : data.constrained_vertices_range) {
         for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
@@ -393,7 +392,6 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
             sb_pos[3*(vidx) + 2] = T.v[2];
         }
     }
-     */
 }
 
 }
