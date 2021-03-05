@@ -141,7 +141,7 @@ public:
 
     void resetPhysics() {
         sb_pos = soft_body.vertices;
-        real noise = 0.02;
+        real noise = 0.005;
         for (int i = 0; i < sb_pos.size(); i++) {
             sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
             sb_pos[i][1] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);

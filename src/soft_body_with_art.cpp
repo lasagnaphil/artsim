@@ -203,6 +203,9 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     dynmat<real> identity(num_art_vel_dofs, IDENTITY);
     multiply_inverse_mass_matrix(art, dt, art_pos, identity.to_view(), OUT M_r_inv_view);
 
+    // Calculate other matrices related to articulation
+    MatrixXr M_r_inv_J_cr_T = M_r_inv * J_cr.transpose();
+
     Map<VectorXr> x_s(sb_pos, 3*N_s);
     Map<VectorXr> x_f(sb_pos, 3*N_f);
     Map<VectorXr> x_c(sb_pos + 3*N_f, 3*N_c);
@@ -240,7 +243,6 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     v_r = v_r_tilde;
     x_s = x_s_orig + dt*v_s;
 
-    real k_c = data.k_c;
     std::vector<glm::tmat3x3<real>> u(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
     std::vector<glm::tmat3x3<real>> z(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
     std::vector<glm::tmat3x3<real>> z_prev(sb.tetrahedrons.size());
@@ -268,8 +270,6 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
             dt, z.data(), u.data(), (glm::rvec3*)x_s_orig.data(), OUT b_s.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
-
-        MatrixXr M_r_inv_J_cr_T = M_r_inv * J_cr.transpose();
 
         VectorXr f_c = VectorXr::Zero(3*N_c);
 
@@ -302,8 +302,8 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
             uzawa_iter++;
         }
 
-        std::cout << "Uzawa iter converged in " << uzawa_iter << " iters!" << std::endl;
-        std::cout << "Residual: " << r_f.norm() << std::endl;
+        std::cout << "Uzawa iter converged in " << uzawa_iter << " iters! " <<
+            "(residual = " << r_f.norm() << ")" << std::endl;
 
         x_s = x_s_orig + dt*v_s;
 
@@ -314,7 +314,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         ADMM_VOLUME_CONSTRAINTS
 #undef X
 
-        std::cout << "primal_res = " << sqrt(primal_res_sq) << ", dual_res= " << sqrt(dual_res_sq) << std::endl;
+        std::cout << "primal_res = " << sqrt(primal_res_sq) << ", dual_res = " << sqrt(dual_res_sq) << std::endl;
     }
 
     // Baumgarte stabilization
