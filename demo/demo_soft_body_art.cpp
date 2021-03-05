@@ -31,7 +31,7 @@ public:
 
         FlyCamera* camera = dynamic_cast<FlyCamera*>(this->camera.get());
         Ref<Transform> cameraTransform = camera->transform;
-        cameraTransform->move({0.0f, 2.0f, 0.0f});
+        cameraTransform->setGlobalPosition({0.0f, 1.0f, 2.0f});
 
         pbRenderer.dirLightProjVolume = {
                 {-10.f, -10.f, 0.f}, {10.f, 10.f, 100.f}
@@ -48,6 +48,7 @@ public:
         soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
 
         auto& props = soft_body_with_art.sb.props;
+        props.density = 1000;
         props.young_modulus = 1e8;
         props.poisson_ratio = 0.48;
         real stiffness = props.calc_corotational_stiffness();
@@ -185,8 +186,8 @@ public:
                 ImGui::TreePop();
             }
             if (ImGui::TreeNode("Force##art_force")) {
-                double fmin = -100000;
-                double fmax = 100000;
+                double fmin = -1000;
+                double fmax = 1000;
                 for (int i = 0; i < art_force.size(); i++) {
                     auto label = fmt::format("##art_force_{}", i);
                     ImGui::SliderScalar(label.c_str(), ImGuiDataType_Double, &art_force[i], &fmin, &fmax, "%.6g");
@@ -201,8 +202,14 @@ public:
     }
 
     void resetPhysics() {
+        art_root_trans = ttransform<real>(glm::rvec3(0, 1, 0));
         sb_pos = soft_body_with_art.sb.vertices;
-        real noise = 0.02;
+        if (soft_body_with_art.art.floating) {
+            for (int i = 0; i < sb_pos.size(); i++) {
+                sb_pos[i] = art_root_trans.v + art_root_trans.R * sb_pos[i];
+            }
+        }
+        real noise = 0.002;
         for (int i = 0; i < soft_body_with_art.constrained_idx_start; i++) {
             sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
             sb_pos[i][1] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
@@ -212,20 +219,21 @@ public:
         sb_vel.resize(sb_pos.size(), glm::tvec3<real>(0));
         sb_force.clear();
         sb_force.resize(sb_pos.size(), glm::tvec3<real>(0));
-        sb_force_contact.clear();
-        sb_force_contact.resize(sb_pos.size(), glm::tvec3<real>(0));
 
         int art_pos_dofs = soft_body_with_art.art.get_num_pos_dofs();
         int art_vel_dofs = soft_body_with_art.art.get_num_vel_dofs();
         art_pos.clear();
         art_pos.resize(art_pos_dofs);
         artsim::set_zero_pose(soft_body_with_art.art, art_pos.data());
+        if (soft_body_with_art.art.floating) {
+            *((glm::rvec3*)art_pos.data()) = art_root_trans.v;
+            *((glm::rquat*)(art_pos.data() + 3)) = quat_cast(art_root_trans.R);
+        }
+
         art_vel.clear();
         art_vel.resize(art_vel_dofs, 0);
         art_force.clear();
         art_force.resize(art_vel_dofs, 0);
-        art_force_contact.clear();
-        art_force_contact.resize(art_vel_dofs, 0);
     }
 
 private:
@@ -250,7 +258,8 @@ private:
 
     std::default_random_engine random_engine;
 
-    glm::rvec3 gravity = {0.0, 0.0, 0.0};
+    glm::rvec3 gravity = {0.0, -9.8, 0.0};
+    ttransform<real> art_root_trans;
 };
 
 int main(int argc, char** argv)

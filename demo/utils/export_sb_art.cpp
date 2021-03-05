@@ -92,12 +92,13 @@ void dist_between_triangle_and_points(glm::rvec3 t1, glm::rvec3 t2, glm::rvec3 t
 #endif
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
-        printf("Usage: export_sb_art <articulation_file> <mesh_file>");
+    if (argc != 4) {
+        printf("Usage: export_sb_art <articulation_file> <mesh_file> <tet_len>");
         exit(EXIT_FAILURE);
     }
     std::string art_file = argv[1];
     std::string mesh_file = argv[2];
+    std::string tet_len = argv[3];
     auto art_path = fs::path(art_file);
     auto mesh_path = fs::path(mesh_file);
     auto out_path = art_path.parent_path();
@@ -189,7 +190,7 @@ int main(int argc, char** argv) {
 
     std::cout << "Carved out soft body mesh!" << std::endl;
 
-    auto command = fmt::format("~/dev/TetWild/build/TetWild -l 0.05 {}", out_mesh_path.string());
+    auto command = fmt::format("~/dev/TetWild/build/TetWild -l {} {}", tet_len, out_mesh_path.string());
     system(command.c_str());
 
     auto out_mesh_tet_path = out_mesh_path.parent_path() / (out_mesh_path.stem().string() + "_.msh");

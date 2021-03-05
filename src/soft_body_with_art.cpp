@@ -137,68 +137,11 @@ void SoftBodyWithArtData::load(const char* metadata) {
 
 void soft_body_precomputation(SoftBodyWithArtData& body, const ADMMConstraints& constraints, real dt) {
     precomputation_essentials(body.sb);
-
     update_system_matrix(body.sb, constraints, dt, OUT body.sb.A);
-    /*
-    int N_f = body.constrained_idx_start;
-    int N_s = body.sb.vertices.size();
-    for (int i = 3*N_f; i < 3*N_s; i++) {
-        body.sb.A.coeffRef(i, i) += body.k_c;
-    }
-     */
-
     body.sb.A_LDLt.analyzePattern(body.sb.A);
     body.sb.A_LDLt.factorize(body.sb.A);
 }
 
-template <class Constraint>
-void admm_dynamics_with_art_volume_local_solve(
-        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-        const glm::tvec3<real>* x,
-        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
-        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd) {
-
-// #pragma omp parallel for schedule(static)
-    for (int cidx = 0; cidx < num_constraints; cidx++) {
-        auto& c = constraints[cidx];
-        glm::ivec4 tet = body.tetrahedrons[c.tet_id];
-        auto D_x = glm::rmat3(x[tet[0]] - x[tet[3]], x[tet[1]] - x[tet[3]], x[tet[2]] - x[tet[3]]) * body.B_m[c.tet_id];
-        F[c.tet_id] = D_x + u[c.tet_id];
-    }
-
-    glmx::fastsvd(F, num_constraints, F_svd);
-
-// #pragma omp parallel for schedule(static)
-    for (int cidx = 0; cidx < num_constraints; cidx++) {
-        auto& c = constraints[cidx];
-        F_svd[c.tet_id].Sigma = proximal_eigvec(F_svd[c.tet_id].Sigma, c);
-        z[c.tet_id] = F_svd[c.tet_id].recover_matrix();
-        u[c.tet_id] = F[c.tet_id] - z[c.tet_id];
-    }
-}
-
-template <class Constraint>
-void admm_dynamics_with_art_update_b(
-        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-        real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u_s, const glm::tvec3<real>* x0,
-        INOUT real* b) {
-    for (int cidx = 0; cidx < num_constraints; cidx++) {
-        auto& c = constraints[cidx];
-        glm::ivec4 tet = body.tetrahedrons[c.tet_id];
-        glm::rmat3 p = z[c.tet_id] - u_s[c.tet_id];
-        auto& D_i = body.D[c.tet_id];
-        auto D_x0 = glm::rmat3(x0[tet[0]] - x0[tet[3]], x0[tet[1]] - x0[tet[3]], x0[tet[2]] - x0[tet[3]]) * body.B_m[c.tet_id];
-        real k_s = dt * c.k * body.W[c.tet_id];
-        for (int j = 0; j < 4; j++) {
-            glm::tvec3<real> db = k_s * ((p - D_x0) * D_i[j]);
-            b[3*tet[j]+0] += db[0];
-            b[3*tet[j]+1] += db[1];
-            b[3*tet[j]+2] += db[2];
-        }
-    }
-}
-
-// TODO: Need to fix local updates on soft body not working
 void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstraints& constraints,
                             real dt, glm::rvec3 gravity, const real* sb_f, const real* art_f,
                             INOUT real* sb_pos, INOUT real* sb_vel,
@@ -298,20 +241,21 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     x_s = x_s_orig + dt*v_s;
 
     real k_c = data.k_c;
-    std::vector<glm::tmat3x3<real>> u_s(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
-    // VectorXr u_c = VectorXr::Zero(3*N_c);
-    std::vector<glm::tmat3x3<real>> z(sb.tetrahedrons.size());
+    std::vector<glm::tmat3x3<real>> u(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
+    std::vector<glm::tmat3x3<real>> z(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
+    std::vector<glm::tmat3x3<real>> z_prev(sb.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> p(sb.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> F(sb.tetrahedrons.size());
     std::vector<glmx::SVD_mats<real>> F_svd(sb.tetrahedrons.size());
 
-    std::cout << "Starting ADMM loop" << std::endl;
-    for (int iter = 0; iter < 5; iter++) {
+    std::cout << std::endl << "Starting ADMM loop" << std::endl;
+    for (int iter = 0; iter < 10; iter++) {
+        z_prev = z;
 
         // Local solve
 #define X(CTYPE, CFIELD) \
-        admm_dynamics_with_art_volume_local_solve(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
-            (glm::rvec3*)x_s.data(), OUT z.data(), OUT u_s.data(), OUT F.data(), OUT F_svd.data());
+        admm_volume_constraint_local_solve(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
+            (glm::rvec3*)x_s.data(), OUT z.data(), OUT u.data(), OUT F.data(), OUT F_svd.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
 
@@ -320,10 +264,12 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         VectorXr b_r = M_r * v_r_tilde;
 
 #define X(CTYPE, CFIELD) \
-        admm_dynamics_with_art_update_b(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
-            dt, z.data(), u_s.data(), (glm::rvec3*)x_s_orig.data(), OUT b_s.data());
+        admm_volume_constraint_update_b(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
+            dt, z.data(), u.data(), (glm::rvec3*)x_s_orig.data(), OUT b_s.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
+
+        MatrixXr M_r_inv_J_cr_T = M_r_inv * J_cr.transpose();
 
         VectorXr f_c = VectorXr::Zero(3*N_c);
 
@@ -343,7 +289,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
             s_f_s.topRows(3*N_f).setZero();
             s_f_s.bottomRows(3*N_c) = s_f;
             s_v.topRows(3*N_s) = sb.A_LDLt.solve(s_f_s);
-            s_v.bottomRows(N_r) = -M_r_inv * J_cr.transpose() * s_f;
+            s_v.bottomRows(N_r) = -M_r_inv_J_cr_T * s_f;
             VectorXr a_f = s_v.middleRows(3*N_f, 3*N_c) - J_cr * s_v.bottomRows(N_r);
             real s_f_a_f = s_f.dot(a_f);
             real alpha = s_f.dot(r_f) / s_f_a_f;
@@ -360,6 +306,15 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         std::cout << "Residual: " << r_f.norm() << std::endl;
 
         x_s = x_s_orig + dt*v_s;
+
+        real primal_res_sq = 0, dual_res_sq = 0;
+#define X(CTYPE, CFIELD) \
+        admm_volume_constraint_update_residuals(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
+            z_prev.data(), z.data(), (glm::rvec3*)x_s.data(), INOUT primal_res_sq, INOUT dual_res_sq);
+        ADMM_VOLUME_CONSTRAINTS
+#undef X
+
+        std::cout << "primal_res = " << sqrt(primal_res_sq) << ", dual_res= " << sqrt(dual_res_sq) << std::endl;
     }
 
     // Baumgarte stabilization
@@ -375,7 +330,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 
     // integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
 
-    // Optional: Project constrained velocities to articulation
+    // Project constrained velocities to articulation
     // v_c = J_cr * v_r;
     // x_s = x_s_orig + dt*v_s;
 

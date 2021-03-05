@@ -112,8 +112,6 @@ public:
 
     SoftBodyProperties props;
 
-    bool should_update_system_matrix = false;
-
     void load(const OBJFile& obj, const SoftBodyProperties& props);
     void load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props);
 };
@@ -154,11 +152,15 @@ void admm_volume_constraint_local_solve(
         OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd);
 
 template <class Constraint>
-void global_solve_modify_b(const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints, real dt,
-                           const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0, INOUT real* b);
+void admm_volume_constraint_update_b(
+        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints, real dt,
+        const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0, INOUT real* b);
 
-void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, real dt, const real* f,
-                         INOUT real* pos, INOUT real* vel);
+template <class Constraint>
+void admm_volume_constraint_update_residuals(
+        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
+        const glm::tmat3x3<real>* z_prev, const glm::tmat3x3<real>* z_next, const glm::tvec3<real>* x,
+        INOUT real& primal_res_sq, INOUT real& dual_res_sq);
 
 void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real dt, const real* f,
                    INOUT real* pos, INOUT real* vel);
