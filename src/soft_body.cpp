@@ -326,7 +326,6 @@ void admm_volume_constraint_local_solve(
         OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
         OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd) {
 
-// #pragma omp parallel for schedule(static)
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tetrahedrons[c.tet_id];
@@ -336,7 +335,6 @@ void admm_volume_constraint_local_solve(
 
     glmx::fastsvd(F, num_constraints, F_svd);
 
-// #pragma omp parallel for schedule(static)
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         F_svd[c.tet_id].Sigma = proximal_eigvec(F_svd[c.tet_id].Sigma, c);
@@ -346,11 +344,11 @@ void admm_volume_constraint_local_solve(
 }
 
 #define X(CTYPE, CFIELD) \
-template void admm_volume_constraint_local_solve_fast( \
+template void admm_volume_constraint_local_solve( \
         const SoftBodyData&, const CTYPE*, uint32_t, \
         const glm::tvec3<real>*, \
         OUT glm::tmat3x3<real>*, OUT glm::tmat3x3<real>*, \
-        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd); \
+        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd);
 ADMM_VOLUME_CONSTRAINTS
 #undef X
 
