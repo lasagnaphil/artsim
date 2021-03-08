@@ -394,9 +394,7 @@ void admm_volume_constraint_update_residuals(
         auto& D_i = body.D[c.tet_id];
         auto D_x = glm::rmat3(x[tet[0]] - x[tet[3]], x[tet[1]] - x[tet[3]], x[tet[2]] - x[tet[3]]) * body.B_m[c.tet_id];
         primal_res_sq += c.k * glmx::length2(D_x - z_next[c.tet_id]);
-        for (int j = 0; j < 4; j++) {
-            dual_res_sq += c.k * c.k * glm::length2((z_next[c.tet_id] - z_prev[c.tet_id]) * D_i[j]);
-        }
+        dual_res_sq += c.k * glmx::length2(z_next[c.tet_id] - z_prev[c.tet_id]);
     }
 }
 

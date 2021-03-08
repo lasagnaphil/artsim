@@ -244,17 +244,33 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
     x_s = x_s_orig + dt*v_s;
 
     std::vector<glm::tmat3x3<real>> u(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
+    std::vector<glm::tmat3x3<real>> u_prev(sb.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> z(sb.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
     std::vector<glm::tmat3x3<real>> z_prev(sb.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> p(sb.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> F(sb.tetrahedrons.size());
     std::vector<glmx::SVD_mats<real>> F_svd(sb.tetrahedrons.size());
 
-    std::cout << std::endl << "Starting ADMM loop" << std::endl;
-    for (int iter = 0; iter < 10; iter++) {
-        z_prev = z;
+    VectorXr v_s_prev(3*N_s);
+    VectorXr v_r_prev(N_r);
 
+    VectorXr b_s(3*N_s);
+    VectorXr b_r(N_r);
+    VectorXr f_c(3*N_c);
+    VectorXr r_f(3*N_c);
+    VectorXr s_f(3*N_c);
+    VectorXr s_v(3*N_s + N_r);
+    VectorXr s_f_s(3*N_s);
+    VectorXr a_f(3*N_c);
+
+    real primal_res, dual_res, primal_res_prev = DBL_MAX, dual_res_prev = DBL_MAX;
+
+    std::cout << std::endl << "Starting ADMM loop" << std::endl;
+    for (int iter = 0; iter < 30; iter++) {
         // Local solve
+        z_prev = z;
+        u_prev = u;
+
 #define X(CTYPE, CFIELD) \
         admm_volume_constraint_local_solve(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
             (glm::rvec3*)x_s.data(), OUT z.data(), OUT u.data(), OUT F.data(), OUT F_svd.data());
@@ -262,8 +278,11 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
 #undef X
 
         // Global solve
-        VectorXr b_s = sb.M * v_s_tilde;
-        VectorXr b_r = M_r * v_r_tilde;
+        v_s_prev = v_s;
+        v_r_prev = v_r;
+
+        b_s = sb.M * v_s_tilde;
+        b_r = M_r * v_r_tilde;
 
 #define X(CTYPE, CFIELD) \
         admm_volume_constraint_update_b(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
@@ -271,7 +290,7 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         ADMM_VOLUME_CONSTRAINTS
 #undef X
 
-        VectorXr f_c = VectorXr::Zero(3*N_c);
+        f_c = VectorXr::Zero(3*N_c);
 
         b_s.bottomRows(3*N_c) -= f_c;
         b_r += J_cr.transpose() * f_c;
@@ -279,18 +298,16 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         v_s = sb.A_LDLt.solve(b_s);
         v_r = M_r_inv * b_r;
 
-        VectorXr r_f = v_c - J_cr * v_r;
-        VectorXr s_f = r_f;
-        VectorXr s_v(3*N_s + N_r);
+        r_f = v_c - J_cr * v_r;
+        s_f = r_f;
 
         int uzawa_iter = 0;
         while (r_f.squaredNorm() > 1e-4) {
-            VectorXr s_f_s(3*N_s);
             s_f_s.topRows(3*N_f).setZero();
             s_f_s.bottomRows(3*N_c) = s_f;
             s_v.topRows(3*N_s) = sb.A_LDLt.solve(s_f_s);
             s_v.bottomRows(N_r) = -M_r_inv_J_cr_T * s_f;
-            VectorXr a_f = s_v.middleRows(3*N_f, 3*N_c) - J_cr * s_v.bottomRows(N_r);
+            a_f = s_v.middleRows(3*N_f, 3*N_c) - J_cr * s_v.bottomRows(N_r);
             real s_f_a_f = s_f.dot(a_f);
             real alpha = s_f.dot(r_f) / s_f_a_f;
             v_s -= alpha * s_v.topRows(3*N_s);
@@ -305,16 +322,30 @@ void admm_dynamics_with_art(const SoftBodyWithArtData& data, const ADMMConstrain
         std::cout << "Uzawa iter converged in " << uzawa_iter << " iters! " <<
             "(residual = " << r_f.norm() << ")" << std::endl;
 
-        x_s = x_s_orig + dt*v_s;
-
         real primal_res_sq = 0, dual_res_sq = 0;
 #define X(CTYPE, CFIELD) \
         admm_volume_constraint_update_residuals(sb, constraints.CFIELD.data(), constraints.CFIELD.size(), \
             z_prev.data(), z.data(), (glm::rvec3*)x_s.data(), INOUT primal_res_sq, INOUT dual_res_sq);
         ADMM_VOLUME_CONSTRAINTS
 #undef X
+        primal_res = sqrt(primal_res_sq);
+        dual_res = sqrt(dual_res_sq);
 
-        std::cout << "primal_res = " << sqrt(primal_res_sq) << ", dual_res = " << sqrt(dual_res_sq) << std::endl;
+
+        if (primal_res > primal_res_prev && dual_res > dual_res_prev) {
+            std::cout << "primal_res = " << primal_res << ", dual_res = " << dual_res << " (abort!)" << std::endl;
+            v_s = v_s_prev;
+            v_r = v_r_prev;
+            break;
+        }
+        else {
+            std::cout << "primal_res = " << primal_res << ", dual_res = " << dual_res << std::endl;
+            primal_res_prev = primal_res;
+            dual_res_prev = dual_res;
+        }
+
+        x_s = x_s_orig + dt*v_s;
+
     }
 
     // Baumgarte stabilization
