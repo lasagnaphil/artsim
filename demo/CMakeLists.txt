@@ -1,3 +1,5 @@
+find_package(OpenGLRecorder REQUIRED)
+
 add_custom_target(artsim_copy_resource_folder)
 add_custom_command(TARGET artsim_copy_resource_folder POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -20,7 +22,7 @@ add_executable(artsim_demo_soft_body demo_soft_body.cpp)
 target_link_libraries(artsim_demo_soft_body PRIVATE gengine)
 
 add_executable(artsim_demo_soft_body_art demo_soft_body_art.cpp)
-target_link_libraries(artsim_demo_soft_body_art PRIVATE gengine)
+target_link_libraries(artsim_demo_soft_body_art PRIVATE gengine OpenGLRecorder)
 
 add_executable(export_sb_art utils/export_sb_art.cpp)
 target_link_libraries(export_sb_art PRIVATE gengine)

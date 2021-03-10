@@ -12,6 +12,7 @@
 
 #include <imgui.h>
 #include <implot.h>
+#include <openglrecorder.h>
 #include <gengine/App.h>
 #include <gengine/InputManager.h>
 #include "soft_body_render.h"
@@ -26,6 +27,24 @@ public:
     MyApp(const AppSettings& settings) : App(settings) {}
 
     void loadResources() {
+        RecorderConfig cfg;
+        cfg.m_triple_buffering = 1;
+        cfg.m_record_audio = 1;
+        cfg.m_width = 1920;
+        cfg.m_height = 1080;
+        cfg.m_video_format = OGR_VF_VP8;
+        cfg.m_audio_format = OGR_AF_VORBIS;
+        cfg.m_audio_bitrate = 112000;
+        cfg.m_video_bitrate = 200000;
+        cfg.m_record_fps = 60;
+        cfg.m_record_jpg_quality = 90;
+
+        ogrInitConfig(&cfg);
+        ogrRegReadPixelsFunction(glReadPixels);
+        ogrRegPBOFunctions(glGenBuffers, glBindBuffer, glBufferData,
+                           glDeleteBuffers, glMapBuffer, glUnmapBuffer);
+        ogrSetSavedName("record");
+
         random_engine = std::default_random_engine(0);
         Eigen::setNbThreads(16);
 
@@ -79,6 +98,12 @@ public:
 
         if (inputMgr->isKeyEntered(SDL_SCANCODE_SPACE)) {
             run_simulation = !run_simulation;
+            if (run_simulation) {
+                ogrPrepareCapture();
+            }
+            else {
+                ogrStopCapture();
+            }
         }
         if (inputMgr->isKeyEntered(SDL_SCANCODE_R)) {
             resetPhysics();
@@ -196,9 +221,14 @@ public:
             }
         }
         ImGui::End();
+
+        if (run_simulation) {
+            ogrCapture();
+        }
     }
 
     void release() override {
+        ogrDestroy();
     }
 
     void resetPhysics() {
