@@ -1,0 +1,21 @@
+<metadata>
+    <articulation name="skeleton" xform_mode="global">
+        <node name="link1" parent="none">
+            <link type="box" mass="3.0" size="0.3 0.04 0.04" pos="0.2 0 0" rot="0 0 0"/>
+            <joint type="revolute" axis="0 0 1" pos="0 0 0" rot="0 0 0" damping="0.1"/>
+        </node>
+        <node name="link2" parent="link1">
+            <link type="box" mass="3.0" size="0.3 0.04 0.04" pos="0.6 0 0" rot="0 0 0"/>
+            <joint type="revolute" axis="0 0 1" pos="0.4 0 0" rot="0 0 0" damping="0.1"/>
+        </node>
+    </articulation>
+    <soft_body file="mesh_carved_.msh">
+        <material young_modulus="1e8" poisson_ratio="0.48" density="1000"/>
+        <attachment link="link1">
+            <vertices>306 134 320 317 307 11 311 358 102 312 250 6 375 245 315 5 8 120 277 283 122 98 251 276 325 286 252 243 278 369 9 10 360 323 103 285 7 275 107 281 289 356 246 125 110 247 268 264 284 272 274 290 109 357 321 316 359 100 319 101 104 105 106 4 108 </vertices>
+        </attachment>
+        <attachment link="link2">
+            <vertices>87 161 149 118 115 114 113 111 302 117 14 255 116 296 260 377 256 327 261 303 13 124 18 17 329 305 332 15 16 12 259 295 333 336 258 112 337 309 340 121 19 364 335 298 </vertices>
+        </attachment>
+    </soft_body>
+</metadata>
