@@ -6,8 +6,7 @@
 #include <random>
 
 #include <artsim/artsim.h>
-#include <artsim/soft_body.h>
-#include <artsim/soft_body_with_art.h>
+#include <artsim/art_with_soft_bodies.h>
 #include <artsim/articulation_state.h>
 
 #include <imgui.h>
@@ -64,25 +63,16 @@ public:
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
         soft_body_mat->alpha = 0.2f;
 
-        soft_body_with_art.load("demo/resources/soft_body_with_art/metadata.xml");
+        system.load("demo/resources/art_with_soft_bodies/metadata.xml");
 
-        auto& props = soft_body_with_art.sb.props;
-        props.density = 1000;
-        props.young_modulus = 1e8;
-        props.poisson_ratio = 0.48;
-        real stiffness = props.calc_corotational_stiffness();
-        real mu = props.calc_mu();
-        real lambda = props.calc_lambda();
-        for (int i = 0; i < soft_body_with_art.sb.tetrahedrons.size(); i++) {
-            constraints.corotational_energy.push_back({i, stiffness, mu, lambda});
-            // constraints.neohookean_energy.push_back({i, stiffness, mu, lambda});
+        soft_body_renderers.reserve(system.get_num_soft_bodies());
+        for (auto& sb : system.get_soft_bodies()) {
+            soft_body_renderers.push_back({&sb, soft_body_mat, camera});
         }
-        soft_body_precomputation(soft_body_with_art, constraints, sim_dt);
-        soft_body_render = SoftBodyRender(&soft_body_with_art.sb, soft_body_mat, camera);
 
         Ref<PBRMaterial> link_mat = PBRMaterial::quick(colors::Gray);
         Ref<PBRMaterial> joint_mat = PBRMaterial::quick(colors::Red);
-        art_render = ArticulationRender(&soft_body_with_art.art, link_mat, joint_mat);
+        art_render = ArticulationRender(&system.get_articulation(), link_mat, joint_mat);
 
         resetPhysics();
 
@@ -112,10 +102,7 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
-            admm_dynamics_with_art(soft_body_with_art, constraints, sim_dt, gravity,
-                                   (real*) sb_force.data(), (real*) art_force.data(),
-                                   INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data(),
-                                   INOUT art_pos.data(), INOUT art_vel.data());
+            system.integrate();
 
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
@@ -123,7 +110,7 @@ public:
 
             // run_simulation = false;
 
-            t += sim_dt;
+            t += system.get_sim_deltatime();
         }
     }
 
@@ -138,33 +125,14 @@ public:
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
 
-        // soft_body_render.render(pbRenderer, sb_pos.data());
-        soft_body_render.render_debug_surface(imRenderer, sb_pos.data());
-        // soft_body_render.render_debug_volume(imRenderer, sb_pos.data());
-
-        art_render.render(pbRenderer, art_pos.data());
-
-        // render constrained vertex positions/velocities on soft body
-        int N_f = soft_body_with_art.constrained_idx_start;
-        int N_c = soft_body_with_art.sb.vertices.size() - N_f;
-        for (int i = N_f; i < N_f + N_c; i++) {
-            imRenderer.drawPoint(sb_pos[i], colors::Green, 4.0f, true);
-            imRenderer.drawArrow(sb_pos[i], sb_pos[i] + 0.1*sb_vel[i], colors::Green, 0.01f, true);
+        auto& soft_bodies = system.get_soft_bodies();
+        for (int i = 0; i < soft_bodies.size(); i++) {
+            // soft_body_renderers[i].render(pbRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
+            soft_body_renderers[i].render_debug_surface(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
+            // soft_body_renderers[i].render_debug_volume(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
         }
 
-        // render constrained vertex positions/velocities on articulation
-        auto& sb_art = soft_body_with_art;
-        std::vector<ttransform<real>> joint_trans(sb_art.art.get_num_joints());
-        calc_transforms(sb_art.art, art_pos.data(), nullptr, joint_trans.data());
-        Map<VectorXr> v_r(art_vel.data(), sb_art.art.get_num_vel_dofs());
-
-        for (auto& [link_idx, vidx_range] : sb_art.constrained_vertices_range) {
-            for (int vidx = vidx_range.first; vidx < vidx_range.second; vidx++) {
-                auto offset = sb_art.constrained_vertices_offset[vidx];
-                auto vert_trans = joint_trans[link_idx] * offset;
-                imRenderer.drawPoint(vert_trans.v, colors::Blue, 4.0f, true);
-            }
-        }
+        art_render.render(pbRenderer, system.get_art_pos_buf());
 
         pbRenderer.render();
         imRenderer.render();
@@ -173,29 +141,17 @@ public:
         if (ImGui::CollapsingHeader("World Properties")) {
             double grav_min = -10;
             double grav_max = 10;
-            ImGui::SliderScalarN("gravity", ImGuiDataType_Double, (real*)&gravity, 3, &grav_min, &grav_max);
-        }
-        if (ImGui::CollapsingHeader("Soft Body")) {
-            if (ImGui::TreeNode("Positions##sb_pos")) {
-                for (int i = 0; i < sb_pos.size(); i++) {
-                    auto v = sb_pos[i];
-                    ImGui::Text("%.6g\t%.6g\t%.6g", v.x, v.y, v.z);
-                }
-                ImGui::TreePop();
-            }
-            if (ImGui::TreeNode("Velocities##sb_vel")) {
-                for (int i = 0; i < sb_vel.size(); i++) {
-                    auto v = sb_vel[i];
-                    ImGui::Text("%.6g\t%.6g\t%.6g", v.x, v.y, v.z);
-                }
-                ImGui::TreePop();
+            glm::rvec3 gravity = system.get_gravity();
+            if (ImGui::SliderScalarN("gravity", ImGuiDataType_Double, (real*)&gravity, 3, &grav_min, &grav_max)) {
+                system.set_gravity(gravity);
             }
         }
         if (ImGui::CollapsingHeader("Articulation")) {
             if (ImGui::TreeNode("Positions##art_pos")) {
                 double pos_min = -2*M_PI;
                 double pos_max = 2*M_PI;
-                for (int i = 0; i < art_pos.size(); i++) {
+                real* art_pos = system.get_art_pos_buf();
+                for (int i = 0; i < system.get_art_pos_dof(); i++) {
                     auto label = fmt::format("##art_pos_{}", i);
                     ImGui::SliderScalar(label.c_str(), ImGuiDataType_Double, &art_pos[i], &pos_min, &pos_max, "%.6g");
                 }
@@ -204,7 +160,8 @@ public:
             if (ImGui::TreeNode("Velocities##art_vel")) {
                 double vel_min = -2*M_PI;
                 double vel_max = 2*M_PI;
-                for (int i = 0; i < art_vel.size(); i++) {
+                real* art_vel = system.get_art_vel_buf();
+                for (int i = 0; i < system.get_art_vel_dof(); i++) {
                     auto label = fmt::format("##art_vel_{}", i);
                     ImGui::SliderScalar(label.c_str(), ImGuiDataType_Double, &art_vel[i], &vel_min, &vel_max, "%.6g");
                 }
@@ -213,7 +170,8 @@ public:
             if (ImGui::TreeNode("Force##art_force")) {
                 double fmin = -1000;
                 double fmax = 1000;
-                for (int i = 0; i < art_force.size(); i++) {
+                real* art_force = system.get_art_force_buf();
+                for (int i = 0; i < system.get_art_vel_dof(); i++) {
                     auto label = fmt::format("##art_force_{}", i);
                     ImGui::SliderScalar(label.c_str(), ImGuiDataType_Double, &art_force[i], &fmin, &fmax, "%.6g");
                 }
@@ -232,52 +190,30 @@ public:
     }
 
     void resetPhysics() {
+        system.reset();
+
         art_root_trans = ttransform<real>(glm::rvec3(0, 1, 0));
-        sb_pos = soft_body_with_art.sb.vertices;
-        if (soft_body_with_art.art.floating) {
-            for (int i = 0; i < sb_pos.size(); i++) {
-                sb_pos[i] = art_root_trans.v + art_root_trans.R * sb_pos[i];
+        int sb_count = system.get_num_soft_bodies();
+        auto& art = system.get_articulation();
+        if (art.floating) {
+            auto art_pos = system.get_art_pos_buf();
+            *((glm::rvec3*)art_pos) = art_root_trans.v;
+            *((glm::rquat*)(art_pos + 3)) = quat_cast(art_root_trans.R);
+            for (int sb_idx = 0; sb_idx < sb_count; sb_idx++) {
+                glm::rvec3* sb_pos = system.get_soft_body_pos_buf(sb_idx);
+                sb_pos[sb_idx] = art_root_trans.v + art_root_trans.R * sb_pos[sb_idx];
             }
         }
-        real noise = 0.002;
-        for (int i = 0; i < soft_body_with_art.constrained_idx_start; i++) {
-            sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
-            sb_pos[i][1] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
-            sb_pos[i][2] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
-        }
-        sb_vel.clear();
-        sb_vel.resize(sb_pos.size(), glm::tvec3<real>(0));
-        sb_force.clear();
-        sb_force.resize(sb_pos.size(), glm::tvec3<real>(0));
-
-        int art_pos_dofs = soft_body_with_art.art.get_num_pos_dofs();
-        int art_vel_dofs = soft_body_with_art.art.get_num_vel_dofs();
-        art_pos.clear();
-        art_pos.resize(art_pos_dofs);
-        artsim::set_zero_pose(soft_body_with_art.art, art_pos.data());
-        if (soft_body_with_art.art.floating) {
-            *((glm::rvec3*)art_pos.data()) = art_root_trans.v;
-            *((glm::rquat*)(art_pos.data() + 3)) = quat_cast(art_root_trans.R);
-        }
-
-        art_vel.clear();
-        art_vel.resize(art_vel_dofs, 0);
-        art_force.clear();
-        art_force.resize(art_vel_dofs, 0);
     }
 
 private:
     MaterialDB material_db;
-    float sim_dt = 1.0f / 60.0f;
     bool run_simulation = false;
     bool render_orig = false;
 
-    SoftBodyWithArtData soft_body_with_art;
-    ADMMConstraints constraints;
-    std::vector<glm::tvec3<real>> sb_pos, sb_vel, sb_force, sb_force_contact;
-    std::vector<real> art_pos, art_vel, art_force, art_force_contact;
+    ArtWithSoftBodies system;
 
-    SoftBodyRender soft_body_render;
+    std::vector<SoftBodyRender> soft_body_renderers;
     ArticulationRender art_render;
 
     Ref<PBRMaterial> ground_mat;
@@ -288,7 +224,6 @@ private:
 
     std::default_random_engine random_engine;
 
-    glm::rvec3 gravity = {0.0, -9.8, 0.0};
     ttransform<real> art_root_trans;
 };
 

@@ -96,7 +96,6 @@ void gen_surface_triangles_from_tet_mesh(const std::vector<glm::ivec4>& tetrahed
                                          OUT std::vector<glm::ivec3>& triangles);
 
 struct SoftBodyData {
-public:
     std::vector<glm::tvec3<real>> vertices;
     std::vector<glm::ivec3> triangles;
     std::vector<glm::ivec4> tetrahedrons;

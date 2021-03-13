@@ -11,7 +11,7 @@ class SoftBodyRender {
 public:
     SoftBodyRender() = default;
 
-    SoftBodyRender(artsim::SoftBodyData* data, Ref<PBRMaterial> mat, Camera* camera)
+    SoftBodyRender(const artsim::SoftBodyData* data, Ref<PBRMaterial> mat, Camera* camera)
             : data(data), mat(mat), camera(camera) {
         std::vector<Mesh::Vertex> vertices(3*data->triangles.size());
 
@@ -83,7 +83,7 @@ public:
     }
 
 private:
-    artsim::SoftBodyData* data;
+    const artsim::SoftBodyData* data;
     Ref<Mesh> mesh;
     Ref<PBRMaterial> mat;
     Camera* camera;

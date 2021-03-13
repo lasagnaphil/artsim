@@ -19,7 +19,7 @@ using namespace artsim;
 class ArticulationRender {
 public:
     ArticulationRender() = default;
-    ArticulationRender(ArticulatedBody* art,
+    ArticulationRender(const ArticulatedBody* art,
                        Ref<PBRMaterial> link_mat = {}, Ref<PBRMaterial> joint_mat = {})
             : art(art), link_mat(link_mat), joint_mat(joint_mat) {
 
@@ -71,7 +71,7 @@ public:
     }
 
 private:
-    artsim::ArticulatedBody* art;
+    const artsim::ArticulatedBody* art = nullptr;
     Ref<PBRMaterial> link_mat;
     Ref<PBRMaterial> joint_mat;
     std::vector<Ref<Mesh>> link_meshes;
@@ -143,7 +143,7 @@ public:
     }
 
 private:
-    artsim::ArticulationState* state = nullptr;
+    const artsim::ArticulationState* state = nullptr;
     Ref<PBRMaterial> link_mat;
     Ref<PBRMaterial> joint_mat;
     std::vector<Ref<Mesh>> link_meshes;

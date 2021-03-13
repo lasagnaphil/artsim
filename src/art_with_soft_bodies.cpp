@@ -5,6 +5,7 @@
 #include "artsim/art_with_soft_bodies.h"
 
 #include "artsim/dynamics.h"
+#include "artsim/math/fastsvd.h"
 
 #include <iostream>
 #include <filesystem>
@@ -49,7 +50,7 @@ glm::tmat3x3<real> string_to_matrix3d(const std::string& input) {
     return M;
 }
 
-bool load_from_xml(const char* filename, OUT ArticulatedBody& art) {
+bool load_from_xml(XMLElement* art_elem, OUT ArticulatedBody& art) {
     std::unordered_map<std::string, ttransform<real>> T_global_body_map;
     std::unordered_map<std::string, ttransform<real>> T_global_joint_map;
     std::unordered_map<std::string, int> idx_map;
@@ -58,13 +59,6 @@ bool load_from_xml(const char* filename, OUT ArticulatedBody& art) {
     T_global_joint_map["none"] = ttransform<real>(IDENTITY);
     idx_map["none"] = -1;
 
-    XMLDocument doc;
-    if (doc.LoadFile(filename)) {
-        std::cout << "Can't open file : " << filename << std::endl;
-        return false;
-    }
-
-    XMLElement *art_elem = doc.FirstChildElement("articulation");
     std::string art_name = art_elem->Attribute("name");
     std::string art_xform_mode = art_elem->Attribute("xform_mode");
     if (art_xform_mode != "global") {
@@ -174,7 +168,6 @@ bool load_from_xml(const char* filename, OUT ArticulatedBody& art) {
 
 
 void ArtWithSoftBodies::load(const char* metadata) {
-
     fs::path metadata_path(metadata);
     fs::path folder = metadata_path.parent_path();
 
@@ -182,9 +175,13 @@ void ArtWithSoftBodies::load(const char* metadata) {
     doc.LoadFile(metadata);
     auto root_el = doc.RootElement();
 
+    auto sim_el = root_el->FirstChildElement("simulation");
+    int hz = sim_el->IntAttribute("hz");
+    dt = 1.0 / hz;
+    gravity = string_to_vector3d(sim_el->Attribute("gravity"));
+
     auto articulation_el = root_el->FirstChildElement("articulation");
-    auto art_file = folder / articulation_el->GetText();
-    bool art_loaded = load_from_xml(art_file.c_str(), OUT art);
+    bool art_loaded = load_from_xml(articulation_el, OUT art);
     if (!art_loaded) {
         exit(EXIT_FAILURE);
     }
@@ -192,11 +189,12 @@ void ArtWithSoftBodies::load(const char* metadata) {
     int sb_count = 0;
     for (XMLElement* sb_el = root_el->FirstChildElement("soft_body");
          sb_el != nullptr; sb_el = sb_el->NextSiblingElement("node"), sb_count++) {}
-    soft_bodies.resize(sb_count);
 
-    sb_start_idx.resize(sb_count+1);
-    sb_start_idx[0] = 0;
+    soft_bodies = std::vector<SoftBodyData>(sb_count);
+    sb_constraints.resize(sb_count);
 
+    sb_vert_start_idx.resize(sb_count + 1);
+    sb_vert_start_idx[0] = 0;
     int sb_idx = 0;
     for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("node")) {
         OBJFile soft_body_obj;
@@ -213,14 +211,429 @@ void ArtWithSoftBodies::load(const char* metadata) {
         }
 
         SoftBodyProperties props;
-        props.young_modulus = sb_el->DoubleAttribute("young_modulus");
-        props.poisson_ratio = sb_el->DoubleAttribute("poisson_ratio");
-        props.density = sb_el->DoubleAttribute("density");
+
+        auto mat_el = sb_el->FirstChildElement("material");
+        std::string mat_type = mat_el->Attribute("type");
+        props.young_modulus = mat_el->DoubleAttribute("young_modulus");
+        props.poisson_ratio = mat_el->DoubleAttribute("poisson_ratio");
+        props.density = mat_el->DoubleAttribute("density");
 
         soft_bodies[sb_idx].load(soft_body_obj, props);
+        auto& sb = soft_bodies[sb_idx];
+        int sb_num_vertices = sb.vertices.size();
+
+        if (mat_el->NoChildren()) {
+            // Material is applied to entire soft body
+            real mu = sb.props.calc_mu();
+            real lambda = sb.props.calc_lambda();
+            if (mat_type == "corotational") {
+                real k = sb.props.calc_corotational_stiffness();
+                int sb_num_tets = sb.tetrahedrons.size();
+                for (int i = 0; i < sb_num_tets; i++) {
+                    sb_constraints[sb_idx].corotational_energy.push_back({i, k, mu, lambda});
+                }
+            }
+            else if (mat_type == "neohookean") {
+                real k = sb.props.calc_neohookean_stiffness();
+                int sb_num_tets = sb.tetrahedrons.size();
+                for (int i = 0; i < sb_num_tets; i++) {
+                    sb_constraints[sb_idx].neohookean_energy.push_back({i, k, mu, lambda});
+                }
+            }
+        }
+        else {
+            fprintf(stderr, "Unimplemented!\n");
+            exit(EXIT_FAILURE);
+        }
 
         sb_idx++;
-        sb_start_idx[sb_idx] = sb_start_idx[sb_idx-1] + soft_bodies[sb_idx].vertices.size();
+        sb_vert_start_idx[sb_idx] = sb_vert_start_idx[sb_idx-1] + sb_num_vertices;
+    }
+
+    for (int sb_idx = 0; sb_idx < sb_count; sb_idx++) {
+        soft_body_precomputation(soft_bodies[sb_idx], sb_constraints[sb_idx], dt);
+    }
+
+    N_s = sb_vert_start_idx[sb_count];
+
+    sb_constraints.resize(sb_count);
+    index_s_to_c.resize(N_s, -1);
+    index_c_to_link.resize(N_s, -1);
+
+    sb_idx = 0;
+    int cur_cidx = 0;
+    for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("node")) {
+        for (auto at_el = sb_el->FirstChildElement("attachment"); at_el != nullptr; at_el = at_el->NextSiblingElement("attachment")) {
+            std::string node_name = at_el->Attribute("node");
+            auto it = std::find(art.names.begin(), art.names.end(), node_name);
+            if (it == art.names.end()) {
+                fprintf(stderr, "Cannot find node name %s for attachment!\n", node_name.c_str());
+                exit(EXIT_FAILURE);
+            }
+            int link_idx = it - art.names.begin();
+            int vidx_start = sb_vert_start_idx[sb_idx];
+            auto vertices_el = at_el->FirstChildElement("vertices");
+            std::stringstream ss(vertices_el->GetText());
+            std::string token;
+            while (ss >> token) {
+                int vidx = vidx_start + std::stoi(token);
+                index_s_to_c[vidx] = cur_cidx;
+                index_c_to_link[cur_cidx] = link_idx;
+                cur_cidx++;
+            }
+        }
+        sb_idx++;
+    }
+
+    N_c = cur_cidx;
+    index_c_to_link.resize(N_c);
+
+    N_f = N_s - N_c;
+    index_c_to_s.resize(N_c);
+    for (int i = 0; i < N_s; i++) {
+        int cidx = index_s_to_c[i];
+        if (cidx != -1) {
+            index_c_to_s[cidx] = i;
+        }
+    }
+
+    N_r = art.get_num_vel_dofs();
+
+    N_t = 0;
+    for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+        N_t += soft_bodies[sb_idx].tetrahedrons.size();
+    }
+
+    x_s.resize(3*N_s);
+    x_r.resize(art.get_num_pos_dofs());
+    v_s.resize(3*N_s);
+    v_r.resize(N_r);
+    f_s.resize(3*N_s);
+    f_r.resize(N_r);
+    art_joint_trans.resize(art.get_num_joints());
+    art_joint_S.resize(N_r);
+
+    J_cr.resize(3*N_c, N_r);
+    M_r.resize(N_r, N_r);
+    M_r_inv.resize(N_r, N_r);
+    M_r_inv_J_cr_T.resize(N_r, 3*N_c);
+
+    reset();
+
+    artsim::calc_transforms(art, x_r.data(), nullptr, art_joint_trans.data());
+    constr_vertices_offset.resize(N_c);
+    for (int cidx = 0; cidx < N_c; cidx++) {
+        int vidx = index_c_to_s[cidx];
+        int link_idx = index_c_to_link[cidx];
+        rvec3 vpos = glm::make_vec3(x_s.data() + 3*vidx);
+        constr_vertices_offset[cidx] = ttransform<real>(vpos) / art_joint_trans[link_idx];
+    }
+}
+
+void ArtWithSoftBodies::reset() {
+    for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+        auto& sb = soft_bodies[sb_idx];
+        real* vertices_ptr = (real*) sb.vertices.data();
+        std::copy(vertices_ptr, vertices_ptr + 3*sb.vertices.size(), x_s.data() + 3*sb_vert_start_idx[sb_idx]);
+    }
+    v_s.setZero();
+    f_s.setZero();
+
+    artsim::set_zero_pose(art, x_r.data());
+    v_r.setZero();
+    f_r.setZero();
+}
+
+void ArtWithSoftBodies::admm_local_solve(
+        const glm::tvec3<real>* x,
+        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
+        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd) {
+
+    int start_vidx = 0;
+    int start_tidx = 0;
+    for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+        auto& sb = soft_bodies[sb_idx];
+        auto& constraints = sb_constraints[sb_idx];
+#define X(CTYPE, CFIELD) \
+        admm_volume_constraint_local_solve( \
+                soft_bodies[sb_idx], \
+                constraints.CFIELD.data(), \
+                constraints.CFIELD.size(), \
+                x + start_vidx, z + start_tidx, u + start_tidx, F + start_tidx, F_svd + start_tidx);
+        ADMM_VOLUME_CONSTRAINTS
+#undef X
+        start_vidx += sb.vertices.size();
+        start_tidx += sb.tetrahedrons.size();
+    }
+}
+
+void ArtWithSoftBodies::admm_update_b(
+        real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0,
+        INOUT real* b) {
+
+    int start_vidx = 0;
+    int start_tidx = 0;
+    for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+        auto& sb = soft_bodies[sb_idx];
+        auto& constraints = sb_constraints[sb_idx];
+#define X(CTYPE, CFIELD) \
+        admm_volume_constraint_update_b( \
+                soft_bodies[sb_idx], \
+                constraints.CFIELD.data(), \
+                constraints.CFIELD.size(), \
+                dt, z + start_tidx, u + start_tidx, x0 + start_tidx, b + start_vidx);
+        ADMM_VOLUME_CONSTRAINTS
+#undef X
+        start_vidx += sb.vertices.size();
+        start_tidx += sb.tetrahedrons.size();
+    }
+}
+
+void ArtWithSoftBodies::admm_update_residuals(
+        const glm::tmat3x3<real>* z_prev, const glm::tmat3x3<real>* z_next, const glm::tvec3<real>* x,
+        INOUT real& primal_res_sq, INOUT real& dual_res_sq) {
+
+    int start_tidx = 0;
+    for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+        auto& sb = soft_bodies[sb_idx];
+        auto& constraints = sb_constraints[sb_idx];
+#define X(CTYPE, CFIELD) \
+        admm_volume_constraint_update_residuals( \
+                soft_bodies[sb_idx], \
+                constraints.CFIELD.data(), \
+                constraints.CFIELD.size(), \
+                z_prev + start_tidx, z_next + start_tidx, x + start_tidx, primal_res_sq, dual_res_sq);
+        ADMM_VOLUME_CONSTRAINTS
+#undef X
+        start_tidx += sb.tetrahedrons.size();
+    }
+}
+
+void ArtWithSoftBodies::apply_selector_matrix(const real* X_s, OUT real* X_c) {
+    for (int vidx = 0; vidx < N_s; vidx++) {
+        int cidx = index_s_to_c[vidx];
+        if (cidx != -1) {
+            X_c[3*cidx+0] = X_s[3*vidx+0];
+            X_c[3*cidx+1] = X_s[3*vidx+1];
+            X_c[3*cidx+2] = X_s[3*vidx+2];
+        }
+    }
+}
+
+void ArtWithSoftBodies::apply_selector_matrix_inv(const real* X_c, OUT real* X_s) {
+    for (int vidx = 0; vidx < N_s; vidx++) {
+        int cidx = index_s_to_c[vidx];
+        if (cidx == -1) {
+            X_s[3*vidx+0] = 0;
+            X_s[3*vidx+1] = 0;
+            X_s[3*vidx+2] = 0;
+        }
+        else {
+            X_s[3*vidx+0] = X_c[3*cidx+0];
+            X_s[3*vidx+1] = X_c[3*cidx+1];
+            X_s[3*vidx+2] = X_c[3*cidx+2];
+        }
+    }
+}
+
+void ArtWithSoftBodies::integrate() {
+    // Forward kinematics of articulation
+    artsim::calc_transforms(art, x_r.data(), nullptr, art_joint_trans.data());
+
+    // Calculate coupling jacobian
+    calc_S(art, x_r.data(), art_joint_S.data());
+    J_cr.setZero();
+    for (int cidx = 0; cidx < N_c; cidx++) {
+        int vidx = index_c_to_s[cidx];
+        int link_idx = index_c_to_link[cidx];
+        rvec3 vpos = glm::make_vec3(x_s.data() + 3*vidx);
+
+        int lidx = link_idx;
+        while (lidx != -1) {
+            int joint_vel_dof_start = art.joint_vel_dof_starts[lidx];
+            int joint_vel_dofs = art.joint_vel_dofs[lidx];
+            for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
+                auto T_v = art_joint_trans[link_idx] * constr_vertices_offset[cidx];
+                auto S_prime = Ad(art_joint_trans[lidx] / T_v, art_joint_S[j]);
+                rvec3 S_v = T_v.R * S_prime.v;
+                J_cr(3*cidx+0, j) = S_v[0];
+                J_cr(3*cidx+1, j) = S_v[1];
+                J_cr(3*cidx+2, j) = S_v[2];
+            }
+            lidx = art.parents[lidx];
+        }
+    }
+
+    // Calculate articulation matrix M_r
+    dynmat_view<real> M_r_view(M_r.data(), N_r, N_r);
+    mass_matrix(art, dt, x_r.data(), M_r_view);
+
+    // Calculate inverse of articulation matrix M_r^{-1}
+    dynmat_view<real> M_r_inv_view(M_r_inv.data(), N_r, N_r);
+    dynmat<real> identity(N_r, IDENTITY);
+    multiply_inverse_mass_matrix(art, dt, x_r.data(), identity.to_view(), OUT M_r_inv_view);
+
+    // Calculate other matrices related to articulation
+    M_r_inv_J_cr_T.noalias() = M_r_inv * J_cr.transpose();
+
+    // Add gravity to total force
+    VectorXr f_s_tot = f_s;
+    auto f_s_tot_ptr = (glm::rvec3*) f_s_tot.data();
+    for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+        int vidx_start = sb_vert_start_idx[sb_idx];
+        auto& sb = soft_bodies[sb_idx];
+        for (int t = 0; t < sb.tetrahedrons.size(); t++) {
+            glm::ivec4 tet = sb.tetrahedrons[t];
+            glm::rvec3 f_g = (1. / 4.) * sb.props.density * sb.W[t] * gravity;
+            f_s_tot_ptr[vidx_start + tet[0]] += f_g;
+            f_s_tot_ptr[vidx_start + tet[1]] += f_g;
+            f_s_tot_ptr[vidx_start + tet[2]] += f_g;
+            f_s_tot_ptr[vidx_start + tet[3]] += f_g;
+        }
+    }
+
+    VectorXr x_s_orig = x_s;
+    VectorXr v_s_tilde = v_s;
+    for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+        int vidx_start = sb_vert_start_idx[sb_idx];
+        int vidx_count = sb_vert_start_idx[sb_idx + 1] - vidx_start;
+        auto& sb = soft_bodies[sb_idx];
+        v_s_tilde.middleRows(3*vidx_start, 3*vidx_count) +=
+                dt * sb.M_LDLt.solve(f_s_tot.middleRows(3*vidx_start, 3*vidx_count));
+    }
+
+    VectorXr x_r_orig = x_r;
+    VectorXr v_r_dot(N_r);
+    featherstone_forward_dynamics(art, gravity, dt, nullptr, x_r.data(), v_r.data(), f_r.data(), OUT v_r_dot.data());
+    VectorXr v_r_tilde = v_r + dt * v_r_dot;
+
+    v_s = v_s_tilde;
+    v_r = v_r_tilde;
+    x_s = x_s_orig + dt*v_s;
+
+    std::vector<glm::tmat3x3<real>> u(N_t, glm::tmat3x3<real>(0.0));
+    std::vector<glm::tmat3x3<real>> u_prev(N_t);
+    std::vector<glm::tmat3x3<real>> z(N_t, glm::tmat3x3<real>(0.0));
+    std::vector<glm::tmat3x3<real>> z_prev(N_t);
+    std::vector<glm::tmat3x3<real>> p(N_t);
+    std::vector<glm::tmat3x3<real>> F(N_t);
+    std::vector<glmx::SVD_mats<real>> F_svd(N_t);
+
+    VectorXr v_s_prev(3*N_s);
+    VectorXr v_r_prev(N_r);
+    VectorXr v_c(3*N_c);
+
+    VectorXr b_s(3*N_s);
+    VectorXr b_c(3*N_c);
+    VectorXr b_r(N_r);
+    VectorXr f_c(3*N_c);
+    VectorXr r_f(3*N_c);
+    VectorXr s_f(3*N_c);
+    VectorXr s_f_s(3*N_s);
+    VectorXr s_v(3*N_s + N_r);
+    VectorXr s_v_c(3*N_c);
+    VectorXr a_f(3*N_c);
+
+    real primal_res, dual_res, primal_res_prev = DBL_MAX, dual_res_prev = DBL_MAX;
+
+    std::cout << std::endl << "Starting ADMM loop" << std::endl;
+    for (int iter = 0; iter < 30; iter++) {
+        // Local solve
+        z_prev = z;
+        u_prev = u;
+
+        admm_local_solve((glm::rvec3*)x_s.data(), OUT z.data(), OUT u.data(), OUT F.data(), OUT F_svd.data());
+
+        // Global solve
+        v_s_prev = v_s;
+        v_r_prev = v_r;
+
+        for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+            int vidx_start = sb_vert_start_idx[sb_idx];
+            int vidx_count = sb_vert_start_idx[sb_idx + 1] - vidx_start;
+            auto& sb = soft_bodies[sb_idx];
+            b_s.middleRows(3*vidx_start, 3*vidx_count) = sb.M * v_s_tilde.middleRows(3*vidx_start, 3*vidx_count);
+        }
+        b_r = M_r * v_r_tilde;
+
+        admm_update_b(dt, z.data(), u.data(), (glm::rvec3*)x_s_orig.data(), OUT b_s.data());
+
+        f_c.setZero(); // TODO: do we need this?
+
+        // TODO: need to use selector matrix for this
+        // b_s.bottomRows(3*N_c) -= f_c;
+        // b_r += J_cr.transpose() * f_c;
+
+        for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+            int vidx_start = sb_vert_start_idx[sb_idx];
+            int vidx_count = sb_vert_start_idx[sb_idx + 1] - vidx_start;
+            auto& sb = soft_bodies[sb_idx];
+            v_s.middleRows(3*vidx_start, 3*vidx_count) = sb.A_LDLt.solve(b_s.middleRows(3*vidx_start, 3*vidx_count));
+        }
+        v_r = M_r_inv * b_r;
+
+        apply_selector_matrix(v_s.data(), OUT v_c.data());
+        r_f = v_c - J_cr * v_r;
+        s_f = r_f;
+
+        int uzawa_iter = 0;
+        while (r_f.squaredNorm() > 1e-4) {
+            apply_selector_matrix_inv(s_f.data(), OUT s_f_s.data());
+            for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+                int vidx_start = sb_vert_start_idx[sb_idx];
+                int vidx_count = sb_vert_start_idx[sb_idx + 1] - vidx_start;
+                auto& sb = soft_bodies[sb_idx];
+                s_v.middleRows(3*vidx_start, 3*vidx_count) = sb.A_LDLt.solve(s_f_s.middleRows(3*vidx_start, 3*vidx_count));
+            }
+            s_v.bottomRows(N_r) = -M_r_inv_J_cr_T * s_f;
+            apply_selector_matrix(s_v.data(), OUT s_v_c.data());
+            a_f = s_v_c - J_cr * s_v.bottomRows(N_r);
+            real s_f_a_f = s_f.dot(a_f);
+            real alpha = s_f.dot(r_f) / s_f_a_f;
+            v_s -= alpha * s_v.topRows(3*N_s);
+            v_r -= alpha * s_v.bottomRows(N_r);
+            f_c += alpha * s_f;
+            r_f -= alpha * a_f;
+            real beta = r_f.dot(a_f) / s_f_a_f;
+            s_f = r_f - beta*s_f;
+            uzawa_iter++;
+            if (uzawa_iter == 30) break;
+        }
+
+        std::cout << "Uzawa iter converged in " << uzawa_iter << " iters! " <<
+                  "(residual = " << r_f.norm() << ")" << std::endl;
+
+        real primal_res_sq = 0, dual_res_sq = 0;
+        admm_update_residuals(z_prev.data(), z.data(), (glm::rvec3*)x_s.data(), INOUT primal_res_sq, INOUT dual_res_sq);
+        primal_res = sqrt(primal_res_sq);
+        dual_res = sqrt(dual_res_sq);
+
+        if (primal_res > primal_res_prev && dual_res > dual_res_prev) {
+            std::cout << "primal_res = " << primal_res << ", dual_res = " << dual_res << " (abort!)" << std::endl;
+            v_s = v_s_prev;
+            v_r = v_r_prev;
+            break;
+        }
+        else {
+            std::cout << "primal_res = " << primal_res << ", dual_res = " << dual_res << std::endl;
+            primal_res_prev = primal_res;
+            dual_res_prev = dual_res;
+        }
+
+        x_s = x_s_orig + dt*v_s;
+    }
+
+    integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
+
+    // Project constrained positions to articulation
+    calc_transforms(art, x_r.data(), nullptr, art_joint_trans.data());
+    for (int cidx = 0; cidx < N_c; cidx++) {
+        int vidx = index_c_to_s[cidx];
+        int link_idx = index_c_to_link[cidx];
+        auto T = art_joint_trans[link_idx] * constr_vertices_offset[cidx];
+        x_s(3*vidx+0) = T.v[0];
+        x_s(3*vidx+1) = T.v[1];
+        x_s(3*vidx+2) = T.v[2];
     }
 }
 
