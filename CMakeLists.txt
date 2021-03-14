@@ -35,7 +35,6 @@ add_library(artsim
         src/contacts.cpp
         src/ik.cpp
         src/soft_body.cpp
-        src/soft_body_with_art.cpp
         src/art_with_soft_bodies.cpp
         src/obj_file.cpp
         src/math/fastsvd.cpp

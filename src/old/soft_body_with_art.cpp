@@ -2,7 +2,7 @@
 // Created by lasagnaphil on 2/16/21.
 //
 
-#include "artsim/soft_body_with_art.h"
+#include "artsim/old/soft_body_with_art.h"
 #include "artsim/soft_body.h"
 #include "artsim/dynamics.h"
 #include "artsim/utils/xml.h"

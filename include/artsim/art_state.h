@@ -2,8 +2,8 @@
 // Created by lasagnaphil on 20. 10. 4..
 //
 
-#ifndef ARTSIM_ARTICULATION_STATE_H
-#define ARTSIM_ARTICULATION_STATE_H
+#ifndef ARTSIM_ART_STATE_H
+#define ARTSIM_ART_STATE_H
 
 #include <artsim/artsim.h>
 #include <artsim/dynamics.h>
@@ -206,5 +206,5 @@ struct ArticulationState {
 
 }
 
-#endif //ARTSIM_ARTICULATION_STATE_H
+#endif //ARTSIM_ART_STATE_H
 

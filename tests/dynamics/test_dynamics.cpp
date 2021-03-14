@@ -7,7 +7,7 @@
 #include <artsim/artsim.h>
 #include <artsim/dynamics.h>
 #include <artsim/math/common.h>
-#include <artsim/articulation_state.h>
+#include <artsim/art_state.h>
 #include <artsim/utils/example_articulations.h>
 
 #include "utils/test_utils.h"

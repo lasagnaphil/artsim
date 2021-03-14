@@ -5,7 +5,7 @@
 #include <chrono>
 
 #include <artsim/artsim.h>
-#include <artsim/articulation_state.h>
+#include <artsim/art_state.h>
 #include <artsim/utils/example_articulations.h>
 
 #include <imgui.h>

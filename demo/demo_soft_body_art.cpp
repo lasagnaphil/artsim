@@ -7,7 +7,7 @@
 
 #include <artsim/artsim.h>
 #include <artsim/art_with_soft_bodies.h>
-#include <artsim/articulation_state.h>
+#include <artsim/art_state.h>
 
 #include <imgui.h>
 #include <implot.h>

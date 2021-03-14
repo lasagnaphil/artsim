@@ -12,7 +12,7 @@
 #include <implot.h>
 
 #include <artsim/artsim.h>
-#include <artsim/articulation_state.h>
+#include <artsim/art_state.h>
 #include <artsim/utils/xml.h>
 #include <artsim/ik.h>
 
