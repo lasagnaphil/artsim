@@ -410,13 +410,11 @@ void ArtWithSoftBodies::admm_update_residuals(
 }
 
 void ArtWithSoftBodies::apply_selector_matrix(const real* X_s, OUT real* X_c) {
-    for (int vidx = 0; vidx < N_s; vidx++) {
-        int cidx = index_s_to_c[vidx];
-        if (cidx != -1) {
-            X_c[3*cidx+0] = X_s[3*vidx+0];
-            X_c[3*cidx+1] = X_s[3*vidx+1];
-            X_c[3*cidx+2] = X_s[3*vidx+2];
-        }
+    for (int cidx = 0; cidx < N_c; cidx++) {
+        int vidx = index_c_to_s[cidx];
+        X_c[3*cidx+0] = X_s[3*vidx+0];
+        X_c[3*cidx+1] = X_s[3*vidx+1];
+        X_c[3*cidx+2] = X_s[3*vidx+2];
     }
 }
 
@@ -433,6 +431,24 @@ void ArtWithSoftBodies::apply_selector_matrix_inv(const real* X_c, OUT real* X_s
             X_s[3*vidx+1] = X_c[3*cidx+1];
             X_s[3*vidx+2] = X_c[3*cidx+2];
         }
+    }
+}
+
+void ArtWithSoftBodies::apply_selector_matrix_add(INOUT real* X_s, const real* dX_c) {
+    for (int cidx = 0; cidx < N_c; cidx ++) {
+        int vidx = index_c_to_s[cidx];
+        X_s[3*vidx+0] += dX_c[3*cidx+0];
+        X_s[3*vidx+1] += dX_c[3*cidx+1];
+        X_s[3*vidx+2] += dX_c[3*cidx+2];
+    }
+}
+
+void ArtWithSoftBodies::apply_selector_matrix_sub(INOUT real* X_s, const real* dX_c) {
+    for (int cidx = 0; cidx < N_c; cidx ++) {
+        int vidx = index_c_to_s[cidx];
+        X_s[3*vidx+0] -= dX_c[3*cidx+0];
+        X_s[3*vidx+1] -= dX_c[3*cidx+1];
+        X_s[3*vidx+2] -= dX_c[3*cidx+2];
     }
 }
 
@@ -534,6 +550,8 @@ void ArtWithSoftBodies::integrate() {
     VectorXr s_v_c(3*N_c);
     VectorXr a_f(3*N_c);
 
+    f_c.setZero();
+
     real primal_res, dual_res, primal_res_prev = DBL_MAX, dual_res_prev = DBL_MAX;
 
     std::cout << std::endl << "Starting ADMM loop" << std::endl;
@@ -558,11 +576,10 @@ void ArtWithSoftBodies::integrate() {
 
         admm_update_b(dt, z.data(), u.data(), (glm::rvec3*)x_s_orig.data(), OUT b_s.data());
 
-        f_c.setZero(); // TODO: do we need this?
+        // f_c.setZero();
 
-        // TODO: need to use selector matrix for this
-        // b_s.bottomRows(3*N_c) -= f_c;
-        // b_r += J_cr.transpose() * f_c;
+        apply_selector_matrix_sub(INOUT b_s.data(), f_c.data());
+        b_r += J_cr.transpose() * f_c;
 
         for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
             int vidx_start = sb_vert_start_idx[sb_idx];

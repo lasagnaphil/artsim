@@ -108,6 +108,8 @@ private:
 
     void apply_selector_matrix(const real* X_s, OUT real* X_c);
     void apply_selector_matrix_inv(const real* X_c, OUT real* X_s);
+    void apply_selector_matrix_add(INOUT real* X_s, const real* dX_c);
+    void apply_selector_matrix_sub(INOUT real* X_s, const real* dX_c);
 };
 
 }

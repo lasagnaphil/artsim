@@ -14,8 +14,10 @@
 
 #define OUT
 #define INOUT
+#define rptr *__restrict
 
 namespace artsim {
+
 
 #ifdef ARTSIM_USE_DOUBLE
 using real = double;
