@@ -121,7 +121,7 @@ public:
             case DemoType::Contacts: {
                 art = examples::create_free_link(art_type, true);
 
-                state = ArticulationState(&art, &material_db, ContactSolverType::PGS);
+                state = ArticulationState(&art, &material_db, ContactSolverType::PGS, 16);
                 state.enable_collision_with_ground = art.floating;
                 state.randomize_positions();
 

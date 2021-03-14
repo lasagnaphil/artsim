@@ -24,16 +24,16 @@ inline real compute_r(real theta, glm::tvec3<real> Minv_r3, real c_z, real mu) {
     return -c_z / (Minv_r3.z / mu + Minv_r3.x * cos(theta) + Minv_r3.y * sin(theta));
 }
 
-inline real bisection_gradient(const tsmat3x3<real>& Minv, tvec3<real> c, tvec3<real> lambda, real mu) {
-    glm::tvec3<real> Minv_r3 = tvec3<real>(Minv.zx, Minv.yz, Minv.zz);
+inline real bisection_gradient(const tmat3x3<real>& Minv, tvec3<real> c, tvec3<real> lambda, real mu) {
+    glm::tvec3<real> Minv_r3 = tvec3<real>(Minv[0][2], Minv[1][2], Minv[2][2]);
     glm::tvec3<real> eta = glm::cross(Minv_r3, glm::tvec3<real>(lambda.x, lambda.y, -mu*mu*lambda.z));
     return glm::dot(Minv * lambda + c, eta);
 }
 
-static glm::tvec3<real> contact_bisection_solver(tvec3<real> lambda_v0, const tsmat3x3<real>& Minv, tvec3<real> c, real mu) {
+static glm::tvec3<real> contact_bisection_solver(tvec3<real> lambda_v0, const tmat3x3<real>& Minv, tvec3<real> c, real mu) {
     const real gamma = 1e-4;
     real theta = glm::atan(lambda_v0.y, lambda_v0.x);
-    tvec3<real> Minv_r3 = tvec3<real>(Minv.zx, Minv.yz, Minv.zz);
+    glm::tvec3<real> Minv_r3 = tvec3<real>(Minv[0][2], Minv[1][2], Minv[2][2]);
     real r = compute_r(theta, Minv_r3, c.z, mu);
     real lambda_z = r / mu;
     tvec3<real> lambda = tvec3<real>(r*cos(theta), r*sin(theta), lambda_z);
@@ -72,10 +72,10 @@ static glm::tvec3<real> contact_bisection_solver(tvec3<real> lambda_v0, const ts
     return lambda_b;
 }
 
-static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tsmat3x3<real>& Minv, tvec3<real> c, real mu) {
+static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tmat3x3<real>& Minv, tvec3<real> c, real mu) {
     const real alpha = 1.0f;
-    real r_z = alpha / Minv.zz;
-    real r_t = alpha / max(Minv.xx, Minv.yy);
+    real r_z = alpha / Minv[2][2];
+    real r_t = alpha / max(Minv[0][0], Minv[1][1]);
     tvec3<real> v = c + Minv*lambda;
     real lambda_z = max(real(0), lambda.z - r_z*v.z);
     // TODO: Do real euclidean projection on conic disk
@@ -88,7 +88,7 @@ static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tsmat3x3<
 }
 
 static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> lambda_v0,
-                                                                   const tsmat3x3<real>& Minv, tvec3<real> c, real mu, real r) {
+                                                                   const tmat3x3<real>& Minv, tvec3<real> c, real mu, real r) {
     // Initial value for lambda
     tvec3<real> lambda = lambda_v0;
     tvec3<real> lambda_prev = lambda;
@@ -107,24 +107,27 @@ static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> l
         tvec3<real> v = c + Minv*lambda;
 
         // Calculate Jacobian of the current system
-        tsmat3x3<real> J;
+        tmat3x3<real> J;
         {
             real a = glm::sqrt(v.x*v.x + v.y*v.y);
             real b = r*(mu*lambda.z - glm::sqrt(lambda.x*lambda.x + lambda.y*lambda.y));
             real d = glm::sqrt(a*a + b*b);
             w = (d - b) / (a + r*mu*lambda.z - d);
 
-            J.xx = Minv.xx + w;
-            J.xy = Minv.xy;
-            J.yy = Minv.yy + w;
+            J[0][0] = Minv[0][0] + w;
+            J[0][1] = Minv[0][1];
+            J[1][0] = Minv[1][0];
+            J[1][1] = Minv[1][1] + w;
         }
         {
             real d = glm::sqrt(v.z*v.z + r*r*lambda.z*lambda.z);
             real dphi_dvn = real(1) - v.z/d;
 
-            J.zx = dphi_dvn * Minv.zx;
-            J.yz = dphi_dvn * Minv.yz;
-            J.zz = r*(real(1) - r*lambda.z/d) + dphi_dvn * Minv.zz;
+            J[0][2] = dphi_dvn * Minv[0][2];
+            J[1][2] = dphi_dvn * Minv[1][2];
+            J[2][0] = dphi_dvn * Minv[2][0];
+            J[2][1] = dphi_dvn * Minv[2][1];
+            J[2][2] = r*(real(1) - r*lambda.z/d) + dphi_dvn * Minv[2][2];
         }
 
         // NCP functions
@@ -218,7 +221,7 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
         c[i].z -= beta/dt*glm::max<real>(contact_points[i].depth - slop, 0);
     }
 
-    dynmat<tsmat3x3<real>> M_contact_inv(num_contact_points, num_contact_points);
+    dynmat<tmat3x3<real>> M_contact_inv(num_contact_points, num_contact_points);
 
     Eigen::Matrix<real, Dynamic, Dynamic> Minv_Jc_T(num_vel_dofs, 3*num_contact_points);
     std::vector<real> zero_vec(num_vel_dofs, 0);
@@ -240,13 +243,7 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
         for (int i = 0; i < num_contact_points; i++) {
             Eigen::Matrix<real, 3, Dynamic> Jci = Jc_T.middleCols<3>(3*i).transpose();
             Eigen::Matrix<real, 3, 3> M_contact_inv_eigen = Jci * Minv_Jck_T;
-            M_contact_inv(i, k) = tsmat3x3<real>(
-                    M_contact_inv_eigen(0, 0),
-                    M_contact_inv_eigen(1, 1),
-                    M_contact_inv_eigen(2, 2),
-                    M_contact_inv_eigen(1, 2),
-                    M_contact_inv_eigen(2, 0),
-                    M_contact_inv_eigen(0, 1));
+            M_contact_inv(i, k) = glm::make_mat3(M_contact_inv_eigen.data());
         }
     }
 
@@ -267,7 +264,7 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
 void iterative_contact_solver(
         ContactSolverType type, uint32_t max_iters, real dt,
         uint32_t num_contact_points,
-        const dynmat<tsmat3x3<real>>& M_contact_inv,
+        const dynmat<tmat3x3<real>>& M_contact_inv,
         INOUT tvec3<real>* c, INOUT tvec3<real>* lambda) {
 
     real alpha_min, gamma, lambda_sq_tol, ncp_error_sq_tol;
@@ -310,7 +307,7 @@ void iterative_contact_solver(
                 lambda[i] = (1 - alpha)*lambda[i];
             }
             else {
-                tsmat3x3<real> M_inv_ii = M_contact_inv(i, i);
+                tmat3x3<real> M_inv_ii = M_contact_inv(i, i);
                 tvec3<real> lambda_v0 = -(inverse(M_inv_ii) * c[i]);
                 if (mu*mu * lambda_v0.z*lambda_v0.z >= lambda_v0.x*lambda_v0.x + lambda_v0.y*lambda_v0.y) {
                     lambda[i] = alpha * lambda_v0 + (1 - alpha) * lambda[i];
@@ -335,7 +332,7 @@ void iterative_contact_solver(
 
             for (int ip = 0; ip < num_contact_points; ip++) {
                 if (i == ip) continue;
-                tsmat3x3<real> M_ip_i_inv = M_contact_inv(ip, i);
+                tmat3x3<real> M_ip_i_inv = M_contact_inv(ip, i);
                 c[ip] += M_ip_i_inv*(lambda[i] - lambda_old[i]);
             }
         }
@@ -418,6 +415,7 @@ std::vector<ContactPoint> get_contact_points_bullet(btCollisionWorld* bt_world) 
         body2_id.index = body2->getUserIndex();
         body2_id.generation = body2->getUserIndex2();
         if (body1_id.index < body2_id.index) std::swap(body1_id, body2_id);
+#if 0
         auto contact_pos = tvec3<real>(0);
         auto contact_normal = tvec3<real>(0);
         real contact_depth = 0, contact_area = 0;
@@ -455,6 +453,20 @@ std::vector<ContactPoint> get_contact_points_bullet(btCollisionWorld* bt_world) 
         cp.body1_id = body1_id;
         cp.body2_id = body2_id;
         contact_points.push_back(cp);
+#else
+        for (int j = 0; j < num_contacts; j++) {
+            auto& pt = manifold->getContactPoint(j);
+            ContactPoint cp;
+            cp.bt_manifold = manifold;
+            cp.pos = glmconv(pt.getPositionWorldOnB());
+            cp.normal = glmconv(pt.m_normalWorldOnB);
+            cp.depth = -pt.getDistance();
+            cp.area = 0;
+            cp.body1_id = body1_id;
+            cp.body2_id = body2_id;
+            contact_points.push_back(cp);
+        }
+#endif
     }
     return contact_points;
 }
@@ -510,7 +522,7 @@ contact_points_between_art_links_and_ground(const ArticulatedBody& art, const Id
                 if (p.y <= epsilon) {
                     cpos.push_back(p);
                 }
-#if 1
+#if 0
                 if (!cpos.empty()) {
                     auto cpos_avg = glm::tvec3<real>(0);
                     for (auto& pos : cpos) {
@@ -535,10 +547,15 @@ contact_points_between_art_links_and_ground(const ArticulatedBody& art, const Id
                 }
 #else
                 for (auto& pos : cpos) {
-                    contact_points.emplace_back(
-                            glm::vec3(pos.x, 0, pos.z), Ey<real>(), Ez<real>(), -pos.y,
-                            BodyId::from_articulation_link(art_id, i),
-                            BodyId::from_rigid_body(Id<RigidBody>::null()));
+                    ContactPoint cp;
+                    cp.bt_manifold = nullptr;
+                    cp.pos = glm::tvec3<real>(pos.x, 0, pos.z);
+                    cp.normal = Ey<real>();
+                    cp.depth = -pos.y;
+                    cp.area = 0;
+                    cp.body1_id = BodyId::from_articulation_link(art_id, i);
+                    cp.body2_id = BodyId::from_ground();
+                    contact_points.push_back(cp);
                 }
 #endif
             } break;
