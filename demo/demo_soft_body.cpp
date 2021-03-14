@@ -31,7 +31,7 @@ public:
 
         FlyCamera* camera = dynamic_cast<FlyCamera*>(this->camera.get());
         Ref<Transform> cameraTransform = camera->transform;
-        cameraTransform->move({0.0f, 2.0f, 0.0f});
+        cameraTransform->setGlobalPosition({0.0f, 5.0f, 10.0f});
 
         pbRenderer.dirLightProjVolume = {
                 {-10.f, -10.f, 0.f}, {10.f, 10.f, 100.f}
@@ -39,20 +39,20 @@ public:
         pbRenderer.shadowFramebufferSize = {2048, 2048};
 
         pbRenderer.dirLight.enabled = true;
-        pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, -2.0f});
+        pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, 2.0f});
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
 
         OBJFile objfile;
-        // objfile.load_obj("resources/soft_body_with_art/mesh_carved_.mesh");
-        // objfile.load_obj("resources/soft_body/octopus.obj");
-        // objfile.load_obj("resources/soft_body/starfish.obj");
-        // objfile.load_obj("resources/soft_body/link_.mesh");
+        // objfile.load_obj("demo/resources/soft_body_with_art/mesh_carved_.mesh");
+        objfile.load_obj("demo/resources/soft_body/octopus.obj");
+        // objfile.load_obj("demo/resources/soft_body/starfish.obj");
+        // objfile.load_obj("demo/resources/soft_body/link_.mesh");
         // objfile = OBJFile::make_cube_tetrahedral(0.1, {10, 10, 10});
-        objfile.load_msh("resources/soft_body_with_art/mesh_carved_.msh");
-        // PyMesh::MshLoader msh("resources/soft_body_with_art/mesh_carved_.msh");
-        // PyMesh::MshLoader msh("resources/soft_body/link_.msh");
+        // objfile.load_msh("demo/resources/art_with_soft_bodies/mesh_carved_.msh");
+        // PyMesh::MshLoader msh("demo/resources/soft_body_with_art/mesh_carved_.msh");
+        // PyMesh::MshLoader msh("demo/resources/soft_body/link_.msh");
 
         SoftBodyProperties props;
         props.young_modulus = 1e8;
@@ -140,7 +140,7 @@ public:
 
     void resetPhysics() {
         sb_pos = soft_body.vertices;
-        real noise = 0.005;
+        real noise = 0.05;
         for (int i = 0; i < sb_pos.size(); i++) {
             sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
             sb_pos[i][1] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);

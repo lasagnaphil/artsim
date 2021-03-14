@@ -422,7 +422,7 @@ void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real 
     std::vector<glmx::SVD_mats<real>> F_svd(body.tetrahedrons.size());
 
     std::cout << std::endl << "Starting ADMM loop" << std::endl;
-    for (int iter = 0; iter < 10; iter++) {
+    for (int iter = 0; iter < 20; iter++) {
         z_prev = z;
 
         // Local solve
