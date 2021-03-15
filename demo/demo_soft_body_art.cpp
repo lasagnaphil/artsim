@@ -63,7 +63,8 @@ public:
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
         soft_body_mat->alpha = 0.2f;
 
-        system.load("demo/resources/art_with_soft_bodies/metadata.xml");
+        // system.load("demo/resources/art_with_soft_bodies/metadata.xml");
+        system.load("/home/lasagnaphil/data/musculoskeleton/export_arm/metadata.xml");
 
         soft_body_renderers.reserve(system.get_num_soft_bodies());
         for (auto& sb : system.get_soft_bodies()) {

@@ -157,6 +157,27 @@ void Mesh::sortVertices(glmx::transform meshTrans, glm::vec3 viewDir) {
     }
 }
 
+Ref<Mesh> Mesh::fromOBJ(const artsim::OBJFile* objfile) {
+    int num_tris = objfile->triangle_vertices.size();
+    std::vector<Vertex> vertices(3*num_tris);
+    for (int i = 0; i < num_tris; i++) {
+        auto tri_pos = objfile->triangle_vertices[i];
+        auto tri_norm = objfile->triangle_normals[i];
+        auto tri_uv = objfile->triangle_uvs[i];
+        vertices[3*i+0].pos = objfile->vertices[tri_pos[0]];
+        vertices[3*i+0].normal = objfile->normals[tri_norm[0]];
+        vertices[3*i+0].uv = objfile->uvs[tri_uv[0]];
+        vertices[3*i+1].pos = objfile->vertices[tri_pos[1]];
+        vertices[3*i+1].normal = objfile->normals[tri_norm[1]];
+        vertices[3*i+1].uv = objfile->uvs[tri_uv[1]];
+        vertices[3*i+2].pos = objfile->vertices[tri_pos[2]];
+        vertices[3*i+2].normal = objfile->normals[tri_norm[2]];
+        vertices[3*i+2].uv = objfile->uvs[tri_uv[2]];
+    }
+    auto mesh = Resources::make<Mesh>(vertices);
+    mesh->initVBO();
+    return mesh;
+}
 
 Ref<Mesh> Mesh::fromOBJFile(const std::string& filename, bool onlyVertices, bool loadUVs) {
     using namespace tinyobj;

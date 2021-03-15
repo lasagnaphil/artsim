@@ -12,6 +12,7 @@
 #include <glm/gtx/quaternion.hpp>
 #include <glad/glad.h>
 #include <artsim/math/se3.h>
+#include <artsim/obj_file.h>
 
 #include <vector>
 
@@ -58,6 +59,7 @@ struct Mesh {
     void rotate(glm::quat rot);
     void sortVertices(glmx::transform meshTrans, glm::vec3 viewDir);
 
+    static Ref<Mesh> fromOBJ(const artsim::OBJFile* objfile);
     static Ref<Mesh> fromOBJFile(const std::string& filename, bool onlyVertices = true, bool loadUVs = true);
     static Ref<Mesh> makeCube(const glm::vec3& scale = {1.0f, 1.0f, 1.0f});
     static Ref<Mesh> makePlane(float size = 1.0f, float uvSize = 1.0f);

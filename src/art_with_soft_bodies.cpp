@@ -50,7 +50,7 @@ glm::tmat3x3<real> string_to_matrix3d(const std::string& input) {
     return M;
 }
 
-bool load_from_xml(XMLElement* art_elem, OUT ArticulatedBody& art) {
+bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT ArticulatedBody& art) {
     std::unordered_map<std::string, ttransform<real>> T_global_body_map;
     std::unordered_map<std::string, ttransform<real>> T_global_joint_map;
     std::unordered_map<std::string, int> idx_map;
@@ -77,11 +77,6 @@ bool load_from_xml(XMLElement* art_elem, OUT ArticulatedBody& art) {
         std::string parent_name = node->Attribute("parent");
 
         XMLElement* link_elem = node->FirstChildElement("link");
-        std::string obj_file = "none";
-        if(link_elem->Attribute("obj"))
-            obj_file = link_elem->Attribute("obj");
-
-        real mass = std::stod(link_elem->Attribute("mass"));
 
         std::string body_type = link_elem->Attribute("type");
         CollisionShape shape;
@@ -93,6 +88,12 @@ bool load_from_xml(XMLElement* art_elem, OUT ArticulatedBody& art) {
             double radius = std::stod(link_elem->Attribute("radius"));
             shape = CollisionShape::make_sphere(radius);
         }
+        else if (body_type == "mesh") {
+            fs::path filepath = current_dir / link_elem->Attribute("obj");
+            auto objfile = new OBJFile();
+            objfile->load_obj(filepath.c_str());
+            shape = CollisionShape::make_mesh(objfile);
+        }
         else if (body_type == "capsule") {
             double radius = std::stod(link_elem->Attribute("radius"));
             double height = std::stod(link_elem->Attribute("height"));
@@ -100,8 +101,18 @@ bool load_from_xml(XMLElement* art_elem, OUT ArticulatedBody& art) {
             return false;
         }
 
-        real volume = shape.mass(real(1));
-        real density = mass / volume;
+        real mass, density;
+        if (link_elem->Attribute("density")) {
+            density = std::stod(link_elem->Attribute("density"));
+            real volume = shape.mass(real(1));
+            mass = density * volume;
+        }
+        else if (link_elem->Attribute("mass")) {
+            mass = std::stod(link_elem->Attribute("mass"));
+            real volume = shape.mass(real(1));
+            density = mass / volume;
+        }
+
         tsmat3x3<real> inertia = shape.inertia(density);
 
         ttransform<real> T_global_body;
@@ -181,14 +192,14 @@ void ArtWithSoftBodies::load(const char* metadata) {
     gravity = string_to_vector3d(sim_el->Attribute("gravity"));
 
     auto articulation_el = root_el->FirstChildElement("articulation");
-    bool art_loaded = load_from_xml(articulation_el, OUT art);
+    bool art_loaded = load_from_xml(articulation_el, folder, OUT art);
     if (!art_loaded) {
         exit(EXIT_FAILURE);
     }
 
     int sb_count = 0;
     for (XMLElement* sb_el = root_el->FirstChildElement("soft_body");
-         sb_el != nullptr; sb_el = sb_el->NextSiblingElement("node"), sb_count++) {}
+         sb_el != nullptr; sb_el = sb_el->NextSiblingElement("soft_body")) { sb_count++; }
 
     soft_bodies = std::vector<SoftBodyData>(sb_count);
     sb_constraints.resize(sb_count);
@@ -196,7 +207,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
     sb_vert_start_idx.resize(sb_count + 1);
     sb_vert_start_idx[0] = 0;
     int sb_idx = 0;
-    for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("node")) {
+    for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("soft_body")) {
         OBJFile soft_body_obj;
         fs::path soft_body_file = folder / sb_el->Attribute("file");
         if (soft_body_file.extension() == ".obj") {

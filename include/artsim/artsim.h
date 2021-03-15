@@ -139,7 +139,7 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
 
     struct CollisionShape {
         enum class Type {
-            Ground, Box, Sphere
+            Ground, Box, Sphere, Mesh
         };
         Type type;
 
@@ -152,12 +152,16 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
             struct {
                 real radius;
             } sphere;
+            struct {
+                OBJFile* obj;
+            } mesh;
         };
         btCollisionShape* bt_shape;
 
         static CollisionShape make_ground();
         static CollisionShape make_box(glm::vec3 size);
         static CollisionShape make_sphere(real radius);
+        static CollisionShape make_mesh(OBJFile* obj);
 
         real mass(real density);
         glmx::tsmat3x3<real> inertia(real density);
