@@ -50,6 +50,7 @@ public:
         FlyCamera* camera = dynamic_cast<FlyCamera*>(this->camera.get());
         Ref<Transform> cameraTransform = camera->transform;
         cameraTransform->setGlobalPosition({0.0f, 1.0f, 2.0f});
+        camera->movementSpeed = 1.0f;
 
         pbRenderer.dirLightProjVolume = {
                 {-10.f, -10.f, 0.f}, {10.f, 10.f, 100.f}
@@ -61,7 +62,7 @@ public:
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
-        soft_body_mat->alpha = 0.2f;
+        // soft_body_mat->alpha = 0.2f;
 
         // system.load("demo/resources/art_with_soft_bodies/metadata.xml");
         system.load("/home/lasagnaphil/data/musculoskeleton/export_arm/metadata.xml");
@@ -128,8 +129,8 @@ public:
 
         auto& soft_bodies = system.get_soft_bodies();
         for (int i = 0; i < soft_bodies.size(); i++) {
-            // soft_body_renderers[i].render(pbRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
-            soft_body_renderers[i].render_debug_surface(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
+            soft_body_renderers[i].render(pbRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
+            // soft_body_renderers[i].render_debug_surface(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
             // soft_body_renderers[i].render_debug_volume(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
         }
 

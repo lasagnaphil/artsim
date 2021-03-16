@@ -6,11 +6,14 @@
 
 #include "artsim/dynamics.h"
 #include "artsim/math/fastsvd.h"
+#include "artsim/tet_mesh.h"
 
 #include <iostream>
 #include <filesystem>
 #include <tinyxml2.h>
 #include <glm/gtc/type_ptr.hpp>
+
+#include "tiny_obj_loader.h"
 
 using namespace glmx;
 using namespace tinyxml2;
@@ -90,9 +93,16 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
         }
         else if (body_type == "mesh") {
             fs::path filepath = current_dir / link_elem->Attribute("obj");
-            auto objfile = new OBJFile();
-            objfile->load_obj(filepath.c_str());
-            shape = CollisionShape::make_mesh(objfile);
+            tinyobj::ObjReader reader;
+            reader.ParseFromFile(filepath);
+            if (reader.Valid()) {
+                auto& shapes = reader.GetShapes();
+                shape = CollisionShape::make_mesh(&reader.GetAttrib(), shapes.data(), shapes.size());
+            }
+            else {
+                fprintf(stderr, "Invalid OBJ file %s!\n", filepath.c_str());
+                return false;
+            }
         }
         else if (body_type == "capsule") {
             double radius = std::stod(link_elem->Attribute("radius"));
@@ -208,13 +218,10 @@ void ArtWithSoftBodies::load(const char* metadata) {
     sb_vert_start_idx[0] = 0;
     int sb_idx = 0;
     for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("soft_body")) {
-        OBJFile soft_body_obj;
         fs::path soft_body_file = folder / sb_el->Attribute("file");
-        if (soft_body_file.extension() == ".obj") {
-            soft_body_obj.load_obj(soft_body_file.c_str());
-        }
-        else if (soft_body_file.extension() == ".msh") {
-            soft_body_obj.load_msh(soft_body_file.c_str());
+        TetMesh tet_mesh;
+        if (soft_body_file.extension() == ".msh") {
+            tet_mesh.load_msh(soft_body_file.c_str());
         }
         else {
             fprintf(stderr, "Invalid extension name for soft body mesh!\n");
@@ -229,7 +236,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
         props.poisson_ratio = mat_el->DoubleAttribute("poisson_ratio");
         props.density = mat_el->DoubleAttribute("density");
 
-        soft_bodies[sb_idx].load(soft_body_obj, props);
+        soft_bodies[sb_idx].load(tet_mesh, props);
         auto& sb = soft_bodies[sb_idx];
         int sb_num_vertices = sb.vertices.size();
 

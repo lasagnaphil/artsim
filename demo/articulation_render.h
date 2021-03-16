@@ -37,8 +37,7 @@ public:
                     link_meshes[i] = Mesh::makeCube(shape.box.size);
                 } break;
                 case artsim::CollisionShape::Type::Mesh: {
-                    const OBJFile* objfile = shape.mesh.obj;
-                    link_meshes[i] = Mesh::fromOBJ(objfile);
+                    link_meshes[i] = Mesh::fromOBJ(*shape.mesh.attrib, shape.mesh.shapes, shape.mesh.num_shapes);
                 } break;
                 default: {}
             }
@@ -104,8 +103,7 @@ public:
                     link_meshes[i] = Mesh::makeCube(shape.box.size);
                 } break;
                 case artsim::CollisionShape::Type::Mesh: {
-                    const OBJFile* objfile = shape.mesh.obj;
-                    link_meshes[i] = Mesh::fromOBJ(objfile);
+                    link_meshes[i] = Mesh::fromOBJ(*shape.mesh.attrib, shape.mesh.shapes, shape.mesh.num_shapes);
                 } break;
                 default: {}
             }

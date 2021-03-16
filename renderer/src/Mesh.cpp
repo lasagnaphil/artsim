@@ -179,45 +179,45 @@ Ref<Mesh> Mesh::fromOBJ(const artsim::OBJFile* objfile) {
     return mesh;
 }
 
-Ref<Mesh> Mesh::fromOBJFile(const std::string& filename, bool onlyVertices, bool loadUVs) {
+Ref<Mesh> Mesh::fromOBJ(const char* filename) {
     using namespace tinyobj;
-    ObjReader objReader;
-    attrib_t attrib;
-    std::vector<shape_t> shapes;
-    std::vector<material_t> materials;
 
-    std::string warn;
-    std::string err;
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str());
-    if (!ret) {
-        fprintf(stderr, "Error in Mesh::fromFile: failed to parse OBJ file %s\n", filename.c_str());
+    ObjReader reader;
+    reader.ParseFromFile(filename);
+    if (reader.Valid()) {
+        return Mesh::fromOBJ(reader.GetAttrib(), reader.GetShapes().data(), reader.GetShapes().size());
+    }
+    else {
+        fprintf(stderr, "Error in Mesh::fromOBJ: failed to parse OBJ file %s\n", filename);
+        fprintf(stderr, "Message: %s\n", reader.Error().c_str());
         return {};
     }
+}
 
+Ref<Mesh> Mesh::fromOBJ(const tinyobj::attrib_t& attrib, const tinyobj::shape_t* shapes, int num_shapes) {
     Ref<Mesh> mesh = Resources::make<Mesh>();
-    if (onlyVertices) {
-        for (const auto& shape : shapes) {
-            for (const auto& index : shape.mesh.indices) {
-                Mesh::Vertex vertex;
-                vertex.pos = {
-                        attrib.vertices[3 * index.vertex_index + 0],
-                        attrib.vertices[3 * index.vertex_index + 1],
-                        attrib.vertices[3 * index.vertex_index + 2]
+    for (int sidx = 0; sidx < num_shapes; sidx++) {
+        auto& shape = shapes[sidx];
+        for (const auto& index : shape.mesh.indices) {
+            Mesh::Vertex vertex;
+            vertex.pos = {
+                    attrib.vertices[3 * index.vertex_index + 0],
+                    attrib.vertices[3 * index.vertex_index + 1],
+                    attrib.vertices[3 * index.vertex_index + 2]
+            };
+            vertex.normal = {
+                    attrib.normals[3 * index.normal_index + 0],
+                    attrib.normals[3 * index.normal_index + 1],
+                    attrib.normals[3 * index.normal_index + 2]
+            };
+            if (!attrib.texcoords.empty()) {
+                vertex.uv = {
+                        attrib.texcoords[2 * index.texcoord_index + 0],
+                        attrib.texcoords[2 * index.texcoord_index + 1]
                 };
-                vertex.normal = {
-                        attrib.normals[3 * index.normal_index + 0],
-                        attrib.normals[3 * index.normal_index + 1],
-                        attrib.normals[3 * index.normal_index + 2]
-                };
-                if (loadUVs) {
-                    vertex.uv = {
-                            attrib.texcoords[2 * index.texcoord_index + 0],
-                            attrib.texcoords[2 * index.texcoord_index + 1]
-                    };
-                }
-                mesh->vertices.push_back(vertex);
-                mesh->indices.push_back(mesh->indices.size());
             }
+            mesh->vertices.push_back(vertex);
+            mesh->indices.push_back(mesh->indices.size());
         }
     }
 

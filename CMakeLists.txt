@@ -30,6 +30,11 @@ endif()
 add_subdirectory(libs/bullet_collision)
 add_subdirectory(libs/fastsvd)
 
+# tiny_obj_loader
+set(TINYOBJLOADER_DIR libs/tiny_obj_loader)
+add_library(tinyobjloader STATIC ${TINYOBJLOADER_DIR}/tiny_obj_loader.cc)
+target_include_directories(tinyobjloader PUBLIC ${TINYOBJLOADER_DIR})
+
 add_library(artsim
         src/artsim.cpp src/dynamics.cpp
         src/contacts.cpp
@@ -37,13 +42,14 @@ add_library(artsim
         src/soft_body.cpp
         src/art_with_soft_bodies.cpp
         src/obj_file.cpp
+        src/tet_mesh.cpp
         src/math/fastsvd.cpp
         src/utils/example_articulations.cpp
         src/utils/urdf.cpp src/utils/xml.cpp
         src/utils/pymesh/MshLoader.cpp src/utils/pymesh/MshSaver.cpp src/utils/pymesh/IOUtils.cpp)
 
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
-set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision fastsvd stdc++fs)
+set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision fastsvd tinyobjloader stdc++fs)
 if (ARTSIM_USE_OPENMP)
     set(ARTSIM_LIB ${ARTSIM_LIB} OpenMP::OpenMP_CXX)
 endif()

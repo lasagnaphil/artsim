@@ -20,6 +20,7 @@
 #include <vector>
 #include <unordered_map>
 #include <string>
+#include <tiny_obj_loader.h>
 
 namespace artsim {
 
@@ -153,7 +154,9 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
                 real radius;
             } sphere;
             struct {
-                OBJFile* obj;
+                tinyobj::attrib_t* attrib;
+                tinyobj::shape_t* shapes;
+                uint32_t num_shapes;
             } mesh;
         };
         btCollisionShape* bt_shape;
@@ -161,7 +164,7 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
         static CollisionShape make_ground();
         static CollisionShape make_box(glm::vec3 size);
         static CollisionShape make_sphere(real radius);
-        static CollisionShape make_mesh(OBJFile* obj);
+        static CollisionShape make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes);
 
         real mass(real density);
         glmx::tsmat3x3<real> inertia(real density);

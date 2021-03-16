@@ -19,6 +19,8 @@
 #include "gengine/Shader.h"
 #include "gengine/Arena.h"
 
+#include "tiny_obj_loader.h"
+
 struct MeshCollider {
     std::vector<glm::vec3> points;
     std::vector<uint32_t> indices;
@@ -60,7 +62,8 @@ struct Mesh {
     void sortVertices(glmx::transform meshTrans, glm::vec3 viewDir);
 
     static Ref<Mesh> fromOBJ(const artsim::OBJFile* objfile);
-    static Ref<Mesh> fromOBJFile(const std::string& filename, bool onlyVertices = true, bool loadUVs = true);
+    static Ref<Mesh> fromOBJ(const char* filename);
+    static Ref<Mesh> fromOBJ(const tinyobj::attrib_t& attrib, const tinyobj::shape_t* shapes, int num_shapes);
     static Ref<Mesh> makeCube(const glm::vec3& scale = {1.0f, 1.0f, 1.0f});
     static Ref<Mesh> makePlane(float size = 1.0f, float uvSize = 1.0f);
     static Ref<Mesh> makeCylinder(unsigned int numQuads, float r, float h);

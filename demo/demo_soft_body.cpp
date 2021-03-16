@@ -44,20 +44,13 @@ public:
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
 
-        OBJFile objfile;
-        // objfile.load_obj("demo/resources/soft_body_with_art/mesh_carved_.mesh");
-        objfile.load_obj("demo/resources/soft_body/octopus.obj");
-        // objfile.load_obj("demo/resources/soft_body/starfish.obj");
-        // objfile.load_obj("demo/resources/soft_body/link_.mesh");
-        // objfile = OBJFile::make_cube_tetrahedral(0.1, {10, 10, 10});
-        // objfile.load_msh("demo/resources/art_with_soft_bodies/mesh_carved_.msh");
-        // PyMesh::MshLoader msh("demo/resources/soft_body_with_art/mesh_carved_.msh");
-        // PyMesh::MshLoader msh("demo/resources/soft_body/link_.msh");
+        TetMesh tet_mesh;
+        tet_mesh.load_obj("demo/resources/soft_body/octopus.obj");
 
         SoftBodyProperties props;
         props.young_modulus = 1e8;
         props.poisson_ratio = 0.499;
-        soft_body.load(objfile, props);
+        soft_body.load(tet_mesh, props);
 
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();

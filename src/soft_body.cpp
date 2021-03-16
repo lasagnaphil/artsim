@@ -5,6 +5,7 @@
 #include "artsim/soft_body.h"
 #include "artsim/math/svd.h"
 #include "artsim/math/fastsvd.h"
+
 #include <iostream>
 #include <Eigen/Dense>
 #include <Eigen/IterativeLinearSolvers>
@@ -77,10 +78,10 @@ void gen_surface_triangles_from_tet_mesh(const std::vector<glm::ivec4>& tetrahed
 #endif
 }
 
-void SoftBodyData::load(const OBJFile& obj, const SoftBodyProperties& props) {
+void SoftBodyData::load(const TetMesh& mesh, const SoftBodyProperties& props) {
     this->props = props;
-    vertices = obj.vertices;
-    tetrahedrons = obj.tetrahedrons;
+    vertices = mesh.vertices;
+    tetrahedrons = mesh.tetrahedrons;
     gen_surface_triangles_from_tet_mesh(tetrahedrons, OUT triangles);
 }
 

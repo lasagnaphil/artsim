@@ -21,8 +21,11 @@ real CollisionShape::mass(real density) {
         case Type::Box: return density * box.size.x * box.size.y * box.size.z;
         case Type::Sphere: return real(4.0 / 3.0) * glm::pi<real>() * sphere.radius * sphere.radius * sphere.radius;
         case Type::Mesh: {
+            return real(1);
+            // TODO: calculate proper mass
+            /*
             real V = 0;
-            auto& obj = *mesh.obj;
+            auto& obj = *mesh.ob;
             for (auto tri : obj.triangle_vertices) {
                 auto v0 = obj.vertices[tri[0]];
                 auto v1 = obj.vertices[tri[1]];
@@ -32,6 +35,7 @@ real CollisionShape::mass(real density) {
             V *= (density / 6);
             V = glm::abs(V);
             return V;
+             */
         }
         default: return real(0);
     }
@@ -80,10 +84,16 @@ CollisionShape CollisionShape::make_sphere(real radius) {
     return shape;
 }
 
-CollisionShape CollisionShape::make_mesh(OBJFile* obj) {
+CollisionShape CollisionShape::make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes) {
     CollisionShape shape;
     shape.type = CollisionShape::Type::Mesh;
-    shape.mesh.obj = obj;
+    // TODO: Allocate these separately
+    shape.mesh.attrib = new tinyobj::attrib_t(*attrib);
+    shape.mesh.shapes = new tinyobj::shape_t[num_shapes];
+    for (int i = 0; i < num_shapes; i++) {
+        shape.mesh.shapes[i] = shapes[i];
+    }
+    shape.mesh.num_shapes = num_shapes;
     // TODO: Create Bullet ConcaveMesh
     shape.bt_shape = nullptr;
     return shape;

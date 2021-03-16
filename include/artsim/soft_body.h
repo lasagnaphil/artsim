@@ -8,7 +8,7 @@
 #include <glm/vec3.hpp>
 #include <vector>
 #include <artsim/artsim.h>
-#include <artsim/obj_file.h>
+#include <artsim/tet_mesh.h>
 #include <artsim/math/dynmat.h>
 #include <artsim/math/svd.h>
 #include <artsim/utils/pymesh/MshLoader.h>
@@ -111,7 +111,7 @@ struct SoftBodyData {
 
     SoftBodyProperties props;
 
-    void load(const OBJFile& obj, const SoftBodyProperties& props);
+    void load(const TetMesh& mesh, const SoftBodyProperties& props);
     void load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props);
 };
 

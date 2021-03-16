@@ -45,11 +45,6 @@ target_include_directories(stb INTERFACE ${STB_DIR})
 # tinyxml2
 find_package(TinyXML2 REQUIRED)
 
-# tiny_obj_loader
-set(TINYOBJLOADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/tiny_obj_loader)
-add_library(tinyobjloader STATIC ${TINYOBJLOADER_DIR}/tiny_obj_loader.cc)
-target_include_directories(tinyobjloader PUBLIC ${TINYOBJLOADER_DIR})
-
 # span-lite
 set(SPAN_LITE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/span-lite)
 add_library(span-lite INTERFACE)
@@ -72,7 +67,7 @@ target_link_libraries(gengine PUBLIC
         artsim
         imgui implot
         ${CMAKE_DL_LIBS} Threads::Threads SDL2::Main glad stb Eigen3::Eigen tinyxml2
-        tinyobjloader span-lite fmt::fmt)
+        span-lite fmt::fmt)
 
 # Compile shaders into header files
 add_executable(embed_shader ${CMAKE_CURRENT_SOURCE_DIR}/shaders/embed_shader.cpp)
