@@ -165,9 +165,9 @@ static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> l
     return {lambda, ncp_error_sq, success};
 }
 
-
+// TODO: handle coefficient of restitution and restitution threshold...
 void solve_collision(ContactSolverType type, uint32_t max_iters,
-                     const ArticulatedBody& art, const MaterialDB& material_db, glm::tvec3<real> gravity, real dt,
+                     const ArticulatedBody& art, const Material& mat, glm::tvec3<real> gravity, real dt,
                      const real* q, const real* u, const real* udot_orig, const tscrew<real>* f_ext, const real* tau,
                      const ContactPoint* contact_points, uint32_t num_contact_points,
                      glm::tvec3<real>* out_lambda, real* out_contact_forces) {
@@ -247,7 +247,7 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
         }
     }
 
-    iterative_contact_solver(type, max_iters, dt, num_contact_points, M_contact_inv, INOUT c.data(), INOUT
+    iterative_contact_solver(type, max_iters, mat, dt, num_contact_points, M_contact_inv, INOUT c.data(), INOUT
                              lambda.data());
 
     Eigen::Matrix<real, Dynamic, 1> lambda_vec = Map<Eigen::Matrix<real, Dynamic, 1>>((real*)lambda.data(), 3*num_contact_points);
@@ -262,7 +262,7 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
 }
 
 void iterative_contact_solver(
-        ContactSolverType type, uint32_t max_iters, real dt,
+        ContactSolverType type, uint32_t max_iters, const Material& mat, real dt,
         uint32_t num_contact_points,
         const dynmat<tmat3x3<real>>& M_contact_inv,
         INOUT tvec3<real>* c, INOUT tvec3<real>* lambda) {
@@ -270,8 +270,7 @@ void iterative_contact_solver(
     real alpha_min, gamma, lambda_sq_tol, ncp_error_sq_tol;
     real alpha, total_ncp_error_sq;
 
-    // TODO: Make friction coefficient changable
-    const real mu = 1.0;
+    const real mu = mat.friction;
 
     switch (type) {
         case ContactSolverType::PGS:
@@ -357,7 +356,7 @@ void iterative_contact_solver(
 
 void
 euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
-                          const ArticulatedBody& art, const MaterialDB& material_db, glm::tvec3<real> gravity, real dt,
+                          const ArticulatedBody& art, const Material& mat, glm::tvec3<real> gravity, real dt,
                           const tscrew<real>* f_ext, const real* tau, const ContactPoint* contact_points,
                           uint32_t num_contact_points, real* q, real* u, real* udot, glm::tvec3<real>* lambda) {
     int num_vel_dofs = art.get_num_vel_dofs();
@@ -375,7 +374,7 @@ euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
         std::vector<real> tau_total(num_vel_dofs);
 
         solve_collision(type, max_iters,
-                        art, material_db, gravity, dt,
+                        art, mat, gravity, dt,
                         q, u, udot_bar.data(),
                         f_ext, tau,
                         contact_points, num_contact_points,

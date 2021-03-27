@@ -15,7 +15,7 @@ namespace artsim {
 
 struct ArticulationState {
     artsim::ArticulatedBody* art;
-    artsim::MaterialDB* material_db;
+    artsim::Material mat;
 
     size_t num_pos_dofs;
     size_t num_vel_dofs;
@@ -40,10 +40,10 @@ struct ArticulationState {
 
     ArticulationState() = default;
 
-    ArticulationState(artsim::ArticulatedBody *artPtr, artsim::MaterialDB* material_db,
+    ArticulationState(artsim::ArticulatedBody *artPtr, const Material& mat,
                       ContactSolverType solverType = ContactSolverType::NCP,
                       uint32_t max_iters = 4)
-            : art(artPtr), material_db(material_db),
+            : art(artPtr), mat(mat),
               num_pos_dofs(art->get_num_pos_dofs()), num_vel_dofs(art->get_num_vel_dofs()), num_joints(art->get_num_joints()),
               q(num_pos_dofs, 0), u(num_vel_dofs, 0), udot(num_vel_dofs, 0), tau(num_vel_dofs, 0),
               f_ext(num_joints, glmx::tscrew<real>(glmx::IDENTITY)),
@@ -144,7 +144,7 @@ struct ArticulationState {
         }
 
         artsim::euler_step_with_collision(solver_type, max_iters,
-                                          *art, *material_db, gravity, dt, f_ext.data(), tau.data(),
+                                          *art, mat, gravity, dt, f_ext.data(), tau.data(),
                                           contact_points.data(), contact_points.size(),
                                           INOUT q.data(), INOUT u.data(),
                                           OUT udot.data(), OUT contact_normals.data());

@@ -195,13 +195,9 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
     };
 
     struct Material {
-        real default_friction;
-        real default_restitution;
-    };
-
-    struct MaterialPair {
-        real friction;
-        real restitution;
+        real friction = 1.0f;
+        real restitution = 0.0f;
+        real restitution_threshold = 0.01f;
     };
 
     struct RigidBody {
@@ -305,35 +301,33 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
 
     struct MaterialDB {
         Arena<Material> materials;
-        std::unordered_map<std::pair<Id<Material>, Id<Material>>, MaterialPair, pair_hash> material_pairs;
+        std::unordered_map<std::pair<Id<Material>, Id<Material>>, Material, pair_hash> material_pairs;
 
         Id<Material> add_material(real default_friction = 1.0f,
-                                  real default_restitution = 0.0f) {
+                                  real default_restitution = 0.0f,
+                                  real default_restitution_threshold = 0.01f) {
             auto id = materials.make();
             auto ptr = materials.get(id);
-            ptr->default_friction = default_friction;
-            ptr->default_restitution = default_restitution;
+            ptr->friction = default_friction;
+            ptr->restitution = default_restitution;
+            ptr->restitution_threshold = default_restitution_threshold;
             return id;
         }
         METHOD_GET_ID(Material, material, materials)
         METHOD_REMOVE_ID(Material, material, materials)
 
-        void add_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
-                               real friction, real restitution) {
-            material_pairs[std::make_pair(mat1_id, mat2_id)] = MaterialPair {friction, restitution};
+        void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
+                               real friction, real restitution, real restitution_threshold) {
+            material_pairs[std::make_pair(mat1_id, mat2_id)] = Material{friction, restitution, restitution_threshold};
         }
-
-        void remove_material_pair(Id<Material> mat1_id, Id<Material> mat2_id) {
-            material_pairs.erase(std::make_pair(mat1_id, mat2_id));
-        }
-
     };
 
     struct World {
         Arena<RigidBody> rigid_bodies;
         Arena<ArticulatedBody> articulated_bodies;
+        MaterialDB material_db;
 
-        World() {}
+        World() = default;
 
         Id<ArticulatedBody> add_articulated_body(bool floating = false) {
             auto id = articulated_bodies.make();
@@ -356,12 +350,30 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
             art->setup();
         }
 
+        Id<Material> add_material(real default_friction = 1.0f,
+                                  real default_restitution = 0.0f,
+                                  real default_restitution_threshold = 0.01f) {
+            return material_db.add_material(default_friction, default_restitution, default_restitution_threshold);
+        }
+
+        Material* get_material(Id<Material> id) {
+            return material_db.get_material(id);
+        }
+
+        void remove_material(Id<Material> id) {
+            return material_db.remove_material(id);
+        }
+
+        void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
+                               real friction, real restitution, real restitution_threshold) {
+            material_db.set_material_pair(mat1_id, mat2_id, friction, restitution, restitution_threshold);
+        }
+    };
+
 #undef METHOD_GET_ID
 #undef METHOD_DELETE_ID
 
-    };
-
-    struct BodyId {
+struct BodyId {
         /*
          * Memory layout:
          *

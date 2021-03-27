@@ -36,7 +36,8 @@ add_library(tinyobjloader STATIC ${TINYOBJLOADER_DIR}/tiny_obj_loader.cc)
 target_include_directories(tinyobjloader PUBLIC ${TINYOBJLOADER_DIR})
 
 add_library(artsim
-        src/artsim.cpp src/dynamics.cpp
+        src/artsim.cpp
+        src/dynamics.cpp
         src/contacts.cpp
         src/ik.cpp
         src/soft_body.cpp

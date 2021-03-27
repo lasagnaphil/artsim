@@ -112,7 +112,7 @@ public:
                     case 5: art = examples::create_13_link_tree(true); break;
                 }
 
-                state = ArticulationState(&art, &material_db, ContactSolverType::PGS);
+                state = ArticulationState(&art, material, ContactSolverType::PGS);
                 state.enable_collision_with_ground = false;
                 state.randomize_positions();
 
@@ -121,7 +121,7 @@ public:
             case DemoType::Contacts: {
                 art = examples::create_free_link(art_type, true);
 
-                state = ArticulationState(&art, &material_db, ContactSolverType::PGS, 16);
+                state = ArticulationState(&art, material, ContactSolverType::PGS, 16);
                 state.enable_collision_with_ground = art.floating;
                 state.randomize_positions();
 
@@ -133,8 +133,8 @@ public:
 
 private:
     ArticulatedBody art;
-    MaterialDB material_db;
     ArticulationState state;
+    Material material {1.0f, 0.0f, 0.01f};
     float sim_dt = 1.0f / 600.0f;
     bool run_simulation = true;
 

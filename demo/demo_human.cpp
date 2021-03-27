@@ -109,7 +109,7 @@ public:
         // export_to_urdf(art, "human", "demo/resources/human.urdf");
         // art = load_from_xml("demo/resources/soft_body_with_art/two_link_art.xml", contact_indices);
 
-        state = ArticulationState(&art, &material_db, ContactSolverType::PGS, 16);
+        state = ArticulationState(&art, material, ContactSolverType::PGS, 16);
         state.enable_collision_with_ground = true;
         state.ground_col_enabled_links = contact_indices;
         state.set_root_transform(glmx::ttransform<real>(tvec3<real>(0.0f, 1.3f, 0.0f)));
@@ -120,8 +120,8 @@ public:
 
 private:
     ArticulatedBody art;
-    MaterialDB material_db;
     ArticulationState state;
+    Material material {1.0f, 0.0f, 0.01f};
     float sim_dt = 1.0f / 600.0f;
     bool run_simulation = true;
 
