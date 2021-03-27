@@ -5,6 +5,9 @@
 #ifndef MOTION_EDITING_GLOBALSTORAGE_H
 #define MOTION_EDITING_GLOBALSTORAGE_H
 
+// Implementation of generational arena based on:
+// https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/game-engine-containers-handle_map-r4495/
+
 #include <cstring>
 #include <cassert>
 #include <utility>
@@ -23,10 +26,10 @@ struct Id {
     uint32_t index;
     uint32_t generation;
 
-    static Id fromInt64(int64_t data) {
+    static Id from_int64(int64_t data) {
         return *reinterpret_cast<Id*>(&data);
     }
-    int64_t toInt64() {
+    int64_t to_int64() {
         return *reinterpret_cast<int64_t*>(this);
     }
 
@@ -34,7 +37,7 @@ struct Id {
         return Id {};
     }
 
-    bool isNull() const {
+    bool is_null() const {
         return generation == 0;
     }
 
@@ -63,188 +66,167 @@ namespace std {
 
 template <typename T>
 struct Arena {
-
 private:
-    struct Indices {
-        uint32_t nextIndex;
-        uint32_t generation;
-    };
+    std::vector<T> items;
+    std::vector<Id<T>> free_list;
+    std::vector<uint32_t> dense_to_sparse_map;
 
-    // Note: the following doesn't work because of some undefined behavior? Need to examine this later.
-    // std::vector<std::aligned_storage_t<sizeof(T), alignof(T)>> data;
-    T* data;
-    std::vector<Indices> indices;
-
-    uint32_t _size;
-    uint32_t _capacity;
-
-    uint32_t firstAvailable;
+    uint32_t free_list_front = 0xFFFFFFFF;
+    uint32_t free_list_back = 0xFFFFFFFF;
+    bool fragmented = false;
 
 public:
-    Arena(uint32_t capacity = 0) :
-            _size(0), _capacity(capacity), data(nullptr), indices(capacity), firstAvailable(0)
+    Arena(uint32_t capacity = 0)
     {
-#if defined(_WIN64)
-        data = (T*)_aligned_malloc(capacity * sizeof(T), alignof(T));
-#elif defined(__APPLE__)
-        data = (T*)malloc(capacity * sizeof(T));
-#else
-        data = (T*)std::aligned_alloc(alignof(T), capacity * sizeof(T));
-#endif
-        for (uint32_t i = 0; i < capacity; ++i) {
-            indices[i].nextIndex = i + 1;
-            indices[i].generation = 0;
-        }
+        items.reserve(capacity);
+        free_list.reserve(capacity);
+        dense_to_sparse_map.reserve(capacity);
     }
 
-    ~Arena() {
-        for (uint32_t i = 0; i < _capacity; ++i) {
-            if (indices[i].generation != 0) {
-                (data[i]).~T();
-            }
+    uint32_t size() const { return items.size(); }
+    uint32_t capacity() const { return items.capacity(); }
+    typename std::vector<T>::iterator begin() { return items.begin(); }
+    typename std::vector<T>::const_iterator cbegin() const { return items.cbegin(); }
+    typename std::vector<T>::iterator end() { return items.end(); }
+    typename std::vector<T>::const_iterator cend() const { return items.cend(); }
+
+    Id<T> insert(T&& item) {
+        Id<T> id;
+        if (free_list_front == 0xFFFFFFFF) {
+            // If free list is empty, create new free list node
+            Id<T> node = {(uint32_t)items.size(), 1};
+            id = {(uint32_t)free_list.size(), 1};
+            free_list.push_back(node);
         }
+        else {
+            // Take the front node of free list
+            Id<T>& node = free_list[free_list_front];
+            uint32_t new_index = free_list_front;
+            free_list_front = node.index;
+            if (free_list_front == 0xFFFFFFFF) {
+                free_list_back = free_list_front;
+            }
+            node.index = items.size();
+            id = {new_index, node.generation};
+        }
+        items.push_back(item);
+        dense_to_sparse_map.push_back(id.index);
+        return id;
     }
 
-    inline uint32_t size() { return _size; }
-    inline uint32_t capacity() { return _capacity; }
-
-    void expand(uint32_t newCapacity) {
-        assert (newCapacity >= _capacity);
-
-        T* oldData = data;
-        // For some strange reason, aligned_alloc sometimes returns NULL on MacOS.
-        // malloc() in MacOS is always 16-byte aligned, so let's just use it instead.
-
-#if defined(_WIN64)
-        data = (T*)_aligned_malloc(newCapacity* sizeof(T), alignof(T));
-#elif defined(__APPLE__)
-        data = (T*)malloc(newCapacity * sizeof(T));
-#else
-        data = (T*)std::aligned_alloc(alignof(T), newCapacity * sizeof(T));
-#endif
-        indices.resize(newCapacity);
-
-        // invoke move constructor for filled items
-        for (uint32_t i = 0; i < _capacity; i++) {
-            if (indices[i].generation != 0) {
-                new (data + i) T(std::move(oldData[i]));
-            }
-        }
-        // construct the free list of the indices
-        for (uint32_t i = _capacity; i < newCapacity; ++i) {
-            indices[i].nextIndex = i + 1;
-            indices[i].generation = 0;
-        }
-
-        _capacity = newCapacity;
-
-        free(oldData);
+    Id<T> insert(const T& item) {
+        return insert(std::move(T(item)));
     }
 
     template <class ...Args>
     Id<T> make(Args&&... args) {
-        // if the item list is full
-        if (firstAvailable == _capacity) {
-            expand(_capacity == 0 ? 4 : _capacity * 2);
-        }
-
-        // delete node from free list
-        uint32_t newIndex = firstAvailable;
-        new(data + newIndex) T(std::forward<Args>(args)...);
-        auto& newIndices = indices[newIndex];
-        firstAvailable = newIndices.nextIndex;
-
-        newIndices.generation++;
-
-        _size++;
-
-        // also return the reference object of the resource
-        return Id<T> {newIndex, newIndices.generation};
+        return insert(T(std::forward<Args>(args)...));
     }
 
-    Id<T> clone(Id<T> ref) {
-        Id<T> newId = make();
-        data[newId.index] = data[ref.index];
+    template <class ...Args>
+    Id<T> emplace(Args&&... args) {
+        return insert(T(std::forward<Args>(args)...));
+    }
+
+    template <class ...Args>
+    void emplace_n(int n, Id<T>* ids, Args&&... args) {
+        items.reserve(items.size() + n);
+        dense_to_sparse_map.reserve(dense_to_sparse_map.size() + n);
+        fragmented = true;
+
+        for (int i = 0; i < n; i++) {
+            ids[i] = emplace(args...);
+        }
+    }
+
+    bool release(Id<T> id) {
+        return erase(id);
+    }
+
+    bool erase(Id<T> id) {
+        if (!is_valid(id)) return false;
+        auto& node = free_list[id.index];
+
+        uint32_t prev_index = node.index;
+        fragmented = true;
+        node.index = 0xFFFFFFFF;
+        node.generation++;
+
+        if (free_list_front == 0xFFFFFFFF) {
+            free_list_back = free_list_front = id.index;
+        }
+        else {
+            free_list[free_list_back].index = id.index;
+            free_list_back = id.index;
+        }
+
+        if (prev_index != items.size() - 1) {
+            std::swap(items.at(prev_index), items.back());
+            std::swap(dense_to_sparse_map.at(prev_index), dense_to_sparse_map.back());
+
+            free_list[dense_to_sparse_map.at(prev_index)].index = prev_index;
+        }
+
+        items.pop_back();
+        dense_to_sparse_map.pop_back();
+        return true;
+    }
+
+    Id<T> clone(Id<T> id) {
+        Id<T> newId = insert(T());
+        T* data_ptr = get(newId);
+        *data_ptr = items[id.index];
         return newId;
     }
 
-    bool has(Id<T> ref) const {
-        auto idx = indices[ref.index];
-        return idx.generation != 0 && idx.generation == ref.generation;
+    bool is_valid(Id<T> id) const {
+        if (id.index >= free_list.size()) return false;
+        auto node = free_list[id.index];
+        return node.index < size() && node.generation != 0 && node.generation == id.generation;
     }
 
-    const T* get(Id<T> ref) const {
-        auto idx = indices[ref.index];
+    const T* get(Id<T> id) const {
+        assert(id.index < free_list.size());
+        auto node = free_list[id.index];
+        assert(node.generation != 0);
+        assert(node.generation == id.generation);
+        assert(node.index < size());
 
-        assert(idx.generation != 0);
-        assert(idx.generation == ref.generation);
-
-        return &data[ref.index];
+        return items.data() + node.index;
     }
 
-    T* get(Id<T> ref) {
-        auto idx = indices[ref.index];
+    T* get(Id<T> id) {
+        assert(id.index < free_list.size());
+        auto node = free_list[id.index];
+        assert(node.generation != 0);
+        assert(node.generation == id.generation);
+        assert(node.index < size());
 
-        assert(idx.generation != 0);
-        assert(idx.generation == ref.generation);
-
-        return &data[ref.index];
+        return items.data() + node.index;
     }
 
-    const T* tryGet(Id<T> ref) const {
-        auto idx = indices[ref.index];
+    const T* try_get(Id<T> id) const {
+        auto node = free_list[id.index];
 
-        if (idx.generation != 0 && idx.generation == ref.generation) {
-            return &data[ref.index];
+        if (node.generation != 0 && node.generation == id.generation) {
+            return items.data() + node.index;
         }
         else {
             return nullptr;
         }
     }
 
-    T* tryGet(Id<T> ref) {
-        auto idx = indices[ref.index];
+    T* try_get(Id<T> id) {
+        auto node = free_list[id.index];
 
-        if (idx.generation != 0 && idx.generation == ref.generation) {
-            return &data[ref.index];
+        if (node.generation != 0 && node.generation == id.generation) {
+            return items.data() + node.index;
         }
         else {
             return nullptr;
         }
     }
 
-    void release(Id<T> ref) {
-        auto idx = indices[ref.index];
-        assert(idx.generation != 0);
-        assert(idx.generation == ref.generation);
-
-        indices[ref.index].nextIndex = firstAvailable;
-        indices[ref.index].generation = 0;
-        firstAvailable = ref.index;
-
-        _size--;
-    }
-
-    template <class Fun>
-    void forEach(Fun&& fun) {
-        for (uint32_t i = 0; i < _capacity; ++i) {
-            if (indices[i].generation != 0) {
-                Id<T> ref = {i, indices[i].generation};
-                fun(data[i], ref);
-            }
-        }
-    }
-
-    template <class Fun>
-    void forEachUntil(Fun&& fun) {
-        for (uint32_t i = 0; i < _capacity; ++i) {
-            if (indices[i].generation != 0) {
-                Id<T> ref = {i, indices[i].generation};
-                bool end = fun(data[i], ref);
-                if (end) return;
-            }
-        }
-    }
 };
 
 #endif //MOTION_EDITING_GLOBALSTORAGE_H
