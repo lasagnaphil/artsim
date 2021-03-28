@@ -92,7 +92,7 @@ struct PBDRevoluteJointConstraint {
     glm::tvec3<real> axis;
     real limit_min, limit_max;
 
-    real pos_lambda, rot_lambda;
+    real pos_lambda, rot_lambda, rot_limit_lambda;
 };
 
 struct PBDSphericalJointConstraint {

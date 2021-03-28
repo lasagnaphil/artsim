@@ -89,6 +89,7 @@ Id<PBDConstraint> PBDWorld::make_revolute_joint_constraint(Id<PBDRigidBody> rb_i
     cons.revolute_joint.limit_max = limit_max;
     cons.revolute_joint.pos_lambda = 0;
     cons.revolute_joint.rot_lambda = 0;
+    cons.revolute_joint.rot_limit_lambda = 0;
     return constraints.insert(cons);
 }
 
@@ -133,7 +134,7 @@ void PBDWorld::simulate(real dt, int num_substeps) {
 
                 rb.prev_rot = rb.rot;
                 rb.angvel += h*(rb.inv_inertia*(rb.tau_ext - glm::cross(rb.angvel, rb.inertia * rb.angvel)));
-                rb.rot += glm::rquat(0, 0.5*h*rb.angvel);
+                rb.rot += glm::rquat(0, 0.5*h*rb.angvel) * rb.rot;
                 rb.rot = glm::normalize(rb.rot);
             }
         }
@@ -209,7 +210,6 @@ void restrict_positions(PBDRigidBody& rb,
 
 void restrict_positions(PBDRigidBody& rb1, PBDRigidBody& rb2,
                         real alpha, glm::rvec3 r1, glm::rvec3 r2, real& lambda) {
-    glm::rvec3 x_com = (rb1.mass * rb1.pos + rb2.mass * rb2.pos) / (rb1.mass + rb2.mass);
     glm::rvec3 dx = (rb2.pos + r2) - (rb1.pos + r1);
     real c = glm::length(dx);
     if (c <= glm::epsilon<real>()) return;
@@ -221,10 +221,10 @@ void restrict_positions(PBDRigidBody& rb1, PBDRigidBody& rb2,
 
     glm::rvec3 p = dlambda * n;
     rb1.pos -= rb1.inv_mass * p;
-    rb2.pos += rb2.inv_mass * p;
     rb1.rot -= 0.5 * (glm::rquat(0, rb1.inv_inertia * glm::cross(r1, p)) * rb1.rot);
-    rb2.rot += 0.5 * (glm::rquat(0, rb2.inv_inertia * glm::cross(r2, p)) * rb2.rot);
     rb1.rot = glm::normalize(rb1.rot);
+    rb2.pos += rb2.inv_mass * p;
+    rb2.rot += 0.5 * (glm::rquat(0, rb2.inv_inertia * glm::cross(r2, p)) * rb2.rot);
     rb2.rot = glm::normalize(rb2.rot);
 }
 
@@ -310,9 +310,10 @@ void PBDWorld::solve_positions(real h) {
                     glm::rmat3 basis2 = glm::mat3_cast(rb2->rot);
                     restrict_positions(*rb1, *rb2,
                                        alpha, basis1 * rev_con.offset1, basis2 * rev_con.offset2, rev_con.pos_lambda);
-                    glm::rvec3 dq;
+                    glm::rvec3 dq = glm::cross(basis1[0], basis2[0]);
+                    restrict_rotations(*rb1, *rb2, dq, alpha, rev_con.rot_lambda);
                     if (limit_angle(basis1[0], basis1[1], basis2[1], rev_con.limit_min, rev_con.limit_max, dq)) {
-                        restrict_rotations(*rb1, *rb2, dq, alpha, rev_con.rot_lambda);
+                        restrict_rotations(*rb1, *rb2, dq, alpha, rev_con.rot_limit_lambda);
                     }
                 }
                 else if (!rb1->is_dynamic && !rb2->is_dynamic) {
@@ -329,9 +330,10 @@ void PBDWorld::solve_positions(real h) {
                     glm::rmat3 basis2 = glm::mat3_cast(rb2->rot);
                     restrict_positions(*rb1, alpha,
                                        basis1 * offset1, rb2->pos + basis2 * offset2, rev_con.pos_lambda);
-                    glm::rvec3 dq;
+                    glm::rvec3 dq = glm::cross(basis1[0], basis2[0]);
+                    restrict_rotations(*rb1, alpha, dq, rev_con.rot_lambda);
                     if (limit_angle(basis1[0], basis1[1], basis2[1], rev_con.limit_min, rev_con.limit_max, dq)) {
-                        restrict_rotations(*rb1, alpha, dq, rev_con.rot_lambda);
+                        restrict_rotations(*rb1, alpha, dq, rev_con.rot_limit_lambda);
                     }
                 }
             } break;
@@ -343,7 +345,8 @@ void PBDWorld::solve_positions(real h) {
                     glm::rmat3 basis1 = glm::mat3_cast(rb1->rot);
                     glm::rmat3 basis2 = glm::mat3_cast(rb2->rot);
                     glm::rvec3 dq_swing, dq_twist;
-                    restrict_positions(*rb1, *rb2, alpha, basis1*sph_con.offset1, basis2*sph_con.offset2, sph_con.pos_lambda);
+                    restrict_positions(*rb1, *rb2, alpha,
+                                       basis1*sph_con.offset1, basis2*sph_con.offset2, sph_con.pos_lambda);
                     if (limit_angle(glm::normalize(glm::cross(basis1[0], basis2[0])), basis1[1], basis2[1],
                                     sph_con.swing_limit_min, sph_con.swing_limit_max, dq_swing)) {
                         restrict_rotations(*rb1, *rb2, dq_swing, alpha, sph_con.swing_rot_lambda);
@@ -368,7 +371,8 @@ void PBDWorld::solve_positions(real h) {
                     glm::rmat3 basis1 = glm::mat3_cast(rb1->rot);
                     glm::rmat3 basis2 = glm::mat3_cast(rb2->rot);
                     glm::rvec3 dq_swing, dq_twist;
-                    restrict_positions(*rb1, alpha, basis1*offset1, rb2->pos + basis2*offset2, sph_con.pos_lambda);
+                    restrict_positions(*rb1, alpha,
+                                       basis1 * offset1, rb2->pos + basis2 * offset2, sph_con.pos_lambda);
                     if (limit_angle(glm::normalize(glm::cross(basis1[0], basis2[0])), basis1[1], basis2[1],
                                                       sph_con.swing_limit_min, sph_con.swing_limit_max, dq_swing)) {
                         restrict_rotations(*rb1, alpha, dq_swing, sph_con.swing_rot_lambda);

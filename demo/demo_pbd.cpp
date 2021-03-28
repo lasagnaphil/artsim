@@ -98,14 +98,11 @@ public:
         auto link1 = world.get_rigid_body(link1_id);
         link1->is_dynamic = false;
         auto link2 = world.get_rigid_body(link2_id);
-        link2->rot = glmx::Rz(M_PI/4);
-        // link2->rot = glmx::Rz(M_PI/4) * glmx::Rx(M_PI/4);
+        link2->rot = glmx::Rz(M_PI/4) * glmx::Rx(M_PI/10);
         auto link3 = world.get_rigid_body(link3_id);
-        // link3->rot = glmx::Rz(M_PI/4);
         auto link4 = world.get_rigid_body(link4_id);
-        // link4->rot = glmx::Rz(M_PI/4);
 
-#if 1
+#if 0
         auto joint1_id = world.make_revolute_joint_constraint(
                 link1_id, link2_id, 1e-8, glm::rvec3(0, -0.5, 0), glm::rvec3(0, 0.5, 0), glm::rvec3(0, 0, 1));
         auto joint2_id = world.make_revolute_joint_constraint(
