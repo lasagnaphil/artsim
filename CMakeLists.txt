@@ -42,6 +42,7 @@ add_library(artsim
         src/ik.cpp
         src/soft_body.cpp
         src/art_with_soft_bodies.cpp
+        src/pbd.cpp
         src/obj_file.cpp
         src/tet_mesh.cpp
         src/math/fastsvd.cpp

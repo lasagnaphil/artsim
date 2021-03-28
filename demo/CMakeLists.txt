@@ -12,6 +12,9 @@ target_link_libraries(gengine_demo_spheres_pbr PRIVATE gengine)
 add_executable(artsim_demo_basic demo_basic.cpp)
 target_link_libraries(artsim_demo_basic PRIVATE gengine)
 
+add_executable(artsim_demo_pbd demo_pbd.cpp)
+target_link_libraries(artsim_demo_pbd PRIVATE gengine)
+
 add_executable(artsim_demo_human demo_human.cpp)
 target_link_libraries(artsim_demo_human PRIVATE gengine)
 

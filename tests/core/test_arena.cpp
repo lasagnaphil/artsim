@@ -22,6 +22,12 @@ struct alignas(16) Obj {
     }
 };
 
+namespace artsim {
+DEFINE_TYPEID(Obj, 1)
+}
+
+using namespace artsim;
+
 TEST_CASE("Testing Arena") {
     SUBCASE("Simple test") {
         Arena<Obj> arena;
@@ -41,8 +47,8 @@ TEST_CASE("Testing Arena") {
         REQUIRE(arena.is_valid(b));
         REQUIRE(arena.is_valid(c));
 
-        REQUIRE(!arena.is_valid(Id<Obj>{a.index, a.generation + 1}));
-        REQUIRE(!arena.is_valid(Id<Obj>{a.index, a.generation - 1}));
+        REQUIRE(!arena.is_valid(Id<Obj>{a.index, 1, static_cast<uint32_t>(a.generation + 1)}));
+        REQUIRE(!arena.is_valid(Id<Obj>{a.index, 1, static_cast<uint32_t>(a.generation - 1)}));
 
         arena.release(a);
         REQUIRE(!arena.is_valid(a));

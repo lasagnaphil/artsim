@@ -41,8 +41,16 @@ inline btMatrix3x3 btconv(const glm::tmat3x3<real>& M) {
     return btMatrix3x3(M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]);
 }
 
+inline btQuaternion btconv(const glm::tquat<real>& q) {
+    return btQuaternion(q.x, q.y, q.z, q.w);
+}
+
 inline btTransform btconv(const glmx::ttransform<real>& T) {
     return btTransform(btconv(T.R), btconv(T.v));
+}
+
+inline btTransform btconv(const glmx::tquat_transform<real>& T) {
+    return btTransform(btconv(T.q), btconv(T.v));
 }
 
 inline glm::tvec3<real> glmconv(const btVector3& v) {

@@ -80,6 +80,67 @@ namespace glmx {
     }
 
     template <class T>
+    struct tquat_transform {
+        glm::tvec3<T> v;
+        glm::tquat<T> q;
+
+        tquat_transform() = default;
+        tquat_transform(Identity identity) : v(0), q(glm::identity<glm::tquat<T>>()) {}
+        explicit tquat_transform(glm::tvec3<T> v) : v(v), q(glm::identity<glm::tquat<T>>()) {}
+        explicit tquat_transform(glm::tquat<T> q) : v(0), q(q) {}
+        tquat_transform(glm::tvec3<T> v, glm::tquat<T> q) : v(v), q(q) {}
+
+        template <class U>
+        explicit operator tquat_transform<U>() const { return tquat_transform<U>(v, q); }
+    };
+
+    template <class T>
+    inline typename glm::tmat4x4<T> mat4_cast(const tquat_transform<T> &t) {
+        glm::tmat3x3<T> R = mat3_cast(t.q);
+        glm::tmat4x4<T> m;
+        m[0] = glm::tvec4<T>(R[0], 0);
+        m[1] = glm::tvec4<T>(R[1], 0);
+        m[2] = glm::tvec4<T>(R[2], 0);
+        m[3] = glm::tvec4<T>(t.v, 1);
+        return m;
+    }
+
+    template <class T>
+    inline tquat_transform<T> operator*(const tquat_transform<T> &t1, const tquat_transform<T> &t2) {
+        return {t1.q * t2.v + t1.v, t1.q * t2.q};
+    }
+
+    template <class T>
+    inline tquat_transform<T> operator*(const glm::tmat3x3<T>& R, const tquat_transform<T>& t) {
+        return {R * t.v, R * t.q};
+    }
+
+    template <class T>
+    inline tquat_transform<T> operator*(const tquat_transform<T>& t1, const glm::tmat3x3<T>& R) {
+        return {t1.v, t1.q * R};
+    }
+
+    template <class T>
+    inline tquat_transform<T> operator*(glm::tvec3<T> v, const tquat_transform<T>& t) {
+        return {t.v + v, t.q};
+    }
+
+    template <class T>
+    inline tquat_transform<T> operator*(const tquat_transform<T>& t, glm::tvec3<T> v) {
+        return {t.q * v + t.v, t.q};
+    }
+
+    template <class T>
+    inline tquat_transform<T> operator/(const tquat_transform<T> &t1, const tquat_transform<T> &t2) {
+        return {glm::conjugate(t2.q) * (t1.v - t2.v), glm::conjugate(t2.q) * t1.q};
+    }
+
+    template <class T>
+    inline tquat_transform<T> inverse(const tquat_transform<T>& t) {
+        return tquat_transform<T>(glm::conjugate(t.q) * (-t.v), glm::conjugate(t.q));
+    }
+
+    template <class T>
     struct tscrew {
         glm::tvec3<T> w, v;
 
@@ -426,7 +487,14 @@ namespace glmx {
         return {w[0]*w[0], w[1]*w[1], w[2]*w[2], w[1]*w[2], w[2]*w[0], w[0]*w[1]};
     }
 
-    // Spatial matrix.
+    template <class T>
+    inline T quadratic_form(const glmx::tsmat3x3<T>& I, glm::tvec3<T> w) {
+        return I.xx * w.x * w.x + I.yy * w.y * w.y + I.zz * w.z * w.z
+             + 2*(I.yz * w.y * w.z + I.zx * w.z * w.x + I.xy * w.x * w.y);
+    }
+
+
+// Spatial matrix.
     /*
      *      Spatial mass matrix
            ---------- ----------

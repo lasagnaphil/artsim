@@ -11,6 +11,7 @@
 #include <glm/mat3x3.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <artsim/math/se3.h>
 
 #define OUT
 #define INOUT
@@ -21,8 +22,10 @@ namespace artsim {
 
 #ifdef ARTSIM_USE_DOUBLE
 using real = double;
+constexpr real REAL_MAX = DBL_MAX;
 #else
 using real = float;
+constexpr real REAL_MAX = FLT_MAX;
 #endif
 
 }
@@ -37,4 +40,16 @@ using rmat4 = glm::tmat4x4<artsim::real>;
 using rquat = glm::tquat<artsim::real>;
 
 }
+
+namespace glmx {
+
+using rtransform = glmx::ttransform<artsim::real>;
+using rquat_transform = glmx::tquat_transform<artsim::real>;
+using rscrew = glmx::tscrew<artsim::real>;
+using rsmat3x3 = glmx::tsmat3x3<artsim::real>;
+using rspmat = glmx::tspmat<artsim::real>;
+using rsmat6x6 = glmx::tsmat6x6<artsim::real>;
+
+}
+
 #endif //ARTSIM_TYPES_H
