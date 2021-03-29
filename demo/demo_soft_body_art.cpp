@@ -51,6 +51,8 @@ public:
         Ref<Transform> cameraTransform = camera->transform;
         cameraTransform->setGlobalPosition({0.0f, 1.0f, 2.0f});
         camera->movementSpeed = 1.0f;
+        camera->near = 0.01f;
+        camera->fov = 60.0f;
 
         pbRenderer.dirLightProjVolume = {
                 {-10.f, -10.f, 0.f}, {10.f, 10.f, 100.f}
@@ -61,7 +63,7 @@ public:
         pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, -2.0f});
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
-        Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
+        Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(glm::vec3(252.f, 3.f, 3.f) / 255.f);
         // soft_body_mat->alpha = 0.2f;
 
         // system.load("demo/resources/art_with_soft_bodies/metadata.xml");
@@ -72,13 +74,15 @@ public:
             soft_body_renderers.push_back({&sb, soft_body_mat, camera});
         }
 
-        Ref<PBRMaterial> link_mat = PBRMaterial::quick(colors::Gray);
-        Ref<PBRMaterial> joint_mat = PBRMaterial::quick(colors::Red);
+        Ref<PBRMaterial> link_mat = PBRMaterial::quick(colors::LightGray);
+        Ref<PBRMaterial> joint_mat = PBRMaterial::quick(colors::Blue);
         art_render = ArticulationRender(&system.get_articulation(), link_mat, joint_mat);
 
         resetPhysics();
 
         orig_mesh_mat = PBRMaterial::quick(colors::Green);
+
+        soft_body_render_mask.resize(system.get_num_soft_bodies(), true);
     }
 
     void processInput(SDL_Event &event) override {
@@ -129,9 +133,11 @@ public:
 
         auto& soft_bodies = system.get_soft_bodies();
         for (int i = 0; i < soft_bodies.size(); i++) {
-            soft_body_renderers[i].render(pbRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
-            // soft_body_renderers[i].render_debug_surface(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
-            // soft_body_renderers[i].render_debug_volume(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
+            if (soft_body_render_mask[i]) {
+                soft_body_renderers[i].render(pbRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
+                soft_body_renderers[i].render_debug_surface(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
+                // soft_body_renderers[i].render_debug_volume(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
+            }
         }
 
         art_render.render(pbRenderer, system.get_art_pos_buf());
@@ -180,6 +186,12 @@ public:
                 ImGui::TreePop();
             }
         }
+        if (ImGui::CollapsingHeader("Soft Body")) {
+            for (int i = 0; i < system.get_num_soft_bodies(); i++) {
+                std::string checkbox_label = std::string(system.get_soft_body_name(i));
+                ImGui::Checkbox(checkbox_label.c_str(), (bool*)&soft_body_render_mask[i]);
+            }
+        }
         ImGui::End();
 
         if (run_simulation) {
@@ -217,6 +229,7 @@ private:
 
     std::vector<SoftBodyRender> soft_body_renderers;
     ArticulationRender art_render;
+    std::vector<unsigned char> soft_body_render_mask;
 
     Ref<PBRMaterial> ground_mat;
     Ref<Mesh> ground_mesh;
@@ -235,6 +248,7 @@ int main(int argc, char** argv)
     //--------------------------------------------------------------------------------------
     auto settings = AppSettings::defaultPBR();
     settings.useDisplayFPS = false;
+    settings.skipRenderFramesOnLag = true;
     settings.updateFPS = 60;
     MyApp app(settings);
     app.load();

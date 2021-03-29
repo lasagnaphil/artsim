@@ -52,6 +52,9 @@ void FlyCamera::update(float dt) {
 
         // Keyboard movement
         float velocity = movementSpeed * dt;
+        if (inputMgr->isMousePressed(SDL_SCANCODE_LSHIFT)) {
+            velocity = velocity * 0.1f;
+        }
         if (inputMgr->isKeyPressed(SDL_SCANCODE_W)) {
             transform->move(-transform->getFrontVec() * velocity);
         }

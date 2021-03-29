@@ -30,15 +30,16 @@ struct AppSettings {
     } camera;
 
     bool useDisplayFPS = false;
+    bool skipRenderFramesOnLag = true;
     int updateFPS = 60;
     int windowWidth = 1920;
     int windowHeight = 1080;
 
     static AppSettings defaultPhong() {
-        return AppSettings { Renderer::Phong, Camera::FlyCamera, false, 60};
+        return AppSettings { Renderer::Phong, Camera::FlyCamera, false, true, 60};
     }
     static AppSettings defaultPBR() {
-        return AppSettings { Renderer::PBR, Camera::FlyCamera, false, 60};
+        return AppSettings { Renderer::PBR, Camera::FlyCamera, false, true, 60};
     }
 };
 

@@ -222,15 +222,21 @@ void App::startMainLoop() {
 
                 // Update
                 internalUpdate(nsPerTick * 1e-9f);
+                if (!settings.skipRenderFramesOnLag) {
+                    internalRender();
+                    SDL_GL_SwapWindow(window);
+                }
 
                 dt = duration_cast<Ns>(Clock::now() - previousUpdate).count() * 1e-9;
                 lag -= Ns(nsPerTick);
             }
         }
 
-        internalRender();
+        if (settings.skipRenderFramesOnLag) {
+            internalRender();
+            SDL_GL_SwapWindow(window);
+        }
 
-        SDL_GL_SwapWindow(window);
         fps = (int)std::roundf(1.f / (duration_cast<Ns>(Clock::now() - current).count() * 1e-9));
     }
 }

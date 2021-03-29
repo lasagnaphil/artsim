@@ -213,6 +213,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
 
     soft_bodies = std::vector<SoftBodyData>(sb_count);
     sb_constraints.resize(sb_count);
+    sb_names.resize(sb_count);
 
     sb_vert_start_idx.resize(sb_count + 1);
     sb_vert_start_idx[0] = 0;
@@ -263,6 +264,8 @@ void ArtWithSoftBodies::load(const char* metadata) {
             fprintf(stderr, "Unimplemented!\n");
             exit(EXIT_FAILURE);
         }
+
+        sb_names[sb_idx] = soft_body_file.stem().string();
 
         sb_idx++;
         sb_vert_start_idx[sb_idx] = sb_vert_start_idx[sb_idx-1] + sb_num_vertices;
