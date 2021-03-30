@@ -61,7 +61,6 @@ public:
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             printf("Duration: %lld microsecs\n", duration.count());
-            // run_simulation = false;
         }
     }
 
@@ -70,10 +69,8 @@ public:
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         pbRenderer.queueRender({ground_mesh, ground_mat, rootTransform->getWorldTransform()});
-        const PBDRigidBody* rigid_body_buf = world.get_rigid_body_buf();
-        int num_rigid_bodies = world.get_num_rigid_bodies();
-        for (int i = 0; i < num_rigid_bodies; i++) {
-            auto& rb = rigid_body_buf[i];
+        for (auto& link_id : links) {
+            auto& rb = *world.get_rigid_body(link_id);
             glmx::transform trans = glmx::transform(rb.pos, glm::mat3_cast(rb.rot));
             glm::mat4 world_trans = mat4_cast(trans);
             pbRenderer.queueRender({link_mesh, link_mat, world_trans});
@@ -91,14 +88,21 @@ public:
 
     void resetPhysics() {
         world.reset();
-        auto link1_id = world.make_cube(glm::rvec3(0.2, 1.0, 0.2), 10.0, glm::rvec3(0.0, 4.0, 0.0));
-        auto link2_id = world.make_cube(glm::rvec3(0.2, 1.0, 0.2), 10.0, glm::rvec3(0.0, 3.0, 0.0));
-        auto link3_id = world.make_cube(glm::rvec3(0.2, 1.0, 0.2), 10.0, glm::rvec3(0.0, 2.0, 0.0));
-        auto link4_id = world.make_cube(glm::rvec3(0.2, 1.0, 0.2), 10.0, glm::rvec3(0.0, 1.0, 0.0));
+        auto mat_id = world.make_material(1.0, 0.8, 0.2);
+        auto plane_id = world.make_static_plane(mat_id, glm::vec3(0, 1, 0), 0);
+        int link_group = 0b1000000;
+        int link_mask = ~link_group;
+        auto link1_id = world.make_cube(glm::rvec3(0.2, 1.0, 0.2), 10.0, mat_id, link_group, link_mask, glm::rvec3(0.0, 4.0, 0.0));
+        auto link2_id = world.make_cube(glm::rvec3(0.2, 1.0, 0.2), 10.0, mat_id, link_group, link_mask, glm::rvec3(0.0, 3.0, 0.0));
+        auto link3_id = world.make_cube(glm::rvec3(0.2, 1.0, 0.2), 10.0, mat_id, link_group, link_mask, glm::rvec3(0.0, 2.0, 0.0));
+        auto link4_id = world.make_cube(glm::rvec3(0.2, 1.0, 0.2), 10.0, mat_id, link_group, link_mask, glm::rvec3(0.0, 1.0, 0.0));
+        links.push_back(link1_id);
+        links.push_back(link2_id);
+        links.push_back(link3_id);
+        links.push_back(link4_id);
         auto link1 = world.get_rigid_body(link1_id);
-        link1->is_dynamic = false;
         auto link2 = world.get_rigid_body(link2_id);
-        link2->rot = glmx::Rz(M_PI/4) * glmx::Rx(M_PI/10);
+        link2->rot = glmx::Rz(M_PI/8) * glmx::Rx(M_PI/10);
         auto link3 = world.get_rigid_body(link3_id);
         auto link4 = world.get_rigid_body(link4_id);
 
@@ -124,6 +128,8 @@ private:
     Material material {1.0f, 0.0f, 0.01f};
     float sim_dt = 1.0f / 60.0f;
     bool run_simulation = false;
+
+    std::vector<Id<PBDRigidBody>> links;
 
     Ref<PBRMaterial> ground_mat;
     Ref<Mesh> ground_mesh;

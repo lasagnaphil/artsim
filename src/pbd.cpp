@@ -15,8 +15,7 @@ PBDWorld::PBDWorld() {
 
 void PBDWorld::reset() {
     for (auto& rb : rigid_bodies) {
-        auto* col_obj = bt_collision_objects.get(rb.col_obj);
-        bt_world->removeCollisionObject(col_obj);
+        bt_world->removeCollisionObject(rb.col_obj);
     }
     bt_collision_objects.clear();
     bt_collision_shapes.clear();
@@ -24,7 +23,8 @@ void PBDWorld::reset() {
     constraints.clear();
 }
 
-Id<PBDRigidBody> PBDWorld::make_cube(glm::rvec3 size, artsim::real mass,
+Id<PBDRigidBody> PBDWorld::make_cube(glm::rvec3 size, artsim::real mass, Id<PBDMaterial> mat_id,
+                                     int col_filter_group, int col_filter_mask,
                                      glm::rvec3 pos, glm::rquat rot,
                                      glm::rvec3 vel, glm::rvec3 angvel,
                                      glm::rvec3 f_ext, glm::rvec3 tau_ext) {
@@ -35,10 +35,10 @@ Id<PBDRigidBody> PBDWorld::make_cube(glm::rvec3 size, artsim::real mass,
     rb.inv_inertia = glmx::inverse(rb.inertia);
     rb.mass = mass;
     rb.inv_mass = 1.0 / mass;
+    rb.mat_id = mat_id;
     rb.col_shape = bt_collision_shapes.make_box(real(0.5) * s);
-    btCollisionShape* box_shape = bt_collision_shapes.get(rb.col_shape);
-    rb.col_obj = bt_collision_objects.insert(btCollisionObject());
-    btCollisionObject* collision_obj = bt_collision_objects.get(rb.col_obj);
+    auto col_obj = bt_collision_objects.make(glmx::rquat_transform(rb.pos, rb.rot), rb.col_shape);
+    rb.col_obj = col_obj;
     rb.is_dynamic = true;
     rb.pos = pos;
     rb.rot = rot;
@@ -49,28 +49,47 @@ Id<PBDRigidBody> PBDWorld::make_cube(glm::rvec3 size, artsim::real mass,
     Id<PBDRigidBody> id = rigid_bodies.insert(rb);
 
     auto [user_id1, user_id2] = id.to_int32s();
-    collision_obj->setCollisionShape(box_shape);
-    collision_obj->setWorldTransform(btconv(glmx::rquat_transform(rb.pos, rb.rot)));
-    collision_obj->setUserIndex(user_id1);
-    collision_obj->setUserIndex(user_id2);
-    bt_world->addCollisionObject(collision_obj);
+    col_obj->setUserIndex(user_id1);
+    col_obj->setUserIndex2(user_id2);
+    bt_world->addCollisionObject(col_obj, col_filter_group, col_filter_mask);
 
     return id;
 }
 
-/*
-Id<PBDConstraint>
-PBDWorld::make_positional_constraint(Id<PBDRigidBody> rb_id, glm::rvec3 offset, glm::rvec3 pos) {
-    if (!rigid_bodies.is_valid(rb_id)) return {};
-    PBDConstraint cons;
-    cons.type = PBDConstraintType::FixedRevoluteJoint;
-    cons.fix_position.rb_id = rb_id;
-    cons.fix_position.offset = offset;
-    cons.fix_position.pos = pos;
-    cons.fix_position.lambda = 0;
-    return constraints.insert(cons);
+Id<PBDRigidBody> PBDWorld::make_static_plane(Id<PBDMaterial> mat_id, glm::rvec3 normal, real constant) {
+    PBDRigidBody rb;
+    rb.inertia = REAL_MAX;
+    rb.inv_inertia = 0;
+    rb.mass = REAL_MAX;
+    rb.inv_mass = 0;
+    rb.mat_id = mat_id;
+    rb.col_shape = bt_collision_shapes.make_static_plane(normal, constant);
+    auto col_obj = bt_collision_objects.make(glmx::rquat_transform(glmx::IDENTITY), rb.col_shape);
+    rb.col_obj = col_obj;
+    rb.is_dynamic = false;
+    rb.pos = {};
+    rb.rot = glm::identity<glm::quat>();
+    rb.vel = {};
+    rb.angvel = {};
+    rb.f_ext = {};
+    rb.tau_ext = {};
+    Id<PBDRigidBody> id = rigid_bodies.insert(rb);
+
+    auto [user_id1, user_id2] = id.to_int32s();
+    col_obj->setUserIndex(user_id1);
+    col_obj->setUserIndex2(user_id2);
+    bt_world->addCollisionObject(col_obj);
+
+    return id;
 }
- */
+
+Id<PBDMaterial> PBDWorld::make_material(real mu_static, real mu_dynamic, real restitution) {
+    PBDMaterial mat;
+    mat.mu_static = mu_static;
+    mat.mu_dynamic = mu_dynamic;
+    mat.restitution = restitution;
+    return materials.insert(mat);
+}
 
 Id<PBDConstraint> PBDWorld::make_revolute_joint_constraint(Id<PBDRigidBody> rb_id1, Id<PBDRigidBody> rb_id2,
                                                            real compliance,
@@ -87,6 +106,7 @@ Id<PBDConstraint> PBDWorld::make_revolute_joint_constraint(Id<PBDRigidBody> rb_i
     cons.revolute_joint.axis = axis;
     cons.revolute_joint.limit_min = limit_min;
     cons.revolute_joint.limit_max = limit_max;
+    cons.revolute_joint.damping = 0;
     cons.revolute_joint.pos_lambda = 0;
     cons.revolute_joint.rot_lambda = 0;
     cons.revolute_joint.rot_limit_lambda = 0;
@@ -111,6 +131,7 @@ Id<PBDConstraint> PBDWorld::make_spherical_joint_constraint(Id<PBDRigidBody> rb_
     cons.spherical_joint.twist_limit_max = twist_limit_max;
     cons.spherical_joint.swing_limit_min = swing_limit_min;
     cons.spherical_joint.swing_limit_max = swing_limit_max;
+    cons.spherical_joint.damping = 0;
     cons.spherical_joint.pos_lambda = 0;
     cons.spherical_joint.swing_rot_lambda = 0;
     cons.spherical_joint.twist_rot_lambda = 0;
@@ -122,6 +143,7 @@ void PBDWorld::simulate(real dt, int num_substeps) {
     int num_rbs = rigid_bodies.size();
 
     reset_lambdas();
+    collect_collision_pairs();
 
     real h = dt / num_substeps;
     for (int iter = 0; iter < num_substeps; iter++) {
@@ -148,7 +170,7 @@ void PBDWorld::simulate(real dt, int num_substeps) {
                 rb.angvel = dq.w >= 0? rb.angvel : -rb.angvel;
             }
         }
-        solve_velocities(h);
+        // solve_velocities(h);
     }
 }
 
@@ -169,6 +191,15 @@ void PBDWorld::reset_lambdas() {
 }
 
 void PBDWorld::collect_collision_pairs() {
+    rb_rb_contact_constraints.clear();
+
+    for (auto& rb : rigid_bodies) {
+        if (rb.is_dynamic) {
+            rb.col_obj->setWorldTransform(btconv(glmx::rquat_transform(rb.pos, rb.rot)));
+        }
+    }
+    bt_world->performDiscreteCollisionDetection();
+
     auto dispatcher = bt_world->getDispatcher();
     btPersistentManifold** manifolds = dispatcher->getInternalManifoldPointer();
     int num_manifolds = dispatcher->getNumManifolds();
@@ -180,20 +211,30 @@ void PBDWorld::collect_collision_pairs() {
 
         const btCollisionObject* body1 = manifold->getBody0();
         const btCollisionObject* body2 = manifold->getBody1();
-        Id<PBDRigidBody> body1_id = Id<PBDRigidBody>::from_int32s(body1->getUserIndex(), body1->getUserIndex2());
-        Id<PBDRigidBody> body2_id = Id<PBDRigidBody>::from_int32s(body2->getUserIndex(), body2->getUserIndex2());
-        if (body1_id.index > body2_id.index) std::swap(body1_id, body2_id);
+        Id<PBDRigidBody> rb_id1 = Id<PBDRigidBody>::from_int32s(body1->getUserIndex(), body1->getUserIndex2());
+        Id<PBDRigidBody> rb_id2 = Id<PBDRigidBody>::from_int32s(body2->getUserIndex(), body2->getUserIndex2());
+        PBDRigidBody* rb1 = rigid_bodies.get(rb_id1);
+        PBDRigidBody* rb2 = rigid_bodies.get(rb_id2);
         for (int j = 0; j < num_contacts; j++) {
             auto& pt = manifold->getContactPoint(j);
-            // TODO: create collision constraints
+            PBDRigidRigidContactConstraint con;
+            con.rb_id1 = rb_id1;
+            con.rb_id2 = rb_id2;
+            con.p1 = glmconv(pt.m_positionWorldOnA);
+            con.p2 = glmconv(pt.m_positionWorldOnB);
+            con.r1 = glm::inverse(rb1->rot) * (con.p1 - rb1->pos);
+            con.r2 = glm::inverse(rb2->rot) * (con.p2 - rb2->pos);
+            con.normal = glmconv(pt.m_normalWorldOnB);
+            con.normal_lambda = 0;
+            con.tangent_lambda = 0;
+            rb_rb_contact_constraints.push_back(con);
         }
     }
 }
 
-void restrict_positions(PBDRigidBody& rb,
-                        real alpha, glm::rvec3 r, glm::rvec3 target_pos, real& lambda) {
+void project_positions(PBDRigidBody& rb, glm::rvec3 dx,
+                       real alpha, glm::rvec3 r, real& lambda) {
 
-    glm::rvec3 dx = target_pos - rb.pos - r;
     real c = glm::length(dx);
     if (c <= glm::epsilon<real>()) return;
     glm::rvec3 n = dx / c;
@@ -205,32 +246,37 @@ void restrict_positions(PBDRigidBody& rb,
     rb.pos -= rb.inv_mass * p;
     rb.rot -= 0.5 * (glm::rquat(0, rb.inv_inertia * glm::cross(r, p)) * rb.rot);
     rb.rot = glm::normalize(rb.rot);
-
 }
 
-void restrict_positions(PBDRigidBody& rb1, PBDRigidBody& rb2,
-                        real alpha, glm::rvec3 r1, glm::rvec3 r2, real& lambda) {
-    glm::rvec3 dx = (rb2.pos + r2) - (rb1.pos + r1);
+void project_positions(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dx,
+                       real alpha, glm::rvec3 r1, glm::rvec3 r2, real& lambda) {
+    if (!rb1.is_dynamic && !rb2.is_dynamic) return;
+
     real c = glm::length(dx);
     if (c <= glm::epsilon<real>()) return;
     glm::rvec3 n = dx / c;
     real w1 = rb1.inv_mass + glmx::quadratic_form(rb1.inv_inertia, glm::cross(r1, n));
     real w2 = rb2.inv_mass + glmx::quadratic_form(rb2.inv_inertia, glm::cross(r2, n));
-    real dlambda = (-c - alpha * lambda) / (w1 + w2 + alpha);
+    real w_tot = int(rb1.is_dynamic) * w1 + int(rb2.is_dynamic) * w2;
+    real dlambda = (-c - alpha * lambda) / (w_tot + alpha);
     lambda += dlambda;
 
     glm::rvec3 p = dlambda * n;
-    rb1.pos -= rb1.inv_mass * p;
-    rb1.rot -= 0.5 * (glm::rquat(0, rb1.inv_inertia * glm::cross(r1, p)) * rb1.rot);
-    rb1.rot = glm::normalize(rb1.rot);
-    rb2.pos += rb2.inv_mass * p;
-    rb2.rot += 0.5 * (glm::rquat(0, rb2.inv_inertia * glm::cross(r2, p)) * rb2.rot);
-    rb2.rot = glm::normalize(rb2.rot);
+
+    if (rb1.is_dynamic) {
+        rb1.pos -= rb1.inv_mass * p;
+        rb1.rot -= 0.5 * (glm::rquat(0, rb1.inv_inertia * glm::cross(r1, p)) * rb1.rot);
+        rb1.rot = glm::normalize(rb1.rot);
+    }
+    if (rb2.is_dynamic) {
+        rb2.pos += rb2.inv_mass * p;
+        rb2.rot += 0.5 * (glm::rquat(0, rb2.inv_inertia * glm::cross(r2, p)) * rb2.rot);
+        rb2.rot = glm::normalize(rb2.rot);
+    }
 }
 
-void restrict_rotations(PBDRigidBody& rb,
-                        real alpha, glm::rquat target_rot, real& lambda) {
-
+void project_rotations(PBDRigidBody& rb,
+                       real alpha, glm::rquat target_rot, real& lambda) {
     glm::rvec3 dq = glmx::log(target_rot * glm::inverse(rb.rot));
     real theta = glm::length(dq);
     if (theta <= glm::epsilon<real>()) return;
@@ -245,26 +291,33 @@ void restrict_rotations(PBDRigidBody& rb,
     rb.rot = glm::normalize(rb.rot);
 }
 
-void restrict_rotations(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dq,
-                        real alpha, real& lambda) {
+void project_rotations(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dq,
+                       real alpha, real& lambda) {
+    if (!rb1.is_dynamic && !rb2.is_dynamic) return;
+
     real theta = glm::length(dq);
     glm::rvec3 n = dq / theta;
     glm::rvec3 n_rel = glm::inverse(rb1.rot) * n;
     real w1 = glmx::quadratic_form(rb1.inv_inertia, n_rel);
     real w2 = glmx::quadratic_form(rb2.inv_inertia, n_rel);
-    real dlambda = (-theta - alpha * lambda) / (w1 + w2 + alpha);
+    real w_tot = int(rb1.is_dynamic) * w1 + int(rb2.is_dynamic) * w2;
+    real dlambda = (-theta - alpha * lambda) / (w_tot + alpha);
     lambda += dlambda;
 
     glm::rvec3 p = dlambda * n_rel;
-    rb1.rot -= 0.5 * (glm::rquat(0, rb1.inv_inertia * p) * rb1.rot);
-    rb2.rot += 0.5 * (glm::rquat(0, rb2.inv_inertia * p) * rb2.rot);
-    rb1.rot = glm::normalize(rb1.rot);
-    rb2.rot = glm::normalize(rb2.rot);
+    if (rb1.is_dynamic) {
+        rb1.rot -= 0.5 * (glm::rquat(0, rb1.inv_inertia * p) * rb1.rot);
+        rb1.rot = glm::normalize(rb1.rot);
+    }
+    if (rb2.is_dynamic) {
+        rb2.rot += 0.5 * (glm::rquat(0, rb2.inv_inertia * p) * rb2.rot);
+        rb2.rot = glm::normalize(rb2.rot);
+    }
 }
 
-void restrict_rotations(PBDRigidBody& rb1, PBDRigidBody& rb2, real alpha, real& lambda) {
+void project_rotations(PBDRigidBody& rb1, PBDRigidBody& rb2, real alpha, real& lambda) {
     glm::rvec3 dq = glmx::log(rb2.rot * glm::inverse(rb1.rot));
-    restrict_rotations(rb1, rb2, dq, alpha, lambda);
+    project_rotations(rb1, rb2, dq, alpha, lambda);
 }
 
 bool limit_angle(glm::rvec3 n, glm::rvec3& n1, glm::rvec3 n2, real phi_min, real phi_max, glm::rvec3& dq) {
@@ -286,111 +339,127 @@ bool limit_angle(glm::rvec3 n, glm::rvec3& n1, glm::rvec3 n2, real phi_min, real
 
 void PBDWorld::solve_positions(real h) {
     real h_sq = h*h;
+    // Handle joint constraints
     for (auto& con : constraints) {
         real alpha = con.compliance / h_sq;
         switch (con.type) {
-            /*
-            case PBDConstraintType::FixedRevoluteJoint: {
-                auto& pos_con = con.fix_position;
-                auto* rb = rigid_bodies.get(pos_con.rb_id);
-                restrict_positions(*rb, alpha, pos_con.offset, pos_con.pos, pos_con.lambda);
-            } break;
-            case PBDConstraintType::FixedPrismaticJoint: {
-                auto& rot_con = con.fix_rotation;
-                auto* rb = rigid_bodies.get(rot_con.rb_id);
-                restrict_rotations(*rb, alpha, rot_con.offset, rot_con.rot, rot_con.lambda);
-            } break;
-            */
             case PBDConstraintType::RevoluteJoint: {
                 auto& rev_con = con.revolute_joint;
-                auto* rb1 = rigid_bodies.get(rev_con.rb_id1);
-                auto* rb2 = rigid_bodies.get(rev_con.rb_id2);
-                if (rb1->is_dynamic && rb2->is_dynamic) {
-                    glm::rmat3 basis1 = glm::mat3_cast(rb1->rot);
-                    glm::rmat3 basis2 = glm::mat3_cast(rb2->rot);
-                    restrict_positions(*rb1, *rb2,
-                                       alpha, basis1 * rev_con.offset1, basis2 * rev_con.offset2, rev_con.pos_lambda);
-                    glm::rvec3 dq = glm::cross(basis1[0], basis2[0]);
-                    restrict_rotations(*rb1, *rb2, dq, alpha, rev_con.rot_lambda);
-                    if (limit_angle(basis1[0], basis1[1], basis2[1], rev_con.limit_min, rev_con.limit_max, dq)) {
-                        restrict_rotations(*rb1, *rb2, dq, alpha, rev_con.rot_limit_lambda);
-                    }
-                }
-                else if (!rb1->is_dynamic && !rb2->is_dynamic) {
-                    break;
-                }
-                else {
-                    glm::rvec3 offset1 = rev_con.offset1;
-                    glm::rvec3 offset2 = rev_con.offset2;
-                    if (!rb1->is_dynamic) {
-                        std::swap(rb1, rb2);
-                        std::swap(offset1, offset2);
-                    }
-                    glm::rmat3 basis1 = glm::mat3_cast(rb1->rot);
-                    glm::rmat3 basis2 = glm::mat3_cast(rb2->rot);
-                    restrict_positions(*rb1, alpha,
-                                       basis1 * offset1, rb2->pos + basis2 * offset2, rev_con.pos_lambda);
-                    glm::rvec3 dq = glm::cross(basis1[0], basis2[0]);
-                    restrict_rotations(*rb1, alpha, dq, rev_con.rot_lambda);
-                    if (limit_angle(basis1[0], basis1[1], basis2[1], rev_con.limit_min, rev_con.limit_max, dq)) {
-                        restrict_rotations(*rb1, alpha, dq, rev_con.rot_limit_lambda);
-                    }
+                auto& rb1 = *rigid_bodies.get(rev_con.rb_id1);
+                auto& rb2 = *rigid_bodies.get(rev_con.rb_id2);
+                glm::rmat3 basis1 = glm::mat3_cast(rb1.rot);
+                glm::rmat3 basis2 = glm::mat3_cast(rb2.rot);
+                glm::rvec3 r1 = basis1*rev_con.offset1;
+                glm::rvec3 r2 = basis2*rev_con.offset2;
+                glm::rvec3 dx = (rb2.pos + r2) - (rb1.pos + r1);
+                project_positions(rb1, rb2, dx, alpha, r1, r2, rev_con.pos_lambda);
+                glm::rvec3 dq = glm::cross(basis1[0], basis2[0]);
+                project_rotations(rb1, rb2, dq, alpha, rev_con.rot_lambda);
+                if (limit_angle(basis1[0], basis1[1], basis2[1], rev_con.limit_min, rev_con.limit_max, dq)) {
+                    project_rotations(rb1, rb2, dq, alpha, rev_con.rot_limit_lambda);
                 }
             } break;
             case PBDConstraintType::SphericalJoint: {
                 auto& sph_con = con.spherical_joint;
-                auto* rb1 = rigid_bodies.get(sph_con.rb_id1);
-                auto* rb2 = rigid_bodies.get(sph_con.rb_id2);
-                if (rb1->is_dynamic && rb2->is_dynamic) {
-                    glm::rmat3 basis1 = glm::mat3_cast(rb1->rot);
-                    glm::rmat3 basis2 = glm::mat3_cast(rb2->rot);
-                    glm::rvec3 dq_swing, dq_twist;
-                    restrict_positions(*rb1, *rb2, alpha,
-                                       basis1*sph_con.offset1, basis2*sph_con.offset2, sph_con.pos_lambda);
-                    if (limit_angle(glm::normalize(glm::cross(basis1[0], basis2[0])), basis1[1], basis2[1],
-                                    sph_con.swing_limit_min, sph_con.swing_limit_max, dq_swing)) {
-                        restrict_rotations(*rb1, *rb2, dq_swing, alpha, sph_con.swing_rot_lambda);
-                    }
-                    glm::rvec3 n = glm::normalize(basis1[0] + basis2[0]);
-                    glm::rvec3 n1 = glm::normalize(basis1[1] - glm::dot(n, basis1[1])*n);
-                    glm::rvec3 n2 = glm::normalize(basis2[1] - glm::dot(n, basis2[1])*n);
-                    if (limit_angle(n, n1, n2, sph_con.twist_limit_min, sph_con.twist_limit_max, dq_twist)) {
-                        restrict_rotations(*rb1, *rb2, dq_swing, alpha, sph_con.twist_rot_lambda);
-                    }
+                auto& rb1 = *rigid_bodies.get(sph_con.rb_id1);
+                auto& rb2 = *rigid_bodies.get(sph_con.rb_id2);
+                glm::rmat3 basis1 = glm::mat3_cast(rb1.rot);
+                glm::rmat3 basis2 = glm::mat3_cast(rb2.rot);
+                glm::rvec3 dq_swing, dq_twist;
+                glm::rvec3 r1 = basis1*sph_con.offset1;
+                glm::rvec3 r2 = basis2*sph_con.offset2;
+                glm::rvec3 dx = (rb2.pos + r2) - (rb1.pos + r1);
+                project_positions(rb1, rb2, dx, alpha, r1, r2, sph_con.pos_lambda);
+                if (limit_angle(glm::normalize(glm::cross(basis1[0], basis2[0])), basis1[1], basis2[1],
+                                sph_con.swing_limit_min, sph_con.swing_limit_max, dq_swing)) {
+                    project_rotations(rb1, rb2, dq_swing, alpha, sph_con.swing_rot_lambda);
                 }
-                else if (!rb1->is_dynamic && !rb2->is_dynamic) {
-                    break;
-                }
-                else {
-                    glm::rvec3 offset1 = sph_con.offset1;
-                    glm::rvec3 offset2 = sph_con.offset2;
-                    if (!rb1->is_dynamic) {
-                        std::swap(rb1, rb2);
-                        std::swap(offset1, offset2);
-                    }
-                    glm::rmat3 basis1 = glm::mat3_cast(rb1->rot);
-                    glm::rmat3 basis2 = glm::mat3_cast(rb2->rot);
-                    glm::rvec3 dq_swing, dq_twist;
-                    restrict_positions(*rb1, alpha,
-                                       basis1 * offset1, rb2->pos + basis2 * offset2, sph_con.pos_lambda);
-                    if (limit_angle(glm::normalize(glm::cross(basis1[0], basis2[0])), basis1[1], basis2[1],
-                                                      sph_con.swing_limit_min, sph_con.swing_limit_max, dq_swing)) {
-                        restrict_rotations(*rb1, alpha, dq_swing, sph_con.swing_rot_lambda);
-                    }
-                    glm::rvec3 n = glm::normalize(basis1[0] + basis2[0]);
-                    glm::rvec3 n1 = glm::normalize(basis1[1] - glm::dot(n, basis1[1])*n);
-                    glm::rvec3 n2 = glm::normalize(basis2[1] - glm::dot(n, basis2[1])*n);
-                    if (limit_angle(n, n1, n2, sph_con.twist_limit_min, sph_con.twist_limit_max, dq_twist)) {
-                        restrict_rotations(*rb1, alpha, dq_swing, sph_con.twist_rot_lambda);
-                    }
+                glm::rvec3 n = glm::normalize(basis1[0] + basis2[0]);
+                glm::rvec3 n1 = glm::normalize(basis1[1] - glm::dot(n, basis1[1])*n);
+                glm::rvec3 n2 = glm::normalize(basis2[1] - glm::dot(n, basis2[1])*n);
+                if (limit_angle(n, n1, n2, sph_con.twist_limit_min, sph_con.twist_limit_max, dq_twist)) {
+                    project_rotations(rb1, rb2, dq_swing, alpha, sph_con.twist_rot_lambda);
                 }
             } break;
         }
     }
+
+    for (auto& con : rb_rb_contact_constraints) {
+        auto& rb1 = *rigid_bodies.get(con.rb_id1);
+        auto& rb2 = *rigid_bodies.get(con.rb_id2);
+        auto& mat1 = *materials.get(rb1.mat_id);
+        auto& mat2 = *materials.get(rb2.mat_id);
+        real d = glm::dot(con.p1 - con.p2, con.normal);
+        if (d <= 0) { continue; }
+        glm::rvec3 dx = d * con.normal;
+        project_positions(rb1, rb2, dx, 0, con.r1, con.r2, con.normal_lambda);
+
+        glm::rvec3 p1_bar = rb1.prev_pos + rb1.prev_rot * con.r1;
+        glm::rvec3 p2_bar = rb2.prev_pos + rb2.prev_rot * con.r2;
+        glm::rvec3 dp = (con.p1 - p1_bar) - (con.p2 - p2_bar);
+        glm::rvec3 dp_t = dp - glm::dot(dp, con.normal);
+        real mu_static = 0.5 * (mat1.mu_static + mat2.mu_static);
+        if (con.tangent_lambda < mu_static * con.normal_lambda) {
+            project_positions(rb1, rb2, dp_t, 0, con.r1, con.r2, con.tangent_lambda);
+        }
+    }
+}
+
+void project_velocities(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dv, glm::rvec3 r1, glm::rvec3 r2) {
+    glm::rvec3 p = dv / (rb1.inv_mass + rb2.inv_mass);
+    rb1.vel += rb1.inv_mass * p;
+    rb2.vel -= rb2.inv_mass * p;
+    rb1.angvel += rb1.inv_inertia * glm::cross(r1, p);
+    rb2.angvel -= rb2.inv_inertia * glm::cross(r2, p);
+}
+
+void project_angular_velocities(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dw) {
+    // TODO
 }
 
 void PBDWorld::solve_velocities(real h) {
-    // TODO
+    // TODO: Apply joint damping
+    for (auto& con : constraints) {
+        switch(con.type) {
+            case PBDConstraintType::RevoluteJoint: {
+                auto& rev_con = con.revolute_joint;
+                auto& rb1 = *rigid_bodies.get(rev_con.rb_id1);
+                auto& rb2 = *rigid_bodies.get(rev_con.rb_id2);
+                glm::rvec3 dw = (rb2.angvel - rb1.angvel) * glm::min(rev_con.damping * h, 1.0);
+                project_angular_velocities(rb1, rb2, dw);
+            } break;
+            case PBDConstraintType::SphericalJoint: {
+                auto& sph_con = con.spherical_joint;
+                auto& rb1 = *rigid_bodies.get(sph_con.rb_id1);
+                auto& rb2 = *rigid_bodies.get(sph_con.rb_id2);
+                glm::rvec3 dw = (rb2.angvel - rb1.angvel) * glm::min(sph_con.damping * h, 1.0);
+                project_angular_velocities(rb1, rb2, dw);
+            } break;
+        }
+    }
+
+    // Apply contact forces
+    for (auto& con : rb_rb_contact_constraints) {
+        auto& rb1 = *rigid_bodies.get(con.rb_id1);
+        auto& rb2 = *rigid_bodies.get(con.rb_id2);
+        auto& mat1 = *materials.get(rb1.mat_id);
+        auto& mat2 = *materials.get(rb2.mat_id);
+        real mu_dynamic = 0.5 * (mat1.mu_dynamic + mat2.mu_dynamic);
+        real restitution = 0.5 * (mat1.restitution + mat2.restitution);
+        glm::rvec3 v = (rb1.vel + glm::cross(rb1.angvel, con.r1)) - (rb2.vel + glm::cross(rb2.angvel, con.r2));
+        real v_n = glm::dot(con.normal, v);
+        glm::rvec3 v_t = v - v_n * con.normal;
+        glm::rvec3 dv = -glm::min(mu_dynamic * con.normal_lambda / h, 0.0) * glm::normalize(v_t);
+        project_velocities(rb1, rb2, dv, con.r1, con.r2);
+        glm::rvec3 v_next = (rb1.vel + glm::cross(rb1.angvel, con.r1)) - (rb2.vel + glm::cross(rb2.angvel, con.r2));
+        real v_n_next = glm::dot(con.normal, v_next);
+        if (glm::length2(v_n_next) < 4*glm::length2(gravity)*h*h) {
+            restitution = 0;
+        }
+        dv = con.normal * (-v_n_next + glm::max(-restitution * v_n, 0.0));
+        project_velocities(rb1, rb2, dv, con.r1, con.r2);
+    }
+
 }
 
 

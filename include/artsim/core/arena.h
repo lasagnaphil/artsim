@@ -18,6 +18,14 @@
 
 namespace artsim {
 
+template <class T>
+struct TypeID {
+    uint32_t operator()() const { return 0; }
+};
+
+#define DEFINE_TYPEID(T, id) \
+template <> struct TypeID<T> { uint32_t operator()() const { return id; } };
+
 template <typename T>
 struct Id {
     uint32_t index;
@@ -38,11 +46,12 @@ struct Id {
         return id;
     }
     std::pair<int32_t, int32_t> to_int32s() {
-        return {index, (type << 24) | generation};
+        uint32_t* ptr = reinterpret_cast<uint32_t*>(this);
+        return {ptr[0], ptr[1]};
     }
 
     static Id null() {
-        return Id {};
+        return Id {0, TypeID<T>()(), 1};
     }
 
     bool is_null() const {
@@ -62,15 +71,6 @@ struct Id {
 };
 
 struct AnyId : public Id<void> {};
-
-template <class T>
-struct TypeID {
-    uint32_t operator()() const { return 0; }
-};
-
-
-#define DEFINE_TYPEID(T, id) \
-template <> struct TypeID<T> { uint32_t operator()() const { return id; } };
 
 
 template <typename T>
