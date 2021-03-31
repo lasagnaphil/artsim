@@ -17,6 +17,7 @@ private:
     ArticulatedBody art;
     std::vector<SoftBodyData> soft_bodies;
     std::vector<ADMMConstraints> sb_constraints;
+    std::vector<std::string> sb_names;
 
     std::vector<glm::ivec4> tetrahedra;
 
@@ -67,6 +68,9 @@ public:
     }
     glm::rvec3* get_soft_body_force_buf(int sb_idx) {
         return reinterpret_cast<glm::rvec3*>(f_s.data()) + sb_vert_start_idx[sb_idx];
+    }
+    const char* get_soft_body_name(int sb_idx) {
+        return sb_names[sb_idx].c_str();
     }
 
     const ArticulatedBody& get_articulation() {

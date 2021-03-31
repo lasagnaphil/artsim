@@ -165,6 +165,10 @@ void DebugRenderer::flushLineVerts(bool depthEnabled) {
     else
         glDisable(GL_DEPTH_TEST);
 
+    glEnable(GL_LINE_SMOOTH);
+    glEnable(GL_BLEND);
+    glLineWidth(2.0f);
+
     glBindVertexArray(lineVao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertexBufferUsed * sizeof(ImDrawVertex), vertexBuffer.data());
