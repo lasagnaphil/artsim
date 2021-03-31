@@ -201,10 +201,8 @@ public:
     void clear() {
 
     }
-    btCollisionObject* make(glmx::rquat_transform trans, btCollisionShape* shape) {
+    btCollisionObject* make() {
         auto obj = new btCollisionObject();
-        obj->setCollisionShape(shape);
-        obj->setWorldTransform(btconv(trans));
         return obj;
     }
 
@@ -235,6 +233,9 @@ public:
     PBDWorld();
 
     void reset();
+
+    void set_debug_drawer(btIDebugDraw* debug_draw_interface) { bt_world->setDebugDrawer(debug_draw_interface); }
+    void debug_draw() { bt_world->debugDrawWorld(); }
 
     Id<PBDRigidBody> make_cube(glm::rvec3 size, real mass, Id<PBDMaterial> mat_id,
                                int col_filter_group = btBroadphaseProxy::DefaultFilter,
@@ -287,6 +288,9 @@ public:
     int get_num_rigid_bodies() { return rigid_bodies.size(); }
     PBDRigidBody* get_rigid_body_buf() { return rigid_bodies.get_items_buf(); }
     const PBDRigidBody* get_rigid_body_buf() const { return rigid_bodies.get_items_buf(); }
+
+    int get_num_rb_rb_collision_constraints() { return rb_rb_contact_constraints.size(); }
+    PBDRigidRigidContactConstraint* get_rb_rb_collision_constraint_buf() { return rb_rb_contact_constraints.data(); }
 
     void simulate(real dt, int num_substeps = 20);
 

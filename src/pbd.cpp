@@ -3,13 +3,15 @@
 //
 
 #include <artsim/pbd.h>
+#include <glm/gtx/string_cast.hpp>
+#include <BulletCollision/BroadphaseCollision/btAxisSweep3.h>
 
 namespace artsim {
 
 PBDWorld::PBDWorld() {
     bt_collision_config = std::make_unique<btDefaultCollisionConfiguration>();
     bt_dispatcher = std::make_unique<btCollisionDispatcher>(bt_collision_config.get());
-    bt_broadphase = std::make_unique<btDbvtBroadphase>();
+    bt_broadphase = std::make_unique<btAxisSweep3>(btVector3(-50, -50, -50), btVector3(50, 50, 50));
     bt_world = std::make_unique<btCollisionWorld>(bt_dispatcher.get(), bt_broadphase.get(), bt_collision_config.get());
 }
 
@@ -37,8 +39,7 @@ Id<PBDRigidBody> PBDWorld::make_cube(glm::rvec3 size, artsim::real mass, Id<PBDM
     rb.inv_mass = 1.0 / mass;
     rb.mat_id = mat_id;
     rb.col_shape = bt_collision_shapes.make_box(real(0.5) * s);
-    auto col_obj = bt_collision_objects.make(glmx::rquat_transform(rb.pos, rb.rot), rb.col_shape);
-    rb.col_obj = col_obj;
+    rb.col_obj = bt_collision_objects.make();
     rb.is_dynamic = true;
     rb.pos = pos;
     rb.rot = rot;
@@ -46,12 +47,22 @@ Id<PBDRigidBody> PBDWorld::make_cube(glm::rvec3 size, artsim::real mass, Id<PBDM
     rb.angvel = angvel;
     rb.f_ext = f_ext;
     rb.tau_ext = tau_ext;
+    rb.prev_pos = pos;
+    rb.prev_rot = rot;
     Id<PBDRigidBody> id = rigid_bodies.insert(rb);
 
     auto [user_id1, user_id2] = id.to_int32s();
-    col_obj->setUserIndex(user_id1);
-    col_obj->setUserIndex2(user_id2);
-    bt_world->addCollisionObject(col_obj, col_filter_group, col_filter_mask);
+    rb.col_obj->setCollisionShape(rb.col_shape);
+    rb.col_obj->setWorldTransform(btconv(glmx::rquat_transform(rb.pos, rb.rot)));
+    rb.col_obj->setUserIndex(user_id1);
+    rb.col_obj->setUserIndex2(user_id2);
+    bt_world->addCollisionObject(rb.col_obj, col_filter_group, col_filter_mask);
+    auto broadphase_handle = rb.col_obj->getBroadphaseHandle();
+    if (broadphase_handle) {
+        btVector3 aabb_min, aabb_max;
+        bt_broadphase->setAabb(broadphase_handle, aabb_min, aabb_max, bt_dispatcher.get());
+    }
+
 
     return id;
 }
@@ -64,8 +75,7 @@ Id<PBDRigidBody> PBDWorld::make_static_plane(Id<PBDMaterial> mat_id, glm::rvec3 
     rb.inv_mass = 0;
     rb.mat_id = mat_id;
     rb.col_shape = bt_collision_shapes.make_static_plane(normal, constant);
-    auto col_obj = bt_collision_objects.make(glmx::rquat_transform(glmx::IDENTITY), rb.col_shape);
-    rb.col_obj = col_obj;
+    rb.col_obj = bt_collision_objects.make();
     rb.is_dynamic = false;
     rb.pos = {};
     rb.rot = glm::identity<glm::quat>();
@@ -73,12 +83,15 @@ Id<PBDRigidBody> PBDWorld::make_static_plane(Id<PBDMaterial> mat_id, glm::rvec3 
     rb.angvel = {};
     rb.f_ext = {};
     rb.tau_ext = {};
+    rb.prev_pos = {};
+    rb.prev_rot = {};
     Id<PBDRigidBody> id = rigid_bodies.insert(rb);
 
     auto [user_id1, user_id2] = id.to_int32s();
-    col_obj->setUserIndex(user_id1);
-    col_obj->setUserIndex2(user_id2);
-    bt_world->addCollisionObject(col_obj);
+    rb.col_obj->setCollisionShape(rb.col_shape);
+    rb.col_obj->setUserIndex(user_id1);
+    rb.col_obj->setUserIndex2(user_id2);
+    bt_world->addCollisionObject(rb.col_obj);
 
     return id;
 }
@@ -170,7 +183,7 @@ void PBDWorld::simulate(real dt, int num_substeps) {
                 rb.angvel = dq.w >= 0? rb.angvel : -rb.angvel;
             }
         }
-        // solve_velocities(h);
+        solve_velocities(h);
     }
 }
 
@@ -192,7 +205,6 @@ void PBDWorld::reset_lambdas() {
 
 void PBDWorld::collect_collision_pairs() {
     rb_rb_contact_constraints.clear();
-
     for (auto& rb : rigid_bodies) {
         if (rb.is_dynamic) {
             rb.col_obj->setWorldTransform(btconv(glmx::rquat_transform(rb.pos, rb.rot)));
@@ -201,11 +213,10 @@ void PBDWorld::collect_collision_pairs() {
     bt_world->performDiscreteCollisionDetection();
 
     auto dispatcher = bt_world->getDispatcher();
-    btPersistentManifold** manifolds = dispatcher->getInternalManifoldPointer();
     int num_manifolds = dispatcher->getNumManifolds();
 
     for (int i = 0; i < num_manifolds; i++) {
-        btPersistentManifold* manifold = manifolds[i];
+        btPersistentManifold* manifold = dispatcher->getManifoldByIndexInternal(i);
         int num_contacts = manifold->getNumContacts();
         if (num_contacts == 0) continue;
 
@@ -213,39 +224,26 @@ void PBDWorld::collect_collision_pairs() {
         const btCollisionObject* body2 = manifold->getBody1();
         Id<PBDRigidBody> rb_id1 = Id<PBDRigidBody>::from_int32s(body1->getUserIndex(), body1->getUserIndex2());
         Id<PBDRigidBody> rb_id2 = Id<PBDRigidBody>::from_int32s(body2->getUserIndex(), body2->getUserIndex2());
-        PBDRigidBody* rb1 = rigid_bodies.get(rb_id1);
-        PBDRigidBody* rb2 = rigid_bodies.get(rb_id2);
         for (int j = 0; j < num_contacts; j++) {
             auto& pt = manifold->getContactPoint(j);
-            PBDRigidRigidContactConstraint con;
-            con.rb_id1 = rb_id1;
-            con.rb_id2 = rb_id2;
-            con.p1 = glmconv(pt.m_positionWorldOnA);
-            con.p2 = glmconv(pt.m_positionWorldOnB);
-            con.r1 = glm::inverse(rb1->rot) * (con.p1 - rb1->pos);
-            con.r2 = glm::inverse(rb2->rot) * (con.p2 - rb2->pos);
-            con.normal = glmconv(pt.m_normalWorldOnB);
-            con.normal_lambda = 0;
-            con.tangent_lambda = 0;
-            rb_rb_contact_constraints.push_back(con);
+            if (pt.getDistance() < 0.f) {
+                PBDRigidRigidContactConstraint con;
+                con.rb_id1 = rb_id1;
+                con.rb_id2 = rb_id2;
+                con.p1 = glmconv(pt.m_positionWorldOnA);
+                con.p2 = glmconv(pt.m_positionWorldOnB);
+                con.r1 = glmconv(pt.m_localPointA);
+                con.r2 = glmconv(pt.m_localPointB);
+                con.normal = glmconv(pt.m_normalWorldOnB);
+                con.normal_lambda = 0;
+                con.tangent_lambda = 0;
+                rb_rb_contact_constraints.push_back(con);
+                auto p1_txt = glm::to_string(con.p1);
+                auto p2_txt = glm::to_string(con.p2);
+                printf("Contact at %s, %s with depth=%f\n", p1_txt.c_str(), p2_txt.c_str(), pt.getDistance());
+            }
         }
     }
-}
-
-void project_positions(PBDRigidBody& rb, glm::rvec3 dx,
-                       real alpha, glm::rvec3 r, real& lambda) {
-
-    real c = glm::length(dx);
-    if (c <= glm::epsilon<real>()) return;
-    glm::rvec3 n = dx / c;
-    real w = rb.inv_mass + glmx::quadratic_form(rb.inv_inertia, glm::cross(r, n));
-    real dlambda = (-c - alpha * lambda) / (w + alpha);
-    lambda += dlambda;
-
-    glm::rvec3 p = dlambda * n;
-    rb.pos -= rb.inv_mass * p;
-    rb.rot -= 0.5 * (glm::rquat(0, rb.inv_inertia * glm::cross(r, p)) * rb.rot);
-    rb.rot = glm::normalize(rb.rot);
 }
 
 void project_positions(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dx,
@@ -264,31 +262,15 @@ void project_positions(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dx,
     glm::rvec3 p = dlambda * n;
 
     if (rb1.is_dynamic) {
-        rb1.pos -= rb1.inv_mass * p;
-        rb1.rot -= 0.5 * (glm::rquat(0, rb1.inv_inertia * glm::cross(r1, p)) * rb1.rot);
+        rb1.pos += rb1.inv_mass * p;
+        rb1.rot += 0.5 * (glm::rquat(0, rb1.inv_inertia * glm::cross(r1, p)) * rb1.rot);
         rb1.rot = glm::normalize(rb1.rot);
     }
     if (rb2.is_dynamic) {
-        rb2.pos += rb2.inv_mass * p;
-        rb2.rot += 0.5 * (glm::rquat(0, rb2.inv_inertia * glm::cross(r2, p)) * rb2.rot);
+        rb2.pos -= rb2.inv_mass * p;
+        rb2.rot -= 0.5 * (glm::rquat(0, rb2.inv_inertia * glm::cross(r2, p)) * rb2.rot);
         rb2.rot = glm::normalize(rb2.rot);
     }
-}
-
-void project_rotations(PBDRigidBody& rb,
-                       real alpha, glm::rquat target_rot, real& lambda) {
-    glm::rvec3 dq = glmx::log(target_rot * glm::inverse(rb.rot));
-    real theta = glm::length(dq);
-    if (theta <= glm::epsilon<real>()) return;
-    glm::rvec3 n = dq / theta;
-    glm::rvec3 n_rel = glm::inverse(rb.rot) * n;
-    real w = glmx::quadratic_form(rb.inv_inertia, n_rel);
-    real dlambda = (-theta - alpha * lambda) / (w + alpha);
-    lambda += dlambda;
-
-    glm::rvec3 p = dlambda * n_rel;
-    rb.rot -= 0.5 * (glm::rquat(0, rb.inv_inertia * p) * rb.rot);
-    rb.rot = glm::normalize(rb.rot);
 }
 
 void project_rotations(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dq,
@@ -306,11 +288,11 @@ void project_rotations(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dq,
 
     glm::rvec3 p = dlambda * n_rel;
     if (rb1.is_dynamic) {
-        rb1.rot -= 0.5 * (glm::rquat(0, rb1.inv_inertia * p) * rb1.rot);
+        rb1.rot += 0.5 * (glm::rquat(0, rb1.inv_inertia * p) * rb1.rot);
         rb1.rot = glm::normalize(rb1.rot);
     }
     if (rb2.is_dynamic) {
-        rb2.rot += 0.5 * (glm::rquat(0, rb2.inv_inertia * p) * rb2.rot);
+        rb2.rot -= 0.5 * (glm::rquat(0, rb2.inv_inertia * p) * rb2.rot);
         rb2.rot = glm::normalize(rb2.rot);
     }
 }
@@ -351,7 +333,7 @@ void PBDWorld::solve_positions(real h) {
                 glm::rmat3 basis2 = glm::mat3_cast(rb2.rot);
                 glm::rvec3 r1 = basis1*rev_con.offset1;
                 glm::rvec3 r2 = basis2*rev_con.offset2;
-                glm::rvec3 dx = (rb2.pos + r2) - (rb1.pos + r1);
+                glm::rvec3 dx = (rb1.pos + r1) - (rb2.pos + r2);
                 project_positions(rb1, rb2, dx, alpha, r1, r2, rev_con.pos_lambda);
                 glm::rvec3 dq = glm::cross(basis1[0], basis2[0]);
                 project_rotations(rb1, rb2, dq, alpha, rev_con.rot_lambda);
@@ -368,7 +350,7 @@ void PBDWorld::solve_positions(real h) {
                 glm::rvec3 dq_swing, dq_twist;
                 glm::rvec3 r1 = basis1*sph_con.offset1;
                 glm::rvec3 r2 = basis2*sph_con.offset2;
-                glm::rvec3 dx = (rb2.pos + r2) - (rb1.pos + r1);
+                glm::rvec3 dx = (rb1.pos + r1) - (rb2.pos + r2);
                 project_positions(rb1, rb2, dx, alpha, r1, r2, sph_con.pos_lambda);
                 if (limit_angle(glm::normalize(glm::cross(basis1[0], basis2[0])), basis1[1], basis2[1],
                                 sph_con.swing_limit_min, sph_con.swing_limit_max, dq_swing)) {
@@ -390,6 +372,7 @@ void PBDWorld::solve_positions(real h) {
         auto& mat1 = *materials.get(rb1.mat_id);
         auto& mat2 = *materials.get(rb2.mat_id);
         real d = glm::dot(con.p1 - con.p2, con.normal);
+        // real margin = rb1.col_shape->getMargin() + rb2.col_shape->getMargin();
         if (d <= 0) { continue; }
         glm::rvec3 dx = d * con.normal;
         project_positions(rb1, rb2, dx, 0, con.r1, con.r2, con.normal_lambda);
@@ -406,11 +389,21 @@ void PBDWorld::solve_positions(real h) {
 }
 
 void project_velocities(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dv, glm::rvec3 r1, glm::rvec3 r2) {
-    glm::rvec3 p = dv / (rb1.inv_mass + rb2.inv_mass);
-    rb1.vel += rb1.inv_mass * p;
-    rb2.vel -= rb2.inv_mass * p;
-    rb1.angvel += rb1.inv_inertia * glm::cross(r1, p);
-    rb2.angvel -= rb2.inv_inertia * glm::cross(r2, p);
+    real c = glm::length(dv);
+    if (c <= glm::epsilon<real>()) return;
+    glm::rvec3 n = dv / c;
+    real w1 = rb1.inv_mass + glmx::quadratic_form(rb1.inv_inertia, glm::cross(r1, n));
+    real w2 = rb2.inv_mass + glmx::quadratic_form(rb2.inv_inertia, glm::cross(r2, n));
+    real w_tot = int(rb1.is_dynamic) * w1 + int(rb2.is_dynamic) * w2;
+    glm::rvec3 p = dv / w_tot;
+    if (rb1.is_dynamic) {
+        rb1.vel += rb1.inv_mass * p;
+        rb1.angvel += rb1.inv_inertia * glm::cross(r1, p);
+    }
+    else if (rb2.is_dynamic) {
+        rb2.vel -= rb2.inv_mass * p;
+        rb2.angvel -= rb2.inv_inertia * glm::cross(r2, p);
+    }
 }
 
 void project_angular_velocities(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dw) {
@@ -449,14 +442,17 @@ void PBDWorld::solve_velocities(real h) {
         glm::rvec3 v = (rb1.vel + glm::cross(rb1.angvel, con.r1)) - (rb2.vel + glm::cross(rb2.angvel, con.r2));
         real v_n = glm::dot(con.normal, v);
         glm::rvec3 v_t = v - v_n * con.normal;
-        glm::rvec3 dv = -glm::min(mu_dynamic * con.normal_lambda / h, 0.0) * glm::normalize(v_t);
-        project_velocities(rb1, rb2, dv, con.r1, con.r2);
+        real v_t_len = glm::length(v_t);
+        if (v_t_len > glm::epsilon<real>()) {
+            glm::rvec3 dv = -glm::min(mu_dynamic * con.normal_lambda / h, v_t_len) * v_t / v_t_len;
+            project_velocities(rb1, rb2, dv, con.r1, con.r2);
+        }
         glm::rvec3 v_next = (rb1.vel + glm::cross(rb1.angvel, con.r1)) - (rb2.vel + glm::cross(rb2.angvel, con.r2));
         real v_n_next = glm::dot(con.normal, v_next);
-        if (glm::length2(v_n_next) < 4*glm::length2(gravity)*h*h) {
+        if (v_n_next < 2*glm::length(gravity)*h) {
             restitution = 0;
         }
-        dv = con.normal * (-v_n_next + glm::max(-restitution * v_n, 0.0));
+        glm::rvec3 dv = con.normal * (-v_n_next + glm::max(-restitution * v_n, 0.0));
         project_velocities(rb1, rb2, dv, con.r1, con.r2);
     }
 

@@ -93,6 +93,9 @@ public:
         art_render.render(pbRenderer, imRenderer);
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
+        for (auto& contact_point : state.contact_points) {
+            imRenderer.drawSphere(contact_point.pos, colors::Red, 0.01f, false);
+        }
 
         pbRenderer.render();
         imRenderer.render();
