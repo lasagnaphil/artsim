@@ -13,7 +13,7 @@ find_package(Eigen3 CONFIG REQUIRED)
 # For URDF exports
 find_package(TinyXML2 REQUIRED)
 
-option(ARTSIM_USE_DOUBLE "Use double instead of float" OFF)
+option(ARTSIM_USE_DOUBLE "Use double instead of float" ON)
 option(ARTSIM_USE_OPENMP "Use OpenMP" ON)
 option(ARTSIM_USE_ASAN "Use Address Sanitizer" OFF)
 option(ARTSIM_BUILD_RENDERER "Build renderer" OFF)

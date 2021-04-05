@@ -25,10 +25,13 @@ struct Texture {
     GLuint filterMax;
 
     Texture() = default;
+    ~Texture() { dispose(); }
     static Ref<Texture> fromImage(Ref<Image> image);
+    static Ref<Texture> fromSubImage(Ref<Image> image, int xoffset, int yoffset, int width, int height);
     static Ref<Texture> fromNew(uint32_t width, uint32_t height);
     static Ref<Texture> fromSingleColor(glm::vec3 color);
     void loadFromImage(Ref<Image> image);
+    void loadFromSubImage(Ref<Image> image, int xoffset, int yoffset, int width, int height);
     void dispose();
 
     void bind();

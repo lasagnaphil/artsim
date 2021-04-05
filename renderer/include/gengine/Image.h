@@ -13,6 +13,7 @@ struct Image {
     int width, height, nrChannels, desiredChannels;
 
     Image() = default;
+    ~Image() { dispose(); }
 
     static Ref<Image> fromFile(const std::string& filename, int desiredChannels = 0);
 
