@@ -76,7 +76,6 @@ struct PBDSphericalJointConstraint {
 
 struct PBDRigidRigidContactConstraint {
     Id<PBDRigidBody> rb_id1, rb_id2;
-    glm::tvec3<real> p1, p2;
     glm::tvec3<real> r1, r2;
     glm::tvec3<real> normal;
 
@@ -228,6 +227,8 @@ private:
     std::unique_ptr<btDispatcher> bt_dispatcher;
     std::unique_ptr<btBroadphaseInterface> bt_broadphase;
     std::unique_ptr<btCollisionWorld> bt_world;
+
+    Id<PBDRigidBody> ground_rb;
 
 public:
     PBDWorld();

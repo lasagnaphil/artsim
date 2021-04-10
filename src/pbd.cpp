@@ -11,7 +11,7 @@ namespace artsim {
 PBDWorld::PBDWorld() {
     bt_collision_config = std::make_unique<btDefaultCollisionConfiguration>();
     bt_dispatcher = std::make_unique<btCollisionDispatcher>(bt_collision_config.get());
-    bt_broadphase = std::make_unique<btAxisSweep3>(btVector3(-50, -50, -50), btVector3(50, 50, 50));
+    bt_broadphase = std::make_unique<btDbvtBroadphase>();
     bt_world = std::make_unique<btCollisionWorld>(bt_dispatcher.get(), bt_broadphase.get(), bt_collision_config.get());
 }
 
@@ -92,6 +92,8 @@ Id<PBDRigidBody> PBDWorld::make_static_plane(Id<PBDMaterial> mat_id, glm::rvec3 
     rb.col_obj->setUserIndex(user_id1);
     rb.col_obj->setUserIndex2(user_id2);
     bt_world->addCollisionObject(rb.col_obj);
+
+    ground_rb = id;
 
     return id;
 }
@@ -205,10 +207,12 @@ void PBDWorld::reset_lambdas() {
 
 void PBDWorld::collect_collision_pairs() {
     rb_rb_contact_constraints.clear();
+
+#define USE_BULLET_COLLISION
+
+#ifdef USE_BULLET_COLLISION
     for (auto& rb : rigid_bodies) {
-        if (rb.is_dynamic) {
-            rb.col_obj->setWorldTransform(btconv(glmx::rquat_transform(rb.pos, rb.rot)));
-        }
+        rb.col_obj->setWorldTransform(btconv(glmx::rquat_transform(rb.pos, rb.rot)));
     }
     bt_world->performDiscreteCollisionDetection();
 
@@ -230,20 +234,78 @@ void PBDWorld::collect_collision_pairs() {
                 PBDRigidRigidContactConstraint con;
                 con.rb_id1 = rb_id1;
                 con.rb_id2 = rb_id2;
-                con.p1 = glmconv(pt.m_positionWorldOnA);
-                con.p2 = glmconv(pt.m_positionWorldOnB);
                 con.r1 = glmconv(pt.m_localPointA);
                 con.r2 = glmconv(pt.m_localPointB);
-                con.normal = glmconv(pt.m_normalWorldOnB);
+                con.normal = -glmconv(pt.m_normalWorldOnB);
                 con.normal_lambda = 0;
                 con.tangent_lambda = 0;
                 rb_rb_contact_constraints.push_back(con);
-                auto p1_txt = glm::to_string(con.p1);
-                auto p2_txt = glm::to_string(con.p2);
-                printf("Contact at %s, %s with depth=%f\n", p1_txt.c_str(), p2_txt.c_str(), pt.getDistance());
+                // auto p1_txt = glm::to_string(con.p1);
+                // auto p2_txt = glm::to_string(con.p2);
+                // printf("Contact at %s, %s with depth=%f\n", p1_txt.c_str(), p2_txt.c_str(), pt.getDistance());
             }
         }
     }
+#else
+
+    // Only collide with plane / box for now
+    for (auto& rb : rigid_bodies) {
+        Id<PBDRigidBody> rb_idx = rigid_bodies.get_id_of_ptr(&rb);
+        if (!rb.is_dynamic) continue;
+        switch (rb.col_shape->getShapeType()) {
+            case BOX_SHAPE_PROXYTYPE: {
+                std::vector<glm::tvec3<real>> cpos;
+                auto shape = dynamic_cast<btBoxShape*>(rb.col_shape);
+                glm::rvec3 ext = glmconv(shape->getHalfExtentsWithoutMargin());
+                if (rb.pos.y*rb.pos.y > ext.x*ext.x + ext.y*ext.y + ext.z*ext.z) {
+                    // early bailout for boxes that definitely doesn't collide with ground
+                    break;
+                }
+                for (auto& r : {glm::rvec3(-ext.x, -ext.y, -ext.z),
+                                glm::rvec3(-ext.x, -ext.y,  ext.z),
+                                glm::rvec3(-ext.x,  ext.y, -ext.z),
+                                glm::rvec3(-ext.x,  ext.y,  ext.z),
+                                glm::rvec3( ext.x, -ext.y, -ext.z),
+                                glm::rvec3( ext.x, -ext.y,  ext.z),
+                                glm::rvec3( ext.x,  ext.y, -ext.z),
+                                glm::rvec3( ext.x,  ext.y,  ext.z)}) {
+                    glm::rvec3 p = rb.pos + rb.rot * r;
+                    if (p.y <= 0.0f) {
+                        cpos.push_back(r);
+                    }
+                }
+                for (auto& pos : cpos) {
+                    PBDRigidRigidContactConstraint con;
+                    con.rb_id1 = rb_idx;
+                    con.rb_id2 = ground_rb;
+                    con.r1 = pos;
+                    con.r2 = glm::rvec3(pos.x, 0, pos.y);
+                    con.normal = glm::rvec3(0,-1,0);
+                    con.normal_lambda = 0;
+                    con.tangent_lambda = 0;
+                    rb_rb_contact_constraints.push_back(con);
+                }
+            } break;
+            case SPHERE_SHAPE_PROXYTYPE: {
+                auto shape = dynamic_cast<btSphereShape*>(rb.col_shape);
+                glm::tvec3<real> p = rb.pos;
+                real r = shape->getRadius();//  + shape->getMargin();
+                real d = p.y - r;
+                if (d <= 0.0f) {
+                    PBDRigidRigidContactConstraint con;
+                    con.rb_id1 = rb_idx;
+                    con.rb_id2 = ground_rb;
+                    con.r1 = glm::inverse(rb.rot) * glm::rvec3(0, -r, 0);
+                    con.r2 = glm::rvec3(p.x, 0, p.z);
+                    con.normal = glm::rvec3(0,-1,0);
+                    con.normal_lambda = 0;
+                    con.tangent_lambda = 0;
+                    rb_rb_contact_constraints.push_back(con);
+                }
+            } break;
+        }
+    }
+#endif
 }
 
 void project_positions(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dx,
@@ -371,15 +433,17 @@ void PBDWorld::solve_positions(real h) {
         auto& rb2 = *rigid_bodies.get(con.rb_id2);
         auto& mat1 = *materials.get(rb1.mat_id);
         auto& mat2 = *materials.get(rb2.mat_id);
-        real d = glm::dot(con.p1 - con.p2, con.normal);
+        glm::rvec3 p1 = rb1.pos + rb1.rot * con.r1;
+        glm::rvec3 p2 = rb2.pos + rb2.rot * con.r2;
+        real d = glm::dot(p1 - p2, con.normal);
         // real margin = rb1.col_shape->getMargin() + rb2.col_shape->getMargin();
-        if (d <= 0) { continue; }
+        if (d < 0) { continue; }
         glm::rvec3 dx = d * con.normal;
         project_positions(rb1, rb2, dx, 0, con.r1, con.r2, con.normal_lambda);
 
         glm::rvec3 p1_bar = rb1.prev_pos + rb1.prev_rot * con.r1;
         glm::rvec3 p2_bar = rb2.prev_pos + rb2.prev_rot * con.r2;
-        glm::rvec3 dp = (con.p1 - p1_bar) - (con.p2 - p2_bar);
+        glm::rvec3 dp = (p1 - p1_bar) - (p2 - p2_bar);
         glm::rvec3 dp_t = dp - glm::dot(dp, con.normal);
         real mu_static = 0.5 * (mat1.mu_static + mat2.mu_static);
         if (con.tangent_lambda < mu_static * con.normal_lambda) {
@@ -455,7 +519,6 @@ void PBDWorld::solve_velocities(real h) {
         glm::rvec3 dv = con.normal * (-v_n_next + glm::max(-restitution * v_n, 0.0));
         project_velocities(rb1, rb2, dv, con.r1, con.r2);
     }
-
 }
 
 

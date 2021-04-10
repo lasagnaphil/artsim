@@ -246,6 +246,14 @@ public:
         }
     }
 
+    Id<T> get_id_of_ptr(T* data_ptr) {
+        int item_idx = data_ptr - items.data();
+        int node_idx = dense_to_sparse_map[item_idx];
+        auto& node = free_list[node_idx];
+        assert(node.generation != 0);
+        return Id<T> {node.index, TypeID<T>()(), node.generation};
+    }
+
 };
 
 }
