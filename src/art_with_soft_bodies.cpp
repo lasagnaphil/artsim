@@ -187,14 +187,13 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
     return true;
 }
 
-
 void ArtWithSoftBodies::load(const char* metadata) {
     fs::path metadata_path(metadata);
     fs::path folder = metadata_path.parent_path();
 
-    XMLDocument doc;
-    doc.LoadFile(metadata);
-    auto root_el = doc.RootElement();
+    doc = std::make_unique<XMLDocument>();
+    doc->LoadFile(metadata);
+    auto root_el = doc->RootElement();
 
     auto sim_el = root_el->FirstChildElement("simulation");
     int hz = sim_el->IntAttribute("hz");
@@ -271,6 +270,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
         sb_vert_start_idx[sb_idx] = sb_vert_start_idx[sb_idx-1] + sb_num_vertices;
     }
 
+#pragma omp parallel for
     for (int sb_idx = 0; sb_idx < sb_count; sb_idx++) {
         soft_body_precomputation(soft_bodies[sb_idx], sb_constraints[sb_idx], dt);
     }
@@ -278,12 +278,12 @@ void ArtWithSoftBodies::load(const char* metadata) {
     N_s = sb_vert_start_idx[sb_count];
 
     sb_constraints.resize(sb_count);
+    sb_constr_vertices.resize(sb_count);
     index_s_to_c.resize(N_s, -1);
     index_c_to_link.resize(N_s, -1);
 
     sb_idx = 0;
-    int cur_cidx = 0;
-    for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("node")) {
+    for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("soft_body")) {
         for (auto at_el = sb_el->FirstChildElement("attachment"); at_el != nullptr; at_el = at_el->NextSiblingElement("attachment")) {
             std::string node_name = at_el->Attribute("node");
             auto it = std::find(art.names.begin(), art.names.end(), node_name);
@@ -292,18 +292,35 @@ void ArtWithSoftBodies::load(const char* metadata) {
                 exit(EXIT_FAILURE);
             }
             int link_idx = it - art.names.begin();
-            int vidx_start = sb_vert_start_idx[sb_idx];
             auto vertices_el = at_el->FirstChildElement("vertices");
+            std::cout << vertices_el->GetText() << std::endl;
             std::stringstream ss(vertices_el->GetText());
             std::string token;
+            std::vector<int> constr_vertices;
             while (ss >> token) {
-                int vidx = vidx_start + std::stoi(token);
+                int idx = std::stoi(token);
+                constr_vertices.push_back(idx);
+            }
+            sb_constr_vertices[sb_idx].insert({link_idx, constr_vertices});
+        }
+        sb_idx++;
+    }
+
+    update_attachments();
+}
+
+void ArtWithSoftBodies::update_attachments() {
+    int cur_cidx = 0;
+    for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+        int vidx_start = sb_vert_start_idx[sb_idx];
+        for (auto& [link_idx, constr_vertices] : sb_constr_vertices[sb_idx]) {
+            for (auto& idx : constr_vertices) {
+                int vidx = vidx_start + idx;
                 index_s_to_c[vidx] = cur_cidx;
                 index_c_to_link[cur_cidx] = link_idx;
                 cur_cidx++;
             }
         }
-        sb_idx++;
     }
 
     N_c = cur_cidx;
@@ -341,7 +358,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
 
     reset();
 
-    artsim::calc_transforms(art, x_r.data(), nullptr, art_joint_trans.data());
+    artsim::calc_transforms(art, x_r.data(), art_link_trans.data(), art_joint_trans.data());
     constr_vertices_offset.resize(N_c);
     for (int cidx = 0; cidx < N_c; cidx++) {
         int vidx = index_c_to_s[cidx];
@@ -349,6 +366,39 @@ void ArtWithSoftBodies::load(const char* metadata) {
         rvec3 vpos = glm::make_vec3(x_s.data() + 3*vidx);
         constr_vertices_offset[cidx] = ttransform<real>(vpos) / art_joint_trans[link_idx];
     }
+
+    printf("Total vertices: %d\n", N_s);
+    printf("Constrained vertices: %d\n", N_c);
+}
+
+void ArtWithSoftBodies::save(const char* metadata) {
+    auto root_el = doc->RootElement();
+
+    // Update attachments in XML file
+    int sb_idx = 0;
+    for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("soft_body")) {
+        for (auto at_el = sb_el->FirstChildElement("attachment"); at_el != nullptr; at_el = at_el->NextSiblingElement("attachment")) {
+            std::string node_name = at_el->Attribute("node");
+            auto it = std::find(art.names.begin(), art.names.end(), node_name);
+            if (it == art.names.end()) {
+                fprintf(stderr, "Cannot find node name %s for attachment!\n", node_name.c_str());
+                exit(EXIT_FAILURE);
+            }
+            int link_idx = it - art.names.begin();
+            auto& vertices = sb_constr_vertices[sb_idx][link_idx];
+            auto vertices_el = at_el->FirstChildElement("vertices");
+            std::stringstream ss;
+            for (int idx : vertices) {
+                ss << std::to_string(idx) << " ";
+            }
+            std::string str = ss.str();
+            std::cout << str << std::endl;
+            vertices_el->SetText(str.c_str());
+        }
+        sb_idx++;
+    }
+
+    doc->SaveFile(metadata);
 }
 
 void ArtWithSoftBodies::reset() {
@@ -473,11 +523,7 @@ void ArtWithSoftBodies::apply_selector_matrix_sub(INOUT real* X_s, const real* d
     }
 }
 
-void ArtWithSoftBodies::integrate() {
-    // Forward kinematics of articulation
-    artsim::calc_transforms(art, x_r.data(), nullptr, art_joint_trans.data());
-
-    // Calculate coupling jacobian
+void ArtWithSoftBodies::calc_constraint_jacobian() {
     calc_S(art, x_r.data(), art_joint_S.data());
     J_cr.setZero();
     for (int cidx = 0; cidx < N_c; cidx++) {
@@ -500,20 +546,9 @@ void ArtWithSoftBodies::integrate() {
             lidx = art.parents[lidx];
         }
     }
+}
 
-    // Calculate articulation matrix M_r
-    dynmat_view<real> M_r_view(M_r.data(), N_r, N_r);
-    mass_matrix(art, dt, x_r.data(), M_r_view);
-
-    // Calculate inverse of articulation matrix M_r^{-1}
-    dynmat_view<real> M_r_inv_view(M_r_inv.data(), N_r, N_r);
-    dynmat<real> identity(N_r, IDENTITY);
-    multiply_inverse_mass_matrix(art, dt, x_r.data(), identity.to_view(), OUT M_r_inv_view);
-
-    // Calculate other matrices related to articulation
-    M_r_inv_J_cr_T.noalias() = M_r_inv * J_cr.transpose();
-
-    // Add gravity to total force
+VectorXr ArtWithSoftBodies::calc_total_force_with_gravity() {
     VectorXr f_s_tot = f_s;
     auto f_s_tot_ptr = (glm::rvec3*) f_s_tot.data();
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
@@ -528,7 +563,32 @@ void ArtWithSoftBodies::integrate() {
             f_s_tot_ptr[vidx_start + tet[3]] += f_g;
         }
     }
+    return f_s_tot;
+}
 
+void ArtWithSoftBodies::integrate_admm_coupled() {
+    // Forward kinematics of articulation
+    artsim::calc_transforms(art, x_r.data(), art_link_trans.data(), art_joint_trans.data());
+
+    // Calculate coupling jacobian
+    calc_constraint_jacobian();
+
+    // Calculate articulation matrix M_r
+    dynmat_view<real> M_r_view(M_r.data(), N_r, N_r);
+    mass_matrix(art, dt, x_r.data(), M_r_view);
+
+    // Calculate inverse of articulation matrix M_r^{-1}
+    dynmat_view<real> M_r_inv_view(M_r_inv.data(), N_r, N_r);
+    dynmat<real> identity(N_r, IDENTITY);
+    multiply_inverse_mass_matrix(art, dt, x_r.data(), identity.to_view(), OUT M_r_inv_view);
+
+    // Calculate other matrices related to articulation
+    M_r_inv_J_cr_T.noalias() = M_r_inv * J_cr.transpose();
+
+    // Add gravity to total force
+    VectorXr f_s_tot = calc_total_force_with_gravity();
+
+    // Semi-implicit integration with explicit forces
     VectorXr x_s_orig = x_s;
     VectorXr v_s_tilde = v_s;
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
@@ -538,16 +598,15 @@ void ArtWithSoftBodies::integrate() {
         v_s_tilde.middleRows(3*vidx_start, 3*vidx_count) +=
                 dt * sb.M_LDLt.solve(f_s_tot.middleRows(3*vidx_start, 3*vidx_count));
     }
-
     VectorXr x_r_orig = x_r;
     VectorXr v_r_dot(N_r);
     featherstone_forward_dynamics(art, gravity, dt, nullptr, x_r.data(), v_r.data(), f_r.data(), OUT v_r_dot.data());
     VectorXr v_r_tilde = v_r + dt * v_r_dot;
-
     v_s = v_s_tilde;
     v_r = v_r_tilde;
     x_s = x_s_orig + dt*v_s;
 
+    // ADMM optimization
     std::vector<glm::tmat3x3<real>> u(N_t, glm::tmat3x3<real>(0.0));
     std::vector<glm::tmat3x3<real>> u_prev(N_t);
     std::vector<glm::tmat3x3<real>> z(N_t, glm::tmat3x3<real>(0.0));

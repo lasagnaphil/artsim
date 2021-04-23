@@ -55,7 +55,7 @@ union ImDrawVertex {
     } glyph;
 };
 
-#define IM_VERTEX_BUFFER_SIZE 1024
+#define IM_VERTEX_BUFFER_SIZE 16384
 
 struct DebugRenderer {
 

@@ -66,8 +66,8 @@ public:
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(glm::vec3(252.f, 3.f, 3.f) / 255.f);
         // soft_body_mat->alpha = 0.2f;
 
-        system.load("demo/resources/art_with_soft_bodies/metadata.xml");
-        // system.load("/home/lasagnaphil/data/musculoskeleton/export_arm/metadata.xml");
+        // system.load("demo/resources/art_with_soft_bodies/metadata.xml");
+        system.load("/home/lasagnaphil/data/musculoskeleton/export_arm/metadata.xml");
 
         soft_body_renderers.reserve(system.get_num_soft_bodies());
         for (auto& sb : system.get_soft_bodies()) {
@@ -82,7 +82,7 @@ public:
 
         orig_mesh_mat = PBRMaterial::quick(colors::Green);
 
-        soft_body_render_mask.resize(system.get_num_soft_bodies(), true);
+        soft_body_selection_mask.resize(system.get_num_soft_bodies(), false);
     }
 
     void processInput(SDL_Event &event) override {
@@ -108,7 +108,7 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
-            system.integrate();
+            system.integrate_admm_coupled();
 
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
@@ -133,10 +133,26 @@ public:
 
         auto& soft_bodies = system.get_soft_bodies();
         for (int i = 0; i < soft_bodies.size(); i++) {
-            if (soft_body_render_mask[i]) {
+            if (soft_body_selection_mask[i]) {
                 soft_body_renderers[i].render(pbRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
                 soft_body_renderers[i].render_debug_surface(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
                 // soft_body_renderers[i].render_debug_volume(imRenderer, (glm::rvec3*)system.get_soft_body_pos_buf(i));
+            }
+        }
+
+        glm::rvec3* pos_buf = system.get_soft_body_pos_buf(0);
+        const int* constr_indices = system.get_soft_body_s_to_c_buf();
+        for (int sb_idx = 0; sb_idx < system.get_num_soft_bodies(); sb_idx++) {
+            if (soft_body_selection_mask[sb_idx]) {
+                int sidx_start = system.get_soft_body_start_vidx(sb_idx);
+                int sidx_end = system.get_soft_body_start_vidx(sb_idx+1);
+                for (int sidx = sidx_start; sidx < sidx_end; sidx++) {
+                    int cidx = constr_indices[sidx];
+                    if (cidx != -1) {
+                        glm::rvec3 pos = pos_buf[sidx];
+                        imRenderer.drawPoint(pos, colors::Green, 4.0f, false);
+                    }
+                }
             }
         }
 
@@ -187,9 +203,14 @@ public:
             }
         }
         if (ImGui::CollapsingHeader("Soft Body")) {
+            if (ImGui::Button("Select/Deselect all")) {
+                static bool all_selected = false;
+                all_selected = !all_selected;
+                std::fill(soft_body_selection_mask.begin(), soft_body_selection_mask.end(), all_selected);
+            }
             for (int i = 0; i < system.get_num_soft_bodies(); i++) {
-                std::string checkbox_label = std::string(system.get_soft_body_name(i));
-                ImGui::Checkbox(checkbox_label.c_str(), (bool*)&soft_body_render_mask[i]);
+                std::string soft_body_label = std::string(system.get_soft_body_name(i));
+                ImGui::Selectable(soft_body_label.c_str(), (bool*)&soft_body_selection_mask[i]);
             }
         }
         ImGui::End();
@@ -206,6 +227,7 @@ public:
     void resetPhysics() {
         system.reset();
 
+        /*
         art_root_trans = ttransform<real>(glm::rvec3(0, 1, 0));
         int sb_count = system.get_num_soft_bodies();
         auto& art = system.get_articulation();
@@ -218,6 +240,7 @@ public:
                 sb_pos[sb_idx] = art_root_trans.v + art_root_trans.R * sb_pos[sb_idx];
             }
         }
+         */
     }
 
 private:
@@ -229,7 +252,7 @@ private:
 
     std::vector<SoftBodyRender> soft_body_renderers;
     ArticulationRender art_render;
-    std::vector<unsigned char> soft_body_render_mask;
+    std::vector<unsigned char> soft_body_selection_mask;
 
     Ref<PBRMaterial> ground_mat;
     Ref<Mesh> ground_mesh;

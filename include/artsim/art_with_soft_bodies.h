@@ -6,6 +6,8 @@
 #define ARTSIM_ART_WITH_SOFT_BODIES_H
 
 #include <artsim/soft_body.h>
+#include <tinyxml2.h>
+#include <memory>
 
 namespace artsim {
 
@@ -13,13 +15,13 @@ using MatrixXr = Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>;
 using VectorXr = Eigen::Matrix<real, Eigen::Dynamic, 1>;
 
 struct ArtWithSoftBodies {
-private:
+protected:
+    std::unique_ptr<tinyxml2::XMLDocument> doc;
+
     ArticulatedBody art;
     std::vector<SoftBodyData> soft_bodies;
     std::vector<ADMMConstraints> sb_constraints;
     std::vector<std::string> sb_names;
-
-    std::vector<glm::ivec4> tetrahedra;
 
     std::vector<int> index_s_to_c;
     std::vector<int> index_c_to_link;
@@ -28,6 +30,8 @@ private:
     std::vector<int> sb_vert_start_idx;
     std::vector<int> sb_tet_start_idx;
 
+    std::vector<std::map<int, std::vector<int>>> sb_constr_vertices;
+
     real dt;
     glm::rvec3 gravity;
 
@@ -35,6 +39,7 @@ private:
     int N_t;
 
     VectorXr x_s, x_r, v_s, v_r, f_s, f_r;
+    std::vector<glmx::ttransform<real>> art_link_trans;
     std::vector<glmx::ttransform<real>> art_joint_trans;
     std::vector<glmx::tscrew<real>> art_joint_S;
     MatrixXr J_cr;
@@ -47,9 +52,13 @@ private:
 public:
     void load(const char* metadata);
 
+    void save(const char* metadata);
+
+    void update_attachments();
+
     void reset();
 
-    void integrate();
+    void integrate_admm_coupled();
 
     const std::vector<SoftBodyData>& get_soft_bodies() {
         return soft_bodies;
@@ -57,9 +66,22 @@ public:
     int get_num_soft_bodies() {
         return soft_bodies.size();
     }
+
     int get_soft_body_dof(int sb_idx) {
         return sb_vert_start_idx[sb_idx + 1] - sb_vert_start_idx[sb_idx];
     }
+    int get_soft_body_start_vidx(int sb_idx) {
+        return sb_vert_start_idx[sb_idx];
+    }
+
+    std::map<int, std::vector<int>> get_soft_body_attachments(int sb_idx) {
+        return sb_constr_vertices[sb_idx];
+    }
+
+    int get_total_soft_body_dof() { return N_s; }
+    int get_total_free_soft_body_dof() { return N_f; }
+    int get_total_constrained_soft_body_dof() { return N_c; }
+
     glm::rvec3* get_soft_body_pos_buf(int sb_idx) {
         return reinterpret_cast<glm::rvec3*>(x_s.data()) + sb_vert_start_idx[sb_idx];
     }
@@ -68,6 +90,12 @@ public:
     }
     glm::rvec3* get_soft_body_force_buf(int sb_idx) {
         return reinterpret_cast<glm::rvec3*>(f_s.data()) + sb_vert_start_idx[sb_idx];
+    }
+    const int* get_soft_body_s_to_c_buf() const {
+        return index_s_to_c.data();
+    }
+    const int* get_soft_body_c_to_s_buf() const {
+        return index_c_to_s.data();
     }
     const char* get_soft_body_name(int sb_idx) {
         return sb_names[sb_idx].c_str();
@@ -91,6 +119,14 @@ public:
     real* get_art_force_buf() {
         return f_r.data();
     }
+    glmx::rtransform get_link_trans(int link_idx) {
+        assert(link_idx >= 0 && link_idx < N_r);
+        return art_link_trans[link_idx];
+    }
+    glmx::rtransform get_joint_trans(int joint_idx) {
+        assert(joint_idx >= 0 && joint_idx < N_r);
+        return art_joint_trans[joint_idx];
+    }
 
     real get_sim_deltatime() const { return dt; }
     void set_sim_deltatime(real dt) { this->dt = dt; }
@@ -99,7 +135,7 @@ public:
     void set_gravity(glm::rvec3 g) { gravity = g; }
 
 
-private:
+protected:
     void admm_local_solve(const glm::tvec3<real>* x,
             OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
             OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd);
@@ -114,6 +150,8 @@ private:
     void apply_selector_matrix_inv(const real* X_c, OUT real* X_s);
     void apply_selector_matrix_add(INOUT real* X_s, const real* dX_c);
     void apply_selector_matrix_sub(INOUT real* X_s, const real* dX_c);
+    void calc_constraint_jacobian();
+    VectorXr calc_total_force_with_gravity();
 };
 
 }

@@ -293,6 +293,15 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
         const uint32_t* get_children(uint32_t joint_idx) const {
             return &children_buffer[children_buffer_starts[joint_idx]];
         }
+
+        int get_index(const char* name) const {
+            int i;
+            for (i = 0; i < names.size(); i++) {
+                if (names[i] == name) break;
+            }
+            if (i == names.size()) return -1;
+            else return i;
+        }
     };
 
     struct pair_hash {
