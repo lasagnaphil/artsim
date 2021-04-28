@@ -691,8 +691,8 @@ void integrate_implicit_euler(const ArticulatedBody& art, real dt, const real* u
     }
 }
 
-void calc_transforms(const ArticulatedBody& art, const real* q, ttransform<real>* T_link_globals,
-                     ttransform<real>* T_joint_globals) {
+void calc_transforms(const ArticulatedBody& art, const real* q, glmx::ttransform<real>* T_joint_globals,
+                     glmx::ttransform<real>* T_link_globals) {
 
     for (uint32_t i : art.bfs_iteration_order) {
         int d = art.joint_pos_dof_starts[i];

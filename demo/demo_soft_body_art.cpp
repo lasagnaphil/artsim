@@ -14,8 +14,8 @@
 #include <openglrecorder.h>
 #include <gengine/App.h>
 #include <gengine/InputManager.h>
-#include "soft_body_render.h"
-#include "articulation_render.h"
+#include <gengine_artsim/soft_body_render.h>
+#include <gengine_artsim/articulation_render.h>
 
 using namespace artsim;
 using namespace glm;

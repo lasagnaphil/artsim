@@ -33,7 +33,7 @@ void artsim::inverse_kinematics(
     const real epsilon = real(1e-6);
     int iter;
     for (iter = 0; iter < 100; iter++) {
-        calc_transforms(art, q, nullptr, T_joint_global.data());
+        calc_transforms(art, q, T_joint_global.data(), nullptr);
         calc_body_jacobian(art, ee_idx, ttransform<real>(IDENTITY), S.data(), T_joint_global.data(), S_ee.data());
         auto T_global = T_joint_global[ee_idx] * ee_offset;
         for (int i = 6; i < num_vel_dofs; i++) {

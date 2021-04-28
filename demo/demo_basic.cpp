@@ -12,7 +12,7 @@
 #include <implot.h>
 #include <gengine/App.h>
 #include <gengine/InputManager.h>
-#include "articulation_render.h"
+#include <gengine_artsim/articulation_render.h>
 
 using namespace artsim;
 using namespace glm;

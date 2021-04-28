@@ -18,8 +18,8 @@ using namespace glmx;
 
 real CollisionShape::mass(real density) {
     switch (type) {
-        case Type::Box: return density * box.size.x * box.size.y * box.size.z;
-        case Type::Sphere: return real(4.0 / 3.0) * glm::pi<real>() * sphere.radius * sphere.radius * sphere.radius;
+        case Type::Box: return density * scale.x * scale.y * scale.z;
+        case Type::Sphere: return real(4.0 / 3.0) * glm::pi<real>() * scale.x * scale.y * scale.z;
         case Type::Mesh: {
             return real(1);
             // TODO: calculate proper mass
@@ -44,12 +44,12 @@ real CollisionShape::mass(real density) {
 tsmat3x3<real> CollisionShape::inertia(real density) {
     switch (type) {
         case Type::Box: {
-            const glm::tvec3<real>& s = box.size;
+            const glm::tvec3<real>& s = scale;
             glm::vec3 I = mass(density) * glm::tvec3<real>(s.y*s.y + s.z*s.z, s.z*s.z + s.x*s.x, s.x*s.x + s.y*s.y) / real(12);
             return tsmat3x3<real>(I.x, I.y, I.z, 0, 0, 0);
         }
         case Type::Sphere: {
-            real r = sphere.radius;
+            real r = scale.x;
             glm::vec3 I = real(0.4) * mass(density) * glm::tvec3<real>(r*r);
             return tsmat3x3<real>(I.x, I.y, I.z, 0, 0, 0);
         }
@@ -71,22 +71,23 @@ CollisionShape CollisionShape::make_ground() {
 CollisionShape CollisionShape::make_box(glm::vec3 size) {
     CollisionShape shape;
     shape.type = CollisionShape::Type::Box;
-    shape.box.size = size;
-    shape.bt_shape = new btBoxShape(btconv(real(0.5) * shape.box.size));
+    shape.scale = size;
+    shape.bt_shape = new btBoxShape(btconv(0.5f * size));
     return shape;
 }
 
 CollisionShape CollisionShape::make_sphere(real radius) {
     CollisionShape shape;
     shape.type = CollisionShape::Type::Sphere;
-    shape.sphere.radius = radius;
-    shape.bt_shape = new btSphereShape(shape.sphere.radius);
+    shape.scale = glm::rvec3(radius, radius, radius);
+    shape.bt_shape = new btSphereShape(radius);
     return shape;
 }
 
-CollisionShape CollisionShape::make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes) {
+CollisionShape CollisionShape::make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes, glm::rvec3 scale) {
     CollisionShape shape;
     shape.type = CollisionShape::Type::Mesh;
+    shape.scale = scale;
     // TODO: Allocate these separately
     shape.mesh.attrib = new tinyobj::attrib_t(*attrib);
     shape.mesh.shapes = new tinyobj::shape_t[num_shapes];
@@ -98,13 +99,61 @@ CollisionShape CollisionShape::make_mesh(const tinyobj::attrib_t* attrib, const 
     shape.bt_shape = nullptr;
     return shape;
 }
-Link Link::create(const tsmat3x3<real>& inertia, real mass, CollisionShape shape,
+
+RenderShape RenderShape::make_from_collision_shape(const CollisionShape& col) {
+    switch (col.type) {
+        case CollisionShape::Type::Ground:
+            printf("Cannot make render shape for ground\n");
+            return RenderShape {};
+        case CollisionShape::Type::Box:
+            return RenderShape::make_box(col.scale);
+        case CollisionShape::Type::Sphere:
+            return RenderShape::make_sphere(col.scale.x);
+        case CollisionShape::Type::Mesh:
+            return RenderShape::make_mesh(col.mesh.attrib, col.mesh.shapes, col.mesh.num_shapes, col.scale);
+        default:
+            return RenderShape {};
+    }
+}
+
+RenderShape RenderShape::make_box(glm::vec3 size) {
+    RenderShape shape;
+    shape.type = RenderShape::Type::Box;
+    shape.scale = size;
+    return shape;
+}
+
+RenderShape RenderShape::make_sphere(float radius) {
+    RenderShape shape;
+    shape.type = RenderShape::Type::Sphere;
+    shape.scale = glm::vec3(radius, radius, radius);
+    return shape;
+}
+
+RenderShape RenderShape::make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes,
+                                   glm::vec3 scale) {
+    RenderShape shape;
+    shape.type = RenderShape::Type::Mesh;
+    // TODO: Allocate these separately
+    shape.mesh.attrib = new tinyobj::attrib_t(*attrib);
+    shape.mesh.shapes = new tinyobj::shape_t[num_shapes];
+    for (int i = 0; i < num_shapes; i++) {
+        shape.mesh.shapes[i] = shapes[i];
+    }
+    shape.mesh.num_shapes = num_shapes;
+    shape.scale = scale;
+    return shape;
+}
+
+Link Link::create(const tsmat3x3<real>& inertia, real mass,
+                  CollisionShape col_shape,
                   ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
                   int parent_idx, Id<Material> mat_id) {
     Link link;
     link.inertia = inertia;
     link.mass = mass;
-    link.col_shape = shape;
+    link.col_shape = col_shape;
+    link.render_shape = RenderShape::make_from_collision_shape(col_shape);
     link.local_joint_pose = local_joint_pose;
     link.local_link_pose = local_link_pose;
     link.parent_idx = parent_idx;
@@ -114,7 +163,25 @@ Link Link::create(const tsmat3x3<real>& inertia, real mass, CollisionShape shape
     return link;
 }
 
-void ArticulatedBody::setup() {
+Link Link::create(const tsmat3x3<real>& inertia, real mass,
+                  CollisionShape col_shape, RenderShape render_shape,
+                  ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
+                  int parent_idx, Id<Material> mat_id) {
+    Link link;
+    link.inertia = inertia;
+    link.mass = mass;
+    link.col_shape = col_shape;
+    link.render_shape = render_shape;
+    link.local_joint_pose = local_joint_pose;
+    link.local_link_pose = local_link_pose;
+    link.parent_idx = parent_idx;
+    link.mat_id = mat_id;
+    auto I0 = tspmat<real>(tsmat3x3<real>(link.inertia), glm::tvec3<real>(0), link.mass);
+    link.I_j = inv_transform(I0, ttransform<real>(inverse(link.local_link_pose)));
+    return link;
+}
+
+void ArticulatedBody::setup(bool use_bullet, btCollisionWorld* bt_collision_world) {
     int num_joints = get_num_joints();
     joint_pos_dofs.resize(num_joints);
     joint_pos_dof_starts.resize(num_joints + 1);
@@ -168,31 +235,34 @@ void ArticulatedBody::setup() {
         }
     }
 
-    // TODO: initialize btCollisionWorld outside this function
-    auto bt_collision_config = new btDefaultCollisionConfiguration;
-    auto bt_dispatcher = new btCollisionDispatcher(bt_collision_config);
-    auto bt_broadphase = new btDbvtBroadphase;
-    bt_collision_world = new btCollisionWorld(bt_dispatcher, bt_broadphase, bt_collision_config);
+    if (use_bullet) {
+        if (bt_collision_world == nullptr) {
+            auto bt_collision_config = new btDefaultCollisionConfiguration;
+            auto bt_dispatcher = new btCollisionDispatcher(bt_collision_config);
+            auto bt_broadphase = new btDbvtBroadphase;
+            bt_collision_world = new btCollisionWorld(bt_dispatcher, bt_broadphase, bt_collision_config);
 
-    auto bt_plane_col = new btCollisionObject;
-    bt_plane_col->setCollisionShape(new btStaticPlaneShape(btVector3(0, 1, 0), 0));
-    bt_plane_col->setWorldTransform(btTransform::getIdentity());
-    bt_plane_col->setUserIndex(0);
-    bt_plane_col->setUserIndex2(0);
-    bt_collision_world->addCollisionObject(bt_plane_col, btBroadphaseProxy::DefaultFilter, btBroadphaseProxy::AllFilter);
+            auto bt_plane_col = new btCollisionObject;
+            bt_plane_col->setCollisionShape(new btStaticPlaneShape(btVector3(0, 1, 0), 0));
+            bt_plane_col->setWorldTransform(btTransform::getIdentity());
+            bt_plane_col->setUserIndex(0);
+            bt_plane_col->setUserIndex2(0);
+            bt_collision_world->addCollisionObject(bt_plane_col, btBroadphaseProxy::DefaultFilter, btBroadphaseProxy::AllFilter);
+        }
 
-    for (int i = 0; i < links.size(); i++) {
-        // TODO: Allocate these from a separate array!
-        // TODO: Set body_id with current articulation id
-        auto col_shape = links[i].col_shape;
-        if (col_shape.type != CollisionShape::Type::Mesh) {
-            BodyId body_id = BodyId::from_articulation_link({}, i);
-            btCollisionObject* col_obj = new btCollisionObject;
-            col_obj->setCollisionShape(links[i].col_shape.bt_shape);
-            col_obj->setUserIndex(body_id.index);
-            col_obj->setUserIndex2(body_id.generation);
-            bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);
-            links[i].bt_collision_object = col_obj;
+        for (int i = 0; i < links.size(); i++) {
+            // TODO: Allocate these from a separate array!
+            // TODO: Set body_id with current articulation id
+            auto col_shape = links[i].col_shape;
+            if (col_shape.type != CollisionShape::Type::Mesh) {
+                BodyId body_id = BodyId::from_articulation_link({}, i);
+                btCollisionObject* col_obj = new btCollisionObject;
+                col_obj->setCollisionShape(links[i].col_shape.bt_shape);
+                col_obj->setUserIndex(body_id.index);
+                col_obj->setUserIndex2(body_id.generation);
+                bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);
+                links[i].bt_collision_object = col_obj;
+            }
         }
     }
 }

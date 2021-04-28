@@ -12,7 +12,7 @@
 #include <gengine/InputManager.h>
 #include <glm/gtx/string_cast.hpp>
 
-#include "bullet_debug_render.h"
+#include <gengine_artsim/bullet_debug_render.h>
 
 using namespace artsim;
 using namespace glm;

@@ -75,11 +75,11 @@ struct ArticulationState {
             qp += art->joint_pos_dofs[i];
         }
 
-        calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
+        calc_transforms(*art, q.data(), OUT T_joint_global.data(), OUT T_link_global.data());
     }
 
     void update_transforms() {
-        calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
+        calc_transforms(*art, q.data(), OUT T_joint_global.data(), OUT T_link_global.data());
     }
 
     void randomize_positions() {
@@ -120,7 +120,7 @@ struct ArticulationState {
             qp += art->joint_pos_dofs[i];
         }
 
-        calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
+        calc_transforms(*art, q.data(), OUT T_joint_global.data(), OUT T_link_global.data());
     }
 
     void simulate(real dt) {
@@ -130,7 +130,7 @@ struct ArticulationState {
                     *art, Id<ArticulatedBody>::null(),
                     ground_col_enabled_links.data(), ground_col_enabled_links.size(), T_link_global.data());
 #else
-            calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
+            calc_transforms(*art, q.data(), OUT T_joint_global.data(), OUT T_link_global.data());
             for (int i = 0; i < num_joints; i++) {
                 auto& link = art->links[i];
                 link.bt_collision_object->setWorldTransform(btconv(T_link_global[i]));
@@ -149,7 +149,7 @@ struct ArticulationState {
                                           INOUT q.data(), INOUT u.data(),
                                           OUT udot.data(), OUT contact_normals.data());
 
-        calc_transforms(*art, q.data(), OUT T_link_global.data(), OUT T_joint_global.data());
+        calc_transforms(*art, q.data(), OUT T_joint_global.data(), OUT T_link_global.data());
     }
 
     void simulate(real dt, int N) {

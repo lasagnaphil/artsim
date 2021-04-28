@@ -75,10 +75,8 @@ namespace artsim {
                                   real dt, const real*__restrict udot,
                                   OUT real*__restrict q, OUT real*__restrict u);
 
-    void calc_transforms(const ArticulatedBody& art,
-                         const real*__restrict q,
-                         OUT glmx::ttransform<real>* T_link_globals,
-                         OUT glmx::ttransform<real>* T_joint_globals);
+    void calc_transforms(const ArticulatedBody& art, const real* q, glmx::ttransform<real>* T_joint_globals,
+                         glmx::ttransform<real>* T_link_globals);
 
     // Mass matrix calculation using the composite-rigid-body algorithm.
     void mass_matrix(const ArticulatedBody& art, real dt, const real*__restrict q, OUT glmx::dynmat_view<real> M);

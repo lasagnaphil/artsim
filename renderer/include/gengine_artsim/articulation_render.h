@@ -31,10 +31,10 @@ public:
             artsim::CollisionShape shape = art->links[i].col_shape;
             switch(shape.type) {
                 case artsim::CollisionShape::Type::Sphere: {
-                    link_meshes[i] = Mesh::makeSphere(shape.sphere.radius);
+                    link_meshes[i] = Mesh::makeSphere(shape.scale.x);
                 } break;
                 case artsim::CollisionShape::Type::Box: {
-                    link_meshes[i] = Mesh::makeCube(shape.box.size);
+                    link_meshes[i] = Mesh::makeCube(shape.scale);
                 } break;
                 case artsim::CollisionShape::Type::Mesh: {
                     link_meshes[i] = Mesh::fromOBJ(*shape.mesh.attrib, shape.mesh.shapes, shape.mesh.num_shapes);
@@ -63,9 +63,10 @@ public:
     void render(PBRenderer& renderer, const real* q) {
         int num_joints = art->get_num_joints();
         std::vector<glmx::ttransform<real>> T_link_global(num_joints), T_joint_global(num_joints);
-        calc_transforms(*art, q, T_link_global.data(), T_joint_global.data());
+        calc_transforms(*art, q, T_joint_global.data(), T_link_global.data());
         for (int i = 0; i < num_joints; i++) {
             glm::mat4 link_trans = glmx::mat4_cast(T_link_global[i]);
+            link_trans = glm::scale(link_trans, art->links[i].render_shape.scale);
             glm::mat4 joint_trans = glmx::mat4_cast(T_joint_global[i]);
             renderer.queueRender(PBRCommand {link_meshes[i], link_mat, link_trans});
             if (i == 0 && art->floating) continue;
@@ -94,15 +95,15 @@ public:
         joint_meshes.resize(state->num_joints);
 
         for (int i = 0; i < state->num_joints; i++) {
-            artsim::CollisionShape shape = state->art->links[i].col_shape;
+            artsim::RenderShape shape = state->art->links[i].render_shape;
             switch(shape.type) {
-                case artsim::CollisionShape::Type::Sphere: {
-                    link_meshes[i] = Mesh::makeSphere(shape.sphere.radius);
+                case artsim::RenderShape::Type::Sphere: {
+                    link_meshes[i] = Mesh::makeSphere(shape.scale.x);
                 } break;
-                case artsim::CollisionShape::Type::Box: {
-                    link_meshes[i] = Mesh::makeCube(shape.box.size);
+                case artsim::RenderShape::Type::Box: {
+                    link_meshes[i] = Mesh::makeCube(shape.scale);
                 } break;
-                case artsim::CollisionShape::Type::Mesh: {
+                case artsim::RenderShape::Type::Mesh: {
                     link_meshes[i] = Mesh::fromOBJ(*shape.mesh.attrib, shape.mesh.shapes, shape.mesh.num_shapes);
                 } break;
                 default: {}

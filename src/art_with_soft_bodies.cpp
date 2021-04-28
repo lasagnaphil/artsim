@@ -82,14 +82,17 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
         XMLElement* link_elem = node->FirstChildElement("link");
 
         std::string body_type = link_elem->Attribute("type");
-        CollisionShape shape;
+        CollisionShape col_shape;
+        RenderShape render_shape;
         if (body_type == "box") {
             glm::tvec3<real> size = string_to_vector3d(link_elem->Attribute("size"));
-            shape = CollisionShape::make_box(size);
+            col_shape = CollisionShape::make_box(size);
+            render_shape = RenderShape::make_box(size);
         }
         else if (body_type == "sphere") {
             double radius = std::stod(link_elem->Attribute("radius"));
-            shape = CollisionShape::make_sphere(radius);
+            col_shape = CollisionShape::make_sphere(radius);
+            render_shape = RenderShape::make_sphere(radius);
         }
         else if (body_type == "mesh") {
             fs::path filepath = current_dir / link_elem->Attribute("obj");
@@ -97,10 +100,12 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
             reader.ParseFromFile(filepath);
             if (reader.Valid()) {
                 auto& shapes = reader.GetShapes();
-                shape = CollisionShape::make_mesh(&reader.GetAttrib(), shapes.data(), shapes.size());
+                col_shape = CollisionShape::make_mesh(&reader.GetAttrib(), shapes.data(), shapes.size());
+                render_shape = RenderShape::make_mesh(&reader.GetAttrib(), shapes.data(), shapes.size());
             }
             else {
                 fprintf(stderr, "Invalid OBJ file %s!\n", filepath.c_str());
+                fprintf(stderr, "Message: %s\n", reader.Error().c_str());
                 return false;
             }
         }
@@ -114,16 +119,16 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
         real mass, density;
         if (link_elem->Attribute("density")) {
             density = std::stod(link_elem->Attribute("density"));
-            real volume = shape.mass(real(1));
+            real volume = col_shape.mass(real(1));
             mass = density * volume;
         }
         else if (link_elem->Attribute("mass")) {
             mass = std::stod(link_elem->Attribute("mass"));
-            real volume = shape.mass(real(1));
+            real volume = col_shape.mass(real(1));
             density = mass / volume;
         }
 
-        tsmat3x3<real> inertia = shape.inertia(density);
+        tsmat3x3<real> inertia = col_shape.inertia(density);
 
         ttransform<real> T_global_body;
         T_global_body.R = glmx::exp_mat(string_to_vector3d(link_elem->Attribute("rot")));
@@ -149,7 +154,7 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
         }
         ttransform<real> local_link_pose = T_global_body / T_global_joint;
 
-        link = Link::create(inertia, mass, shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
+        link = Link::create(inertia, mass, col_shape, render_shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
 
         if(joint_type == "free")
         {
@@ -183,7 +188,7 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
         current_idx++;
     }
 
-    art.setup();
+    art.setup(false);
     return true;
 }
 
@@ -279,8 +284,6 @@ void ArtWithSoftBodies::load(const char* metadata) {
 
     sb_constraints.resize(sb_count);
     sb_constr_vertices.resize(sb_count);
-    index_s_to_c.resize(N_s, -1);
-    index_c_to_link.resize(N_s, -1);
 
     sb_idx = 0;
     for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("soft_body")) {
@@ -310,10 +313,15 @@ void ArtWithSoftBodies::load(const char* metadata) {
 }
 
 void ArtWithSoftBodies::update_attachments() {
+    index_s_to_c.resize(N_s, -1);
+    index_c_to_link.resize(N_s, -1);
+    index_link_to_sb.resize(art.get_num_links());
+
     int cur_cidx = 0;
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
         int vidx_start = sb_vert_start_idx[sb_idx];
         for (auto& [link_idx, constr_vertices] : sb_constr_vertices[sb_idx]) {
+            index_link_to_sb[link_idx].push_back(sb_idx);
             for (auto& idx : constr_vertices) {
                 int vidx = vidx_start + idx;
                 index_s_to_c[vidx] = cur_cidx;
@@ -349,6 +357,7 @@ void ArtWithSoftBodies::update_attachments() {
     f_s.resize(3*N_s);
     f_r.resize(N_r);
     art_joint_trans.resize(art.get_num_joints());
+    art_link_trans.resize(art.get_num_links());
     art_joint_S.resize(N_r);
 
     J_cr.resize(3*N_c, N_r);
@@ -358,7 +367,7 @@ void ArtWithSoftBodies::update_attachments() {
 
     reset();
 
-    artsim::calc_transforms(art, x_r.data(), art_link_trans.data(), art_joint_trans.data());
+    artsim::calc_transforms(art, x_r.data(), art_joint_trans.data(), art_link_trans.data());
     constr_vertices_offset.resize(N_c);
     for (int cidx = 0; cidx < N_c; cidx++) {
         int vidx = index_c_to_s[cidx];
@@ -568,7 +577,7 @@ VectorXr ArtWithSoftBodies::calc_total_force_with_gravity() {
 
 void ArtWithSoftBodies::integrate_admm_coupled() {
     // Forward kinematics of articulation
-    artsim::calc_transforms(art, x_r.data(), art_link_trans.data(), art_joint_trans.data());
+    artsim::calc_transforms(art, x_r.data(), art_joint_trans.data(), art_link_trans.data());
 
     // Calculate coupling jacobian
     calc_constraint_jacobian();
@@ -723,7 +732,7 @@ void ArtWithSoftBodies::integrate_admm_coupled() {
     integrate_implicit_euler(art, dt, nullptr, x_r.data(), v_r.data());
 
     // Project constrained positions to articulation
-    calc_transforms(art, x_r.data(), nullptr, art_joint_trans.data());
+    calc_transforms(art, x_r.data(), art_joint_trans.data(), nullptr);
     for (int cidx = 0; cidx < N_c; cidx++) {
         int vidx = index_c_to_s[cidx];
         int link_idx = index_c_to_link[cidx];

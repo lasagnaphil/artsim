@@ -31,6 +31,7 @@ protected:
     std::vector<int> sb_tet_start_idx;
 
     std::vector<std::map<int, std::vector<int>>> sb_constr_vertices;
+    std::vector<std::vector<int>> index_link_to_sb;
 
     real dt;
     glm::rvec3 gravity;

@@ -151,15 +151,14 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
             Ground, Box, Sphere, Mesh
         };
         Type type;
+        glm::tvec3<real> scale;
 
         union {
             struct {
             } ground;
             struct {
-                glm::tvec3<real> size;
             } box;
             struct {
-                real radius;
             } sphere;
             struct {
                 tinyobj::attrib_t* attrib;
@@ -172,7 +171,7 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
         static CollisionShape make_ground();
         static CollisionShape make_box(glm::vec3 size);
         static CollisionShape make_sphere(real radius);
-        static CollisionShape make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes);
+        static CollisionShape make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes, glm::rvec3 scale = glm::rvec3(1));
 
         real mass(real density);
         glmx::tsmat3x3<real> inertia(real density);
@@ -183,23 +182,24 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
             Box, Sphere, Mesh
         };
         Type type;
+        glm::vec3 scale;
 
         union {
             struct {
-                glm::tvec3<real> size;
             } box;
             struct {
-                real radius;
             } sphere;
             struct {
-                OBJFile* obj;
+                tinyobj::attrib_t* attrib;
+                tinyobj::shape_t* shapes;
+                uint32_t num_shapes;
             } mesh;
         };
 
         static RenderShape make_from_collision_shape(const CollisionShape& col);
-        static RenderShape make_box();
-        static RenderShape make_sphere(real radius);
-        static RenderShape make_obj(OBJFile* obj);
+        static RenderShape make_box(glm::vec3 size);
+        static RenderShape make_sphere(float radius);
+        static RenderShape make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes, glm::vec3 scale = glm::vec3(1));
     };
 
     struct Material {
@@ -228,9 +228,16 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
         Id<Material> mat_id;
         btCollisionObject* bt_collision_object;
 
-        static Link create(const glmx::tsmat3x3<real>& inertia, real mass, CollisionShape shape,
+        static Link create(const glmx::tsmat3x3<real>& inertia, real mass,
+                           CollisionShape col_shape,
                            glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
                            int parent_idx, Id<Material> mat_id);
+
+        static Link create(const glmx::tsmat3x3<real>& inertia, real mass,
+                           CollisionShape col_shape, RenderShape render_shape,
+                           glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
+                           int parent_idx, Id<Material> mat_id);
+
     };
 
     struct ArticulatedBody {
@@ -272,10 +279,14 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
             names.push_back(name);
         }
 
-        void setup();
+        void setup(bool use_bullet = true, btCollisionWorld* bt_collision_world = nullptr);
 
         uint32_t get_num_joints() const {
             return joints.size();
+        }
+
+        uint32_t get_num_links() const {
+            return links.size();
         }
 
         uint32_t get_num_pos_dofs() const {

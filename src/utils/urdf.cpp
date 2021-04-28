@@ -80,12 +80,12 @@ void artsim::export_to_urdf(const artsim::ArticulatedBody& art, const char* robo
             switch (link.col_shape.type) {
                 case CollisionShape::Type::Box: {
                     XMLElement* box_elem = doc.NewElement("box");
-                    box_elem->SetAttribute("size", to_string(link.col_shape.box.size).c_str());
+                    box_elem->SetAttribute("size", to_string(link.col_shape.scale).c_str());
                     geometry_elem->InsertEndChild(box_elem);
                 } break;
                 case CollisionShape::Type::Sphere: {
                     XMLElement* sphere_elem = doc.NewElement("sphere");
-                    sphere_elem->SetAttribute("radius", to_string(link.col_shape.sphere.radius).c_str());
+                    sphere_elem->SetAttribute("radius", to_string(link.col_shape.scale.x).c_str());
                     geometry_elem->InsertEndChild(sphere_elem);
                 }
             }

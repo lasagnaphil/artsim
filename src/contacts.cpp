@@ -186,7 +186,7 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
     calc_S(art, q, OUT S.data());
 
     std::vector<ttransform<real>> T_link_global(num_joints), T_joint_global(num_joints);
-    calc_transforms(art, q, OUT T_link_global.data(), OUT T_joint_global.data());
+    calc_transforms(art, q, OUT T_joint_global.data(), OUT T_link_global.data());
 
     Eigen::Matrix<real, Dynamic, Dynamic> Jc_T(num_vel_dofs, 3*num_contact_points);
     std::vector<tscrew<real>> J_local(num_vel_dofs);
@@ -483,7 +483,7 @@ contact_points_between_art_links_and_ground(const ArticulatedBody& art, const Id
         uint32_t i = link_indices[li];
         switch (art.links[i].col_shape.type) {
             case artsim::CollisionShape::Type::Box: {
-                glm::tvec3<real> ext = real(0.5) * art.links[i].col_shape.box.size;
+                glm::tvec3<real> ext = real(0.5) * art.links[i].col_shape.scale;
                 glm::tvec3<real> p = link_global_trans[i].v;
                 if (p.y*p.y > ext.x*ext.x + ext.y*ext.y + ext.z*ext.z) {
                     // early bailout for boxes that definitely doesn't collide with ground
@@ -560,7 +560,7 @@ contact_points_between_art_links_and_ground(const ArticulatedBody& art, const Id
             } break;
             case artsim::CollisionShape::Type::Sphere: {
                 glm::tvec3<real> p = link_global_trans[i].v;
-                real r = art.links[i].col_shape.sphere.radius;
+                real r = art.links[i].col_shape.scale.x;
                 real d = p.y - r;
                 if (d <= 0.0f) {
                     ContactPoint cp;

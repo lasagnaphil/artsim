@@ -7,8 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(GLM REQUIRED)
 
-# We're only using Eigen temporarily for now, we're probably going to remove it in the future
-find_package(Eigen3 CONFIG REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 # For URDF exports
 find_package(TinyXML2 REQUIRED)
