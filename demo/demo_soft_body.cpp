@@ -19,6 +19,8 @@
 #define DEMO_PD
 // #define DEMO_ADMM
 
+// #define DEMO_QUASISTATIC
+
 using namespace artsim;
 using namespace glm;
 using namespace glmx;
@@ -61,7 +63,7 @@ public:
             // constraints.volume_preservation_energy.push_back({i, 1e5, 0.9, 1.1});
         }
         constraints.positional.push_back({0, 1e7, glm::rvec3(0, 0, 0)});
-        // constraints.positional.push_back({400, 1e7, glm::rvec3(0, 0, 0)});
+        constraints.positional.push_back({400, 1e7, glm::rvec3(0, 0, 0)});
 #elif defined(DEMO_ADMM)
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();
@@ -71,7 +73,7 @@ public:
             // constraints.neohookean_energy.push_back({i, stiffness, mu, lambda});
         }
 #endif
-        soft_body_precomputation(soft_body, constraints, sim_dt);
+        soft_body_precomputation(soft_body, constraints, sim_dt, OUT soft_body_precalc);
 
         soft_body_render = SoftBodyRender(&soft_body, soft_body_mat, camera);
 
@@ -99,10 +101,15 @@ public:
             auto t1 = std::chrono::high_resolution_clock::now();
 
 #if defined(DEMO_PD)
-            projective_dynamics(soft_body, constraints, sim_dt, (real*) sb_force.data(),
-                          INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
+#if defined(DEMO_QUASISTATIC)
+            projective_dynamics_quasistatic(soft_body, soft_body_precalc, constraints, 20,
+                                            (real*) sb_force.data(), INOUT (real*)sb_pos.data());
+#else
+            projective_dynamics(soft_body, soft_body_precalc, constraints, sim_dt, 20,
+                                (real*) sb_force.data(), INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
+#endif
 #elif defined(DEMO_ADMM)
-            admm_dynamics(soft_body, constraints, sim_dt, (real*) sb_force.data(),
+            admm_dynamics(soft_body, soft_body_precalc, constraints, sim_dt, 20, (real*) sb_force.data(),
                           INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
 #endif
 
@@ -145,10 +152,10 @@ public:
         if (ImGui::TreeNode("Constraints")) {
 #if defined(DEMO_PD)
             real* pos1 = (real*)&constraints.positional[0].target_pos;
-            // real* pos2 = (real*)&constraints.positional[1].target_pos;
+            real* pos2 = (real*)&constraints.positional[1].target_pos;
             real p_min = -10.0, p_max = 10.0;
             ImGui::SliderScalarN("Target pos 1", ImGuiDataType_Double, pos1, 3, &p_min, &p_max);
-            // ImGui::SliderScalarN("Target pos 2", ImGuiDataType_Double, pos2, 3, &p_min, &p_max);
+            ImGui::SliderScalarN("Target pos 2", ImGuiDataType_Double, pos2, 3, &p_min, &p_max);
 #endif
         }
         ImGui::End();
@@ -177,6 +184,7 @@ private:
     bool render_orig = false;
 
     SoftBodyData soft_body;
+    SoftBodyPrecalcData soft_body_precalc;
 #if defined(DEMO_PD)
     PDConstraints constraints;
 #elif defined(DEMO_ADMM)

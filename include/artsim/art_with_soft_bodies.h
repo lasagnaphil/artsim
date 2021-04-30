@@ -16,10 +16,11 @@ using VectorXr = Eigen::Matrix<real, Eigen::Dynamic, 1>;
 
 struct ArtWithSoftBodies {
 protected:
-    std::unique_ptr<tinyxml2::XMLDocument> doc;
+    tinyxml2::XMLDocument doc;
 
     ArticulatedBody art;
     std::vector<SoftBodyData> soft_bodies;
+    std::vector<SoftBodyPrecalcData> soft_bodies_precalc;
     std::vector<ADMMConstraints> sb_constraints;
     std::vector<std::string> sb_names;
 
@@ -51,7 +52,7 @@ protected:
     std::vector<glmx::ttransform<real>> constr_vertices_offset;
 
 public:
-    void load(const char* metadata);
+    void load(const char* metadata, bool do_soft_body_precomputation = true);
 
     void save(const char* metadata);
 

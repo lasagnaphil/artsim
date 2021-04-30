@@ -102,6 +102,13 @@ struct ADMMConstraints {
 void gen_surface_triangles_from_tet_mesh(const std::vector<glm::ivec4>& tetrahedrons,
                                          OUT std::vector<glm::ivec3>& triangles);
 
+struct SoftBodyPrecalcData {
+    Eigen::SparseMatrix<real> A;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
+    Eigen::SparseMatrix<real> L;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> L_LDLt;
+};
+
 struct SoftBodyData {
     std::vector<glm::tvec3<real>> vertices;
     std::vector<glm::ivec3> triangles;
@@ -113,10 +120,6 @@ struct SoftBodyData {
 
     Eigen::SparseMatrix<real> M;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> M_LDLt;
-    Eigen::SparseMatrix<real> A;
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
-    Eigen::SparseMatrix<real> L;
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> L_LDLt;
 
     SoftBodyProperties props;
 
@@ -124,10 +127,8 @@ struct SoftBodyData {
     void load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props);
 };
 
-void precomputation_essentials(SoftBodyData& body);
-
 template <class Constraints>
-void soft_body_precomputation(SoftBodyData& body, const Constraints& constraints, real dt);
+void soft_body_precomputation(SoftBodyData& body, const Constraints& constraints, real dt, OUT SoftBodyPrecalcData& precalc);
 
 void tetrahedral_mesh_mass_matrix(int num_vertices, real density,
                                   const glm::ivec4* tets, int num_tets,
@@ -181,10 +182,16 @@ void admm_vel_volume_constraint_update_residuals(
         const glm::tmat3x3<real>* z_prev, const glm::tmat3x3<real>* z_next, const glm::tvec3<real>* x,
         INOUT real& primal_res_sq, INOUT real& dual_res_sq);
 
-void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, real dt, const real* f,
+void projective_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
+                         const PDConstraints& constraints, real dt, int num_iters, const real* f,
                          INOUT real* pos, INOUT real* vel);
 
-void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real dt, const real* f,
+void projective_dynamics_quasistatic(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
+                                     const PDConstraints& constraints, int num_iters, const real* f,
+                                     INOUT real* pos);
+
+void admm_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
+                   const ADMMConstraints& constraints, real dt, int num_iters, const real* f,
                    INOUT real* pos, INOUT real* vel);
 }
 

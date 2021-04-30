@@ -83,6 +83,34 @@ void SoftBodyData::load(const TetMesh& mesh, const SoftBodyProperties& props) {
     vertices = mesh.vertices;
     tetrahedrons = mesh.tetrahedrons;
     gen_surface_triangles_from_tet_mesh(tetrahedrons, OUT triangles);
+
+
+    B_m.resize(tetrahedrons.size());
+    W.resize(tetrahedrons.size());
+    D.resize(tetrahedrons.size());
+    for (int i = 0; i < tetrahedrons.size(); i++) {
+        auto& V = vertices;
+        glm::ivec4& tet = tetrahedrons[i];
+        glm::tmat3x3<real> D_m(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
+        W[i] = glm::determinant(D_m) / 6.0;
+        if (W[i] < 0) {
+            W[i] = -W[i];
+            std::swap(tet[2], tet[3]);
+            D_m = glm::tmat3x3<real>(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
+        }
+        B_m[i] = glm::inverse(D_m);
+        glm::tmat3x3<real> D_i = glm::transpose(B_m[i]);
+        D[i][0] = D_i[0];
+        D[i][1] = D_i[1];
+        D[i][2] = D_i[2];
+        D[i][3] = -D_i[0] - D_i[1] - D_i[2];
+    }
+
+    tetrahedral_mesh_mass_matrix(vertices.size(), props.density,
+                                 tetrahedrons.data(), tetrahedrons.size(), W.data(),
+                                 OUT M);
+    M_LDLt.analyzePattern(M);
+    M_LDLt.factorize(M);
 }
 
 void SoftBodyData::load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props) {
@@ -134,35 +162,6 @@ void tetrahedral_mesh_mass_matrix(int num_vertices, real density,
         M_triplets.emplace_back(k[0], k[1], v);
     }
     M.setFromTriplets(M_triplets.begin(), M_triplets.end());
-}
-
-void precomputation_essentials(SoftBodyData& body) {
-    body.B_m.resize(body.tetrahedrons.size());
-    body.W.resize(body.tetrahedrons.size());
-    body.D.resize(body.tetrahedrons.size());
-    for (int i = 0; i < body.tetrahedrons.size(); i++) {
-        auto& V = body.vertices;
-        glm::ivec4& tet = body.tetrahedrons[i];
-        glm::tmat3x3<real> D_m(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
-        body.W[i] = glm::determinant(D_m) / 6.0;
-        if (body.W[i] < 0) {
-            body.W[i] = -body.W[i];
-            std::swap(tet[2], tet[3]);
-            D_m = glm::tmat3x3<real>(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
-        }
-        body.B_m[i] = glm::inverse(D_m);
-        glm::tmat3x3<real> D_i = glm::transpose(body.B_m[i]);
-        body.D[i][0] = D_i[0];
-        body.D[i][1] = D_i[1];
-        body.D[i][2] = D_i[2];
-        body.D[i][3] = -D_i[0] - D_i[1] - D_i[2];
-    }
-
-    tetrahedral_mesh_mass_matrix(body.vertices.size(), body.props.density,
-                                 body.tetrahedrons.data(), body.tetrahedrons.size(), body.W.data(),
-                                 OUT body.M);
-    body.M_LDLt.analyzePattern(body.M);
-    body.M_LDLt.factorize(body.M);
 }
 
 template <>
@@ -234,17 +233,20 @@ void update_system_matrix(SoftBodyData& body, const ADMMConstraints& constraints
 }
 
 template <class Constraints>
-void soft_body_precomputation(SoftBodyData& body, const Constraints& constraints, real dt) {
-    precomputation_essentials(body);
+void soft_body_precomputation(SoftBodyData& body, const Constraints& constraints, real dt, OUT SoftBodyPrecalcData& precalc) {
+    update_system_matrix(body, constraints, dt, OUT precalc.L, OUT precalc.A);
 
-    update_system_matrix(body, constraints, dt, OUT body.L, OUT body.A);
+    precalc.A_LDLt.analyzePattern(precalc.A);
+    precalc.A_LDLt.factorize(precalc.A);
 
-    body.A_LDLt.analyzePattern(body.A);
-    body.A_LDLt.factorize(body.A);
+    precalc.L_LDLt.analyzePattern(precalc.L);
+    precalc.L_LDLt.factorize(precalc.L);
 }
 
-template void soft_body_precomputation<PDConstraints>(SoftBodyData& body, const PDConstraints& constraints, real dt);
-template void soft_body_precomputation<ADMMConstraints>(SoftBodyData& body, const ADMMConstraints& constraints, real dt);
+template void soft_body_precomputation<PDConstraints>(SoftBodyData& body, const PDConstraints& constraints, real dt,
+        OUT SoftBodyPrecalcData& precalc);
+template void soft_body_precomputation<ADMMConstraints>(SoftBodyData& body, const ADMMConstraints& constraints, real dt,
+        OUT SoftBodyPrecalcData& precalc);
 
 glm::tvec3<real> projection_eigvec(glm::tvec3<real> S, const LinearStrainEnergyConstraint& c) {
     S = glm::clamp(S, c.sigma_min, c.sigma_max);
@@ -479,7 +481,8 @@ template void admm_vel_volume_constraint_update_residuals( \
 ADMM_VOLUME_CONSTRAINTS
 #undef X
 
-void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, real dt, const real* f,
+void projective_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
+                         const PDConstraints& constraints, real dt, int num_iters, const real* f,
                          INOUT real* pos, INOUT real* vel) {
     Map<VectorXr> x(pos, 3*body.vertices.size());
     Map<VectorXr> v(vel, 3*body.vertices.size());
@@ -490,7 +493,7 @@ void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, r
     std::vector<glmx::SVD_mats<real>> F_svd(body.tetrahedrons.size());
     std::vector<glm::tmat3x3<real>> p(body.tetrahedrons.size());
 
-    for (int iter = 0; iter < 20; iter++) {
+    for (int iter = 0; iter < num_iters; iter++) {
 #define X(CTYPE, CFIELD) \
         projective_dynamics_volume_constraint_local_solve( \
                 body, constraints.CFIELD.data(), constraints.CFIELD.size(), \
@@ -508,11 +511,44 @@ void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, r
         projective_dynamics_positional_constraint_update_b(
                 body, constraints.positional.data(), constraints.positional.size(), dt, INOUT b.data());
 
-        x = body.A_LDLt.solve(b);
+        x = precalc.A_LDLt.solve(b);
     }
 }
 
-void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real dt, const real* f,
+void projective_dynamics_quasistatic(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
+                                     const PDConstraints& constraints, int num_iters, const real* f,
+                                     INOUT real* pos) {
+    Map<VectorXr> x(pos, 3*body.vertices.size());
+    Map<const VectorXr> f_ext(f, 3*body.vertices.size());
+
+    std::vector<glm::tmat3x3<real>> F(body.tetrahedrons.size());
+    std::vector<glmx::SVD_mats<real>> F_svd(body.tetrahedrons.size());
+    std::vector<glm::tmat3x3<real>> p(body.tetrahedrons.size());
+
+    for (int iter = 0; iter < num_iters; iter++) {
+#define X(CTYPE, CFIELD) \
+        projective_dynamics_volume_constraint_local_solve( \
+                body, constraints.CFIELD.data(), constraints.CFIELD.size(), \
+                (glm::rvec3*) x.data(), OUT F.data(), OUT F_svd.data(), OUT p.data());
+        PD_VOLUME_CONSTRAINTS
+#undef X
+
+        VectorXr b = f_ext;
+#define X(CTYPE, CFIELD) \
+        projective_dynamics_volume_constraint_update_b( \
+                body, constraints.CFIELD.data(), constraints.CFIELD.size(), 1.0, \
+                p.data(), INOUT b.data());
+        PD_VOLUME_CONSTRAINTS
+#undef X
+        projective_dynamics_positional_constraint_update_b(
+                body, constraints.positional.data(), constraints.positional.size(), 1.0, INOUT b.data());
+
+        x = precalc.L_LDLt.solve(b);
+    }
+}
+
+void admm_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
+                   const ADMMConstraints& constraints, real dt, int num_iters, const real* f,
                    INOUT real* pos, INOUT real* vel) {
 
     Map<VectorXr> x(pos, 3*body.vertices.size());
@@ -530,7 +566,7 @@ void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real 
     std::vector<glmx::SVD_mats<real>> F_svd(body.tetrahedrons.size());
 
     std::cout << std::endl << "Starting ADMM loop" << std::endl;
-    for (int iter = 0; iter < 20; iter++) {
+    for (int iter = 0; iter < num_iters; iter++) {
         z_prev = z;
 
         // Local solve
@@ -549,7 +585,7 @@ void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real 
         ADMM_VOLUME_CONSTRAINTS
 #undef X
 
-        v.noalias() = body.A_LDLt.solve(b);
+        v.noalias() = precalc.A_LDLt.solve(b);
         x.noalias() = x_orig + dt*v;
 
         real primal_res_sq = 0, dual_res_sq = 0;

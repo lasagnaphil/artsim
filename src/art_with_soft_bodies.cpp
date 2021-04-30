@@ -192,13 +192,12 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
     return true;
 }
 
-void ArtWithSoftBodies::load(const char* metadata) {
+void ArtWithSoftBodies::load(const char* metadata, bool do_soft_body_precomputation) {
     fs::path metadata_path(metadata);
     fs::path folder = metadata_path.parent_path();
 
-    doc = std::make_unique<XMLDocument>();
-    doc->LoadFile(metadata);
-    auto root_el = doc->RootElement();
+    doc.LoadFile(metadata);
+    auto root_el = doc.RootElement();
 
     auto sim_el = root_el->FirstChildElement("simulation");
     int hz = sim_el->IntAttribute("hz");
@@ -216,6 +215,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
          sb_el != nullptr; sb_el = sb_el->NextSiblingElement("soft_body")) { sb_count++; }
 
     soft_bodies = std::vector<SoftBodyData>(sb_count);
+    soft_bodies_precalc = std::vector<SoftBodyPrecalcData>(sb_count);
     sb_constraints.resize(sb_count);
     sb_names.resize(sb_count);
 
@@ -280,9 +280,11 @@ void ArtWithSoftBodies::load(const char* metadata) {
         sb_tet_start_idx[sb_idx] = sb_tet_start_idx[sb_idx-1] + sb_num_tets;
     }
 
+    if (do_soft_body_precomputation) {
 #pragma omp parallel for
-    for (int sb_idx = 0; sb_idx < sb_count; sb_idx++) {
-        soft_body_precomputation(soft_bodies[sb_idx], sb_constraints[sb_idx], dt);
+        for (int sb_idx = 0; sb_idx < sb_count; sb_idx++) {
+            soft_body_precomputation(soft_bodies[sb_idx], sb_constraints[sb_idx], dt, OUT soft_bodies_precalc[sb_idx]);
+        }
     }
 
     N_s = sb_vert_start_idx[sb_count];
@@ -386,7 +388,7 @@ void ArtWithSoftBodies::update_attachments() {
 }
 
 void ArtWithSoftBodies::save(const char* metadata) {
-    auto root_el = doc->RootElement();
+    auto root_el = doc.RootElement();
 
     // Update attachments in XML file
     int sb_idx = 0;
@@ -412,7 +414,7 @@ void ArtWithSoftBodies::save(const char* metadata) {
         sb_idx++;
     }
 
-    doc->SaveFile(metadata);
+    doc.SaveFile(metadata);
 }
 
 void ArtWithSoftBodies::reset() {
@@ -675,7 +677,8 @@ void ArtWithSoftBodies::integrate_admm_coupled() {
             int vidx_start = sb_vert_start_idx[sb_idx];
             int vidx_count = sb_vert_start_idx[sb_idx + 1] - vidx_start;
             auto& sb = soft_bodies[sb_idx];
-            v_s.middleRows(3*vidx_start, 3*vidx_count) = sb.A_LDLt.solve(b_s.middleRows(3*vidx_start, 3*vidx_count));
+            auto& sb_precalc = soft_bodies_precalc[sb_idx];
+            v_s.middleRows(3*vidx_start, 3*vidx_count) = sb_precalc.A_LDLt.solve(b_s.middleRows(3*vidx_start, 3*vidx_count));
         }
         v_r = M_r_inv * b_r;
 
@@ -690,7 +693,8 @@ void ArtWithSoftBodies::integrate_admm_coupled() {
                 int vidx_start = sb_vert_start_idx[sb_idx];
                 int vidx_count = sb_vert_start_idx[sb_idx + 1] - vidx_start;
                 auto& sb = soft_bodies[sb_idx];
-                s_v.middleRows(3*vidx_start, 3*vidx_count) = sb.A_LDLt.solve(s_f_s.middleRows(3*vidx_start, 3*vidx_count));
+                auto& sb_precalc = soft_bodies_precalc[sb_idx];
+                s_v.middleRows(3*vidx_start, 3*vidx_count) = sb_precalc.A_LDLt.solve(s_f_s.middleRows(3*vidx_start, 3*vidx_count));
             }
             s_v.bottomRows(N_r) = -M_r_inv_J_cr_T * s_f;
             apply_selector_matrix(s_v.data(), OUT s_v_c.data());
