@@ -66,8 +66,8 @@ public:
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(glm::vec3(252.f, 3.f, 3.f) / 255.f);
         // soft_body_mat->alpha = 0.2f;
 
-        // system.load("demo/resources/art_with_soft_bodies/metadata.xml");
-        system.load("/home/lasagnaphil/data/musculoskeleton/export_arm/metadata.xml");
+        system.load("demo/resources/art_with_soft_bodies/metadata.xml");
+        // system.load("/home/lasagnaphil/data/musculoskeleton/export_arm/metadata.xml");
 
         soft_body_renderers.reserve(system.get_num_soft_bodies());
         for (auto& sb : system.get_soft_bodies()) {
@@ -82,7 +82,7 @@ public:
 
         orig_mesh_mat = PBRMaterial::quick(colors::Green);
 
-        soft_body_selection_mask.resize(system.get_num_soft_bodies(), false);
+        soft_body_selection_mask.resize(system.get_num_soft_bodies(), true);
     }
 
     void processInput(SDL_Event &event) override {

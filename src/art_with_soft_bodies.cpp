@@ -221,6 +221,9 @@ void ArtWithSoftBodies::load(const char* metadata) {
 
     sb_vert_start_idx.resize(sb_count + 1);
     sb_vert_start_idx[0] = 0;
+    sb_tet_start_idx.resize(sb_count + 1);
+    sb_tet_start_idx[0] = 0;
+
     int sb_idx = 0;
     for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("soft_body")) {
         fs::path soft_body_file = folder / sb_el->Attribute("file");
@@ -244,6 +247,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
         soft_bodies[sb_idx].load(tet_mesh, props);
         auto& sb = soft_bodies[sb_idx];
         int sb_num_vertices = sb.vertices.size();
+        int sb_num_tets =sb.tetrahedrons.size();
 
         if (mat_el->NoChildren()) {
             // Material is applied to entire soft body
@@ -273,6 +277,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
 
         sb_idx++;
         sb_vert_start_idx[sb_idx] = sb_vert_start_idx[sb_idx-1] + sb_num_vertices;
+        sb_tet_start_idx[sb_idx] = sb_tet_start_idx[sb_idx-1] + sb_num_tets;
     }
 
 #pragma omp parallel for
@@ -429,21 +434,19 @@ void ArtWithSoftBodies::admm_local_solve(
         OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
         OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd) {
 
-    int start_vidx = 0;
-    int start_tidx = 0;
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
         auto& sb = soft_bodies[sb_idx];
         auto& constraints = sb_constraints[sb_idx];
+        int start_vidx = sb_vert_start_idx[sb_idx];
+        int start_tidx = sb_tet_start_idx[sb_idx];
 #define X(CTYPE, CFIELD) \
-        admm_volume_constraint_local_solve( \
+        admm_vel_volume_constraint_local_solve( \
                 soft_bodies[sb_idx], \
                 constraints.CFIELD.data(), \
                 constraints.CFIELD.size(), \
                 x + start_vidx, z + start_tidx, u + start_tidx, F + start_tidx, F_svd + start_tidx);
         ADMM_VOLUME_CONSTRAINTS
 #undef X
-        start_vidx += sb.vertices.size();
-        start_tidx += sb.tetrahedrons.size();
     }
 }
 
@@ -451,21 +454,19 @@ void ArtWithSoftBodies::admm_update_b(
         real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0,
         INOUT real* b) {
 
-    int start_vidx = 0;
-    int start_tidx = 0;
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
         auto& sb = soft_bodies[sb_idx];
         auto& constraints = sb_constraints[sb_idx];
+        int start_vidx = sb_vert_start_idx[sb_idx];
+        int start_tidx = sb_tet_start_idx[sb_idx];
 #define X(CTYPE, CFIELD) \
-        admm_volume_constraint_update_b( \
+        admm_vel_volume_constraint_update_b( \
                 soft_bodies[sb_idx], \
                 constraints.CFIELD.data(), \
                 constraints.CFIELD.size(), \
                 dt, z + start_tidx, u + start_tidx, x0 + start_tidx, b + start_vidx);
         ADMM_VOLUME_CONSTRAINTS
 #undef X
-        start_vidx += sb.vertices.size();
-        start_tidx += sb.tetrahedrons.size();
     }
 }
 
@@ -473,19 +474,19 @@ void ArtWithSoftBodies::admm_update_residuals(
         const glm::tmat3x3<real>* z_prev, const glm::tmat3x3<real>* z_next, const glm::tvec3<real>* x,
         INOUT real& primal_res_sq, INOUT real& dual_res_sq) {
 
-    int start_tidx = 0;
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
         auto& sb = soft_bodies[sb_idx];
         auto& constraints = sb_constraints[sb_idx];
+        int start_vidx = sb_vert_start_idx[sb_idx];
+        int start_tidx = sb_tet_start_idx[sb_idx];
 #define X(CTYPE, CFIELD) \
-        admm_volume_constraint_update_residuals( \
+        admm_vel_volume_constraint_update_residuals( \
                 soft_bodies[sb_idx], \
                 constraints.CFIELD.data(), \
                 constraints.CFIELD.size(), \
                 z_prev + start_tidx, z_next + start_tidx, x + start_tidx, primal_res_sq, dual_res_sq);
         ADMM_VOLUME_CONSTRAINTS
 #undef X
-        start_tidx += sb.tetrahedrons.size();
     }
 }
 

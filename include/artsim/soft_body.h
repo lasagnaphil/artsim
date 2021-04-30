@@ -74,9 +74,16 @@ struct NeoHookeanEnergyConstraint {
     real lambda;
 };
 
+struct PositionalConstraint {
+    int vert_id;
+    real k;
+    glm::rvec3 target_pos;
+};
+
 struct PDConstraints {
     std::vector<LinearStrainEnergyConstraint> linear_strain_energy;
     std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy;
+    std::vector<PositionalConstraint> positional;
 };
 
 #define PD_VOLUME_CONSTRAINTS \
@@ -108,6 +115,8 @@ struct SoftBodyData {
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> M_LDLt;
     Eigen::SparseMatrix<real> A;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
+    Eigen::SparseMatrix<real> L;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> L_LDLt;
 
     SoftBodyProperties props;
 
@@ -126,7 +135,8 @@ void tetrahedral_mesh_mass_matrix(int num_vertices, real density,
                                   OUT Eigen::SparseMatrix<real>& M);
 
 template <class Constraints>
-void update_system_matrix(SoftBodyData& body, const Constraints& constraints, real dt, OUT Eigen::SparseMatrix<real>& A);
+void update_system_matrix(SoftBodyData& body, const Constraints& constraints, real dt,
+                          OUT Eigen::SparseMatrix<real>& L, OUT Eigen::SparseMatrix<real>& A);
 
 glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const LinearStrainEnergyConstraint& c);
 glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const VolumePreservationEnergyConstraint& c);
@@ -140,26 +150,39 @@ glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const NeoHookeanEnergyC
 template <class Constraint>
 void projective_dynamics_volume_constraint_local_solve(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-        const glm::tvec3<real>* V,
-        OUT glm::tmat3x3<real>* p);
+        const glm::tvec3<real>* x,
+        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd, OUT glm::tmat3x3<real>* p);
 
 template <class Constraint>
-void admm_volume_constraint_local_solve(
+void projective_dynamics_volume_constraint_update_b(
+        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints, real dt,
+        const glm::tmat3x3<real>* p,
+        INOUT real* b);
+
+void projective_dynamics_positional_constraint_update_b(
+        const SoftBodyData& body, const PositionalConstraint* constraints, uint32_t num_constraints, real dt,
+        INOUT real* b);
+
+template <class Constraint>
+void admm_vel_volume_constraint_local_solve(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
         const glm::tvec3<real>* V,
         OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
         OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd);
 
 template <class Constraint>
-void admm_volume_constraint_update_b(
+void admm_vel_volume_constraint_update_b(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints, real dt,
         const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0, INOUT real* b);
 
 template <class Constraint>
-void admm_volume_constraint_update_residuals(
+void admm_vel_volume_constraint_update_residuals(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
         const glm::tmat3x3<real>* z_prev, const glm::tmat3x3<real>* z_next, const glm::tvec3<real>* x,
         INOUT real& primal_res_sq, INOUT real& dual_res_sq);
+
+void projective_dynamics(SoftBodyData& body, const PDConstraints& constraints, real dt, const real* f,
+                         INOUT real* pos, INOUT real* vel);
 
 void admm_dynamics(SoftBodyData& body, const ADMMConstraints& constraints, real dt, const real* f,
                    INOUT real* pos, INOUT real* vel);

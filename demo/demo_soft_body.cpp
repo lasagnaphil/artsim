@@ -16,6 +16,9 @@
 #include <gengine_artsim/soft_body_render.h>
 #include <omp.h>
 
+#define DEMO_PD
+// #define DEMO_ADMM
+
 using namespace artsim;
 using namespace glm;
 using namespace glmx;
@@ -52,6 +55,14 @@ public:
         props.poisson_ratio = 0.499;
         soft_body.load(tet_mesh, props);
 
+#if defined(DEMO_PD)
+        for (int i = 0; i < soft_body.tetrahedrons.size(); i++) {
+            constraints.linear_strain_energy.push_back({i, 1e7, 1.0, 1.0});
+            // constraints.volume_preservation_energy.push_back({i, 1e5, 0.9, 1.1});
+        }
+        constraints.positional.push_back({0, 1e7, glm::rvec3(0, 0, 0)});
+        // constraints.positional.push_back({400, 1e7, glm::rvec3(0, 0, 0)});
+#elif defined(DEMO_ADMM)
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();
@@ -59,6 +70,7 @@ public:
             constraints.corotational_energy.push_back({i, stiffness, mu, lambda});
             // constraints.neohookean_energy.push_back({i, stiffness, mu, lambda});
         }
+#endif
         soft_body_precomputation(soft_body, constraints, sim_dt);
 
         soft_body_render = SoftBodyRender(&soft_body, soft_body_mat, camera);
@@ -86,8 +98,13 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
 
+#if defined(DEMO_PD)
+            projective_dynamics(soft_body, constraints, sim_dt, (real*) sb_force.data(),
+                          INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
+#elif defined(DEMO_ADMM)
             admm_dynamics(soft_body, constraints, sim_dt, (real*) sb_force.data(),
                           INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
+#endif
 
 
             auto t2 = std::chrono::high_resolution_clock::now();
@@ -125,6 +142,15 @@ public:
             }
             ImGui::TreePop();
         }
+        if (ImGui::TreeNode("Constraints")) {
+#if defined(DEMO_PD)
+            real* pos1 = (real*)&constraints.positional[0].target_pos;
+            // real* pos2 = (real*)&constraints.positional[1].target_pos;
+            real p_min = -10.0, p_max = 10.0;
+            ImGui::SliderScalarN("Target pos 1", ImGuiDataType_Double, pos1, 3, &p_min, &p_max);
+            // ImGui::SliderScalarN("Target pos 2", ImGuiDataType_Double, pos2, 3, &p_min, &p_max);
+#endif
+        }
         ImGui::End();
     }
 
@@ -151,7 +177,11 @@ private:
     bool render_orig = false;
 
     SoftBodyData soft_body;
+#if defined(DEMO_PD)
+    PDConstraints constraints;
+#elif defined(DEMO_ADMM)
     ADMMConstraints constraints;
+#endif
     std::vector<glm::tvec3<real>> sb_pos;
     std::vector<glm::tvec3<real>> sb_vel;
     std::vector<glm::tvec3<real>> sb_force;
