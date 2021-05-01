@@ -10,20 +10,7 @@
 
 #include <glm/gtc/type_ptr.hpp>
 
-#include "shaders/line2d.vert.h"
-#include "shaders/line2d.frag.h"
-#include "shaders/line3d.vert.h"
-#include "shaders/line3d.frag.h"
-#include "shaders/point.vert.h"
-#include "shaders/point.frag.h"
-#include "shaders/phong_shadows.vert.h"
-#include "shaders/phong_shadows.frag.h"
-#include "shaders/depth.vert.h"
-#include "shaders/depth.frag.h"
-#include "shaders/depth_debug.vert.h"
-#include "shaders/depth_debug.frag.h"
-#include "shaders/pbr.vert.h"
-#include "shaders/pbr.frag.h"
+#include "gengine/Arena.h"
 
 GLuint compileShader(GLenum type, const GLchar *source) {
     GLuint shader = glCreateShader(type);
@@ -60,6 +47,18 @@ std::string loadFile(const std::string& path) {
     buf << fs.rdbuf();
     fs.close();
     return buf.str();
+}
+
+Ref<Shader> Shader::fromFile(const char* name, const char* vertexPath, const char* fragmentPath, const char* geometryPath) {
+    auto shader = Resources::make<Shader>(name);
+    shader->compileFromFile(vertexPath, fragmentPath, geometryPath);
+    return shader;
+}
+
+Ref<Shader> Shader::fromString(const char* name, const char* vertexSrc, const char* fragmentSrc, const char* geomSrc) {
+    auto shader = Resources::make<Shader>(name);
+    shader->compileFromString(vertexSrc, fragmentSrc, geomSrc);
+    return shader;
 }
 
 void Shader::compileFromFile(const char *vertexPath, const char *fragmentPath, const char *geometryPath) {
@@ -214,34 +213,3 @@ GLint Shader::getUniformLocation(const char* name) {
     return glGetUniformLocation(program, name);
 }
 
-
-Ref<Shader> Shaders::line2D = {};
-Ref<Shader> Shaders::line3D = {};
-Ref<Shader> Shaders::point = {};
-Ref<Shader> Shaders::phong = {};
-Ref<Shader> Shaders::depth = {};
-Ref<Shader> Shaders::depthDebug = {};
-Ref<Shader> Shaders::pbr = {};
-
-void Shaders::init() {
-    Shaders::line2D = Resources::make<Shader>("line2d");
-    Shaders::line2D->compileFromString(line2d_vert_shader, line2d_frag_shader);
-
-    Shaders::line3D = Resources::make<Shader>("line3d");
-    Shaders::line3D->compileFromString(line3d_vert_shader, line3d_frag_shader);
-
-    Shaders::point = Resources::make<Shader>("point");
-    Shaders::point->compileFromString(point_vert_shader, point_frag_shader);
-
-    Shaders::phong = Resources::make<Shader>("phong");
-    Shaders::phong->compileFromString(phong_shadows_vert_shader, phong_shadows_frag_shader);
-
-    Shaders::depth = Resources::make<Shader>("depth");
-    Shaders::depth->compileFromString(depth_vert_shader, depth_frag_shader);
-
-    Shaders::depthDebug = Resources::make<Shader>("depth_debug");
-    Shaders::depthDebug->compileFromString(depth_debug_vert_shader, depth_debug_frag_shader);
-
-    Shaders::pbr = Resources::make<Shader>("pbr");
-    Shaders::pbr->compileFromString(pbr_vert_shader, pbr_frag_shader);
-}

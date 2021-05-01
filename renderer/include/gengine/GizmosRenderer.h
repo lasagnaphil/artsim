@@ -22,12 +22,7 @@ struct GizmosRenderer {
         this->camera = camera;
     }
 
-    void init() {
-        if (camera == nullptr) {
-            fmt::print(stderr, "Camera not attached to PhongRenderer!\n");
-            exit(EXIT_FAILURE);
-        }
-    }
+    void init();
 
     void queueLine(const LineRenderCommand& command) {
         lineRenderCommands.push_back(command);
@@ -39,5 +34,6 @@ private:
     Camera* camera;
     std::vector<LineRenderCommand> lineRenderCommands;
 
+    Ref<Shader> line3DShader, pointShader;
 };
 #endif //GENGINE_GIZMOSRENDERER_H

@@ -8,6 +8,23 @@
 #include <fmt/core.h>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "shaders/depth.vert.h"
+#include "shaders/depth.frag.h"
+#include "shaders/pbr.vert.h"
+#include "shaders/pbr_solid.frag.h"
+#include "shaders/pbr_transparent.frag.h"
+
+static float quadVertices[] = {
+        // positions        // uv
+        -1.0f, -1.0f, 0.0f,	0.0f, 0.0f,
+        1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+
+        1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+        -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+        -1.0f, -1.0f, 0.0f, 0.0f, 0.0f
+};
+
 Ref<PBRMaterial>
 PBRMaterial::quick(const std::string &albedo, const std::string &metallic, const std::string &roughness,
                    const std::string &ao) {
@@ -25,11 +42,6 @@ PBRMaterial::quick(const std::string &albedo, const std::string &metallic, const
     mat->texAO = Texture::fromImage(aoImage);
     mat->alpha = 1.0f;
 
-    albedoImage->dispose();
-    metallicImage->dispose();
-    roughnessImage->dispose();
-    aoImage->dispose();
-
     return mat;
 }
 
@@ -43,8 +55,9 @@ void PBRenderer::init() {
         exit(EXIT_FAILURE);
     }
 
-    pbrShader = Shaders::pbr;
-    depthShader = Shaders::depth;
+    pbrSolidShader = Shader::fromString("pbr_solid", pbr_vert_shader, pbr_solid_frag_shader);
+    pbrTransparentShader = Shader::fromString("pbr_transparent", pbr_vert_shader, pbr_transparent_frag_shader);
+    depthShader = Shader::fromString("depth", depth_vert_shader, depth_frag_shader);
 
     glGenFramebuffers(1, &depthMapFBO);
 
@@ -65,8 +78,19 @@ void PBRenderer::init() {
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    pbrShader->use();
-    pbrShader->setInt("depthMap", 8);
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3*sizeof(float)));
+    glBindVertexArray(0);
+
+    pbrSolidShader->use();
+    pbrSolidShader->setInt("depthMap", 8);
 
     /*
     glUniformBlockBinding(pbrShader->program, 0, 0);
@@ -128,10 +152,10 @@ void PBRenderer::render(bool shadows) {
 
     glViewport(origViewport[0], origViewport[1], origViewport[2], origViewport[3]);
 
-    pbrShader->use();
+    pbrSolidShader->use();
 
     if (camera) {
-        pbrShader->setCamera(camera);
+        pbrSolidShader->setCamera(camera);
     }
     else {
         std::cerr << "Error in PBRenderer: camera not set" << std::endl;
@@ -148,40 +172,40 @@ void PBRenderer::render(bool shadows) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, NUM_PBR_SPOT_LIGHTS * sizeof(PBRSpotLight), &spotLights);
      */
 
-    pbrShader->setBool("dirLight.enabled", dirLight.enabled);
+    pbrSolidShader->setBool("dirLight.enabled", dirLight.enabled);
     if (dirLight.enabled) {
-        pbrShader->setVec3("dirLight.direction", dirLight.direction);
-        pbrShader->setVec3("dirLight.color", dirLight.color);
+        pbrSolidShader->setVec3("dirLight.direction", dirLight.direction);
+        pbrSolidShader->setVec3("dirLight.color", dirLight.color);
     }
 
     for (int i = 0; i < NUM_PBR_POINT_LIGHTS; i++) {
         std::string lname = std::string("pointLights[") + std::to_string(i) + "]";
-        pbrShader->setBool((lname + ".enabled").c_str(), pointLights[i].enabled);
+        pbrSolidShader->setBool((lname + ".enabled").c_str(), pointLights[i].enabled);
         if (pointLights[i].enabled) {
-            pbrShader->setVec3((lname + ".position").c_str(), pointLights[i].position);
-            pbrShader->setVec3((lname + ".color").c_str(), pointLights[i].color);
+            pbrSolidShader->setVec3((lname + ".position").c_str(), pointLights[i].position);
+            pbrSolidShader->setVec3((lname + ".color").c_str(), pointLights[i].color);
         }
     }
 
     for (int i = 0; i < NUM_PBR_SPOT_LIGHTS; i++) {
         std::string lname = std::string("spotLights[") + std::to_string(i) + "]";
-        pbrShader->setBool((lname + ".enabled").c_str(), spotLights[i].enabled);
+        pbrSolidShader->setBool((lname + ".enabled").c_str(), spotLights[i].enabled);
         if (spotLights[i].enabled) {
-            pbrShader->setVec3((lname + ".position").c_str(), spotLights[i].position);
-            pbrShader->setVec3((lname + ".direction").c_str(), spotLights[i].direction);
-            pbrShader->setVec3((lname + ".color").c_str(), spotLights[i].color);
+            pbrSolidShader->setVec3((lname + ".position").c_str(), spotLights[i].position);
+            pbrSolidShader->setVec3((lname + ".direction").c_str(), spotLights[i].direction);
+            pbrSolidShader->setVec3((lname + ".color").c_str(), spotLights[i].color);
         }
     }
 
-    pbrShader->setMat4("dirLightSpaceMatrix", dirLightSpaceMatrix);
+    pbrSolidShader->setMat4("dirLightSpaceMatrix", dirLightSpaceMatrix);
 
     glActiveTexture(GL_TEXTURE8);
     glBindTexture(GL_TEXTURE_2D, depthMap);
-    pbrShader->setInt("shadowMap", 8);
+    pbrSolidShader->setInt("shadowMap", 8);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    renderPass(pbrShader);
+    renderPass(pbrSolidShader);
     glDisable(GL_BLEND);
 
     renderCommands.clear();
@@ -191,21 +215,42 @@ void PBRenderer::renderImGui() {
     ImGui::SetNextWindowPos(ImVec2(1620, 30), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(250, 250), ImGuiCond_FirstUseEver);
 
-    ImGui::Begin("PhongRenderer Settings");
+    ImGui::Begin("PBRenderer Settings");
 
-    if (ImGui::TreeNode("Directional Light Settings")) {
+    if (ImGui::CollapsingHeader("Directional Light Settings")) {
         ImGui::Checkbox("Enabled", (bool*) &dirLight.enabled);
+        ImGui::DragFloat3("Direction", (float *) &dirLight.direction, 0.01f, -5.0f, 5.0f);
+        ImGui::DragFloat3("Color", (float *) &dirLight.color, 0.01f, 0.0f, 1.0f);
+    }
 
-        ImGui::SliderFloat3("Direction", (float *) &dirLight.direction, -5.0f, 5.0f);
-        ImGui::SliderFloat3("Color", (float *) &dirLight.color, 0.0f, 1.0f);
+    if (ImGui::CollapsingHeader("Point Light Settings")) {
+        for (int i = 0; i < pointLights.size(); i++) {
+            auto label = fmt::format("PointLight {}", i + 1);
+            if (ImGui::TreeNode(label.c_str())) {
+                ImGui::PushID(i);
+                ImGui::Checkbox("Enabled##pointlight", (bool*) &pointLights[i].enabled);
+                ImGui::DragFloat3("Position##pointlight", (float*) &pointLights[i].position, 0.01f);
+                ImGui::DragFloat3("Color##pointlight", (float*) &pointLights[i].color, 0.01f);
+                ImGui::TreePop();
+                ImGui::PopID();
+            }
+        }
+    }
 
-        /*
-        ImGui::InputFloat2("Left/Right", (float *) &dirLightProjVolume.left);
-        ImGui::InputFloat2("Bottom/Top", (float *) &dirLightProjVolume.bottom);
-        ImGui::InputFloat2("zNear/zFar", (float *) &dirLightProjVolume.zNear);
-        */
-
-        ImGui::TreePop();
+    if (ImGui::CollapsingHeader("Spot Light Settings")) {
+        for (int i = 0; i < spotLights.size(); i++) {
+            auto label = fmt::format("SpotLight {}", i + 1);
+            if (ImGui::TreeNode(label.c_str())) {
+                ImGui::PushID(i);
+                ImGui::Checkbox("Enabled##spotlight", (bool*) &spotLights[i].enabled);
+                ImGui::DragFloat3("Position##spotlight", (float*) &spotLights[i].position, 0.01f);
+                ImGui::DragFloat3("Color##spotlight", (float*) &spotLights[i].color, 0.01f);
+                ImGui::DragFloat("Cutoff##spotlight", &spotLights[i].cutOff, 0.01f, 0.0f, 1.0f);
+                ImGui::DragFloat("OuterCutoff##spotlight", &spotLights[i].outerCutOff, 0.01f, 0.0f, 1.0f);
+                ImGui::TreePop();
+                ImGui::PopID();
+            }
+        }
     }
 
     ImGui::End();

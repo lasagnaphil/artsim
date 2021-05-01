@@ -120,11 +120,14 @@ public:
         }
         pbRenderer.render();
 
-        imRenderer.drawPoint(pbRenderer.pointLights[0].position, colors::Yellow, 4.0f, true);
-        imRenderer.drawPoint(pbRenderer.pointLights[1].position, colors::Yellow, 4.0f, true);
-        imRenderer.drawPoint(pbRenderer.pointLights[2].position, colors::Yellow, 4.0f, true);
-        imRenderer.drawPoint(pbRenderer.pointLights[3].position, colors::Yellow, 4.0f, true);
+        for (auto& light : pbRenderer.pointLights) {
+            if (light.enabled) {
+                imRenderer.drawPoint(light.position, colors::Yellow, 4.0f, true);
+            }
+        }
         imRenderer.render();
+
+        pbRenderer.renderImGui();
     }
 
     void release() override {

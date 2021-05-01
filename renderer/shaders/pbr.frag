@@ -40,8 +40,6 @@ struct PBRSpotLight {
     bool enabled;
 };
 
-out vec4 fragColor;
-
 in VS_OUT {
     vec3 fragPos;
     vec3 normal;
@@ -181,7 +179,7 @@ vec3 calcSpotLight(PBRSpotLight light, vec3 N, vec3 V, vec3 F0, PBRMatParams par
     return intensity * calcRadiance(N, V, L, F0, radiance, params);
 }
 
-void main() {
+vec3 lightCalculation() {
     vec3 N = normalize(fs_in.normal);
     vec3 V = normalize(viewPos - fs_in.fragPos);
 
@@ -218,6 +216,5 @@ void main() {
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0 / 2.2));
 
-    fragColor = vec4(color, mat.alpha);
+    return color;
 }
-

@@ -71,6 +71,7 @@ target_link_libraries(gengine PUBLIC
 
 # Compile shaders into header files
 add_executable(embed_shader ${CMAKE_CURRENT_SOURCE_DIR}/shaders/embed_shader.cpp)
+target_link_libraries(embed_shader PUBLIC stdc++fs fmt::fmt)
 file(GLOB shaders_src
         "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert"
         "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag"

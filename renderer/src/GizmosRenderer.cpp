@@ -4,29 +4,44 @@
 
 #include "gengine/GizmosRenderer.h"
 
+#include "shaders/line3d.vert.h"
+#include "shaders/line3d.frag.h"
+#include "shaders/point.vert.h"
+#include "shaders/point.frag.h"
+
+void GizmosRenderer::init() {
+    if (camera == nullptr) {
+        fmt::print(stderr, "Camera not attached to PhongRenderer!\n");
+        exit(EXIT_FAILURE);
+    }
+    line3DShader = Shader::fromString("line3d", line3d_vert_shader, line3d_frag_shader);
+    pointShader = Shader::fromString("point", point_vert_shader, point_frag_shader);
+}
+
+
 void GizmosRenderer::render() {
-    Shaders::line3D->use();
-    Shaders::line3D->setCamera(camera);
-    Shaders::point->use();
-    Shaders::point->setCamera(camera);
+    line3DShader->use();
+    line3DShader->setCamera(camera);
+    pointShader->use();
+    pointShader->setCamera(camera);
 
     for (auto& command : lineRenderCommands) {
         glBindVertexArray(command.mesh->vao);
 
         auto& material = command.material;
         if (material->drawLines) {
-            Shaders::line3D->use();
-            Shaders::line3D->setMat4("model", command.modelMatrix);
-            Shaders::line3D->setVec4("color", material->lineColor);
+            line3DShader->use();
+            line3DShader->setMat4("model", command.modelMatrix);
+            line3DShader->setVec4("color", material->lineColor);
 #ifndef __APPLE__
             glLineWidth(material->lineWidth);
 #endif
             glDrawArrays(material->lineType, 0, command.mesh->positions.size());
         }
         if (material->drawPoints) {
-            Shaders::point->use();
-            Shaders::point->setMat4("model", command.modelMatrix);
-            Shaders::point->setVec4("color", material->pointColor);
+            pointShader->use();
+            pointShader->setMat4("model", command.modelMatrix);
+            pointShader->setVec4("color", material->pointColor);
             glPointSize(material->pointSize);
             glDrawArrays(GL_POINTS, 0, command.mesh->positions.size());
         }
@@ -35,4 +50,3 @@ void GizmosRenderer::render() {
     }
     lineRenderCommands.clear();
 }
-

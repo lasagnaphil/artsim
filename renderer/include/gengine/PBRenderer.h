@@ -122,6 +122,10 @@ public:
 private:
     void renderPass(Ref<Shader> shader);
 
+    GLuint quadVAO, quadVBO;
+    GLuint opaqueFBO, transparentFBO;
+    GLuint opaqueTexture, depthTexture, accumTexture, revealTexture;
+
     GLuint depthMapFBO;
     GLuint depthMap;
 
@@ -133,8 +137,7 @@ private:
 
     Camera* camera;
 
-    Ref<Shader> pbrShader;
-    Ref<Shader> depthShader;
+    Ref<Shader> pbrSolidShader, pbrTransparentShader, depthShader;
 };
 
 #endif //GENGINE_PBRENDERER_H

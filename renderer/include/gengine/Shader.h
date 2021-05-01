@@ -14,7 +14,7 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
-#include "gengine/Arena.h"
+#include "Arena.h"
 
 struct PhongMaterial;
 struct PBRMaterial;
@@ -24,6 +24,9 @@ class Shader {
 public:
 
     Shader(const char* name = "") : name(name) {};
+
+    static Ref<Shader> fromFile(const char* name, const char* vertexPath, const char* fragmentPath, const char* geometryPath = nullptr);
+    static Ref<Shader> fromString(const char* name, const char* vertexSrc, const char* fragmentSrc, const char* geomSrc = nullptr);
 
     void compileFromFile(const char* vertexPath, const char* fragmentPath, const char* geometryPath = nullptr);
     void compileFromString(const char* vertexSrc, const char* fragmentSrc, const char* geomSrc = nullptr);
@@ -49,18 +52,5 @@ public:
 
     GLuint program;
     std::string name;
-};
-
-class Shaders {
-public:
-    static Ref<Shader> line2D;
-    static Ref<Shader> line3D;
-    static Ref<Shader> point;
-    static Ref<Shader> phong;
-    static Ref<Shader> depth;
-    static Ref<Shader> depthDebug;
-    static Ref<Shader> pbr;
-
-    static void init();
 };
 

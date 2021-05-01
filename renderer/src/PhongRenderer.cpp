@@ -5,6 +5,13 @@
 #include "gengine/PhongRenderer.h"
 #include "fmt/core.h"
 
+#include "shaders/depth.vert.h"
+#include "shaders/depth.frag.h"
+#include "shaders/depth_debug.vert.h"
+#include "shaders/depth_debug.frag.h"
+#include "shaders/phong.vert.h"
+#include "shaders/phong.frag.h"
+
 PhongRenderer::PhongRenderer(Rect3f projVolume, glm::ivec2 shadowFBSize, Camera *camera) :
 
         camera(camera), shadowFramebufferSize(shadowFBSize),
@@ -23,9 +30,11 @@ void PhongRenderer::init() {
         fmt::print(stderr, "Camera not attached to PhongRenderer!\n");
         exit(EXIT_FAILURE);
     }
-    depthShader = Shaders::depth;
-    debugDepthShader = Shaders::depthDebug;
-    phongShader = Shaders::phong;
+
+    depthShader->compileFromString("depth", depth_vert_shader, depth_frag_shader);
+
+    debugDepthShader->compileFromString("depth_debug", depth_debug_vert_shader, depth_debug_frag_shader);
+    phongShader->compileFromString("phong", phong_vert_shader, phong_frag_shader);
 
     glGenFramebuffers(1, &depthMapFBO);
 

@@ -167,8 +167,6 @@ void App::load() {
 
     stbi_set_flip_vertically_on_load(true);
 
-    Shaders::init();
-
     rootTransform = Resources::make<Transform>();
     rootTransform->update();
 
