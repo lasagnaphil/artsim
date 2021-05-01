@@ -1,5 +1,3 @@
-#version 330 core
-
 struct PBRMaterial {
     sampler2D texAlbedo;
     sampler2D texMetallic;
@@ -177,44 +175,4 @@ vec3 calcSpotLight(PBRSpotLight light, vec3 N, vec3 V, vec3 F0, PBRMatParams par
     float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
 
     return intensity * calcRadiance(N, V, L, F0, radiance, params);
-}
-
-vec3 lightCalculation() {
-    vec3 N = normalize(fs_in.normal);
-    vec3 V = normalize(viewPos - fs_in.fragPos);
-
-    PBRMatParams params;
-    params.albedo = texture(mat.texAlbedo, fs_in.texCoord).rgb;
-    params.metallic = texture(mat.texMetallic, fs_in.texCoord).r;
-    params.roughness = texture(mat.texRoughness, fs_in.texCoord).r;
-    params.ao = texture(mat.texAO, fs_in.texCoord).r;
-
-    vec3 F0 = vec3(0.04);
-    F0 = mix(F0, params.albedo, params.metallic);
-
-    vec3 Lo = vec3(0.0);
-    if (dirLight.enabled) {
-        Lo = calcDirLight(dirLight, N, V, F0, params);
-    }
-
-    for (int i = 0; i < NR_POINT_LIGHTS; ++i) {
-        if (pointLights[i].enabled) {
-            Lo += calcPointLight(pointLights[i], N, V, F0, params);
-        }
-    }
-
-    for (int i = 0; i < NR_SPOT_LIGHTS; ++i) {
-        if (spotLights[i].enabled) {
-            Lo += calcSpotLight(spotLights[i], N, V, F0, params);
-        }
-    }
-
-    vec3 ambient = vec3(0.03) * params.albedo * params.ao;
-    float shadow = shadowCalculation(fs_in.fragPos_DirLightSpace);
-    vec3 color = ambient + (1 - shadow) * Lo;
-
-    color = color / (color + vec3(1.0));
-    color = pow(color, vec3(1.0 / 2.2));
-
-    return color;
 }

@@ -72,7 +72,9 @@ void APIENTRY glDebugOutput(GLenum source,
     std::cout << std::endl;
 
     if (severity == GL_DEBUG_SEVERITY_HIGH) {
-        assert(false && "Quitting program because of GL error!");
+        assert(false);
+        printf("Quitting program because of GL error!\n");
+        exit(EXIT_FAILURE);
     }
 }
 

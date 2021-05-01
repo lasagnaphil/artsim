@@ -22,6 +22,7 @@ struct PBRMaterial {
     Ref<Texture> texMetallic;
     Ref<Texture> texRoughness;
     Ref<Texture> texAO;
+    bool transparent = false;
     float alpha = 1.0f;
 
     static Ref<PBRMaterial> quick(
@@ -98,12 +99,19 @@ public:
     void init();
 
     void queueRender(const PBRCommand& command) {
-        renderCommands.push_back(command);
+        if (command.material->transparent) {
+            renderTransparentCommands.push_back(command);
+        }
+        else {
+            renderSolidCommands.push_back(command);
+        }
     }
 
     void render(bool shadows = false);
 
     void renderImGui();
+
+    glm::vec3 skyColor = {1.0f, 1.0f, 1.0f};
 
     PBRDirLight dirLight = {
             glm::normalize(glm::vec3 {2.0f, -3.0f, 2.0f}),
@@ -120,16 +128,18 @@ public:
     glm::ivec2 shadowFramebufferSize = {2048, 2048};
 
 private:
-    void renderPass(Ref<Shader> shader);
+    void renderPass(Ref<Shader> shader, std::vector<PBRCommand>& commands);
 
     GLuint quadVAO, quadVBO;
+
     GLuint opaqueFBO, transparentFBO;
     GLuint opaqueTexture, depthTexture, accumTexture, revealTexture;
 
     GLuint depthMapFBO;
     GLuint depthMap;
 
-    std::vector<PBRCommand> renderCommands;
+    std::vector<PBRCommand> renderSolidCommands;
+    std::vector<PBRCommand> renderTransparentCommands;
 
     GLuint dirLightUBO;
     GLuint pointLightUBO;
@@ -137,7 +147,7 @@ private:
 
     Camera* camera;
 
-    Ref<Shader> pbrSolidShader, pbrTransparentShader, depthShader;
+    Ref<Shader> depthShader, pbrSolidShader, pbrTransparentShader, compositeShader, screenShader;
 };
 
 #endif //GENGINE_PBRENDERER_H

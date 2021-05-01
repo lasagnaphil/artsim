@@ -64,7 +64,8 @@ public:
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(glm::vec3(252.f, 3.f, 3.f) / 255.f);
-        // soft_body_mat->alpha = 0.2f;
+        soft_body_mat->transparent = true;
+        soft_body_mat->alpha = 0.8f;
 
         system.load("demo/resources/art_with_soft_bodies/metadata.xml");
         // system.load("/home/lasagnaphil/data/musculoskeleton/export_arm/metadata.xml");
@@ -74,13 +75,11 @@ public:
             soft_body_renderers.push_back({&sb, soft_body_mat, camera});
         }
 
-        Ref<PBRMaterial> link_mat = PBRMaterial::quick(colors::LightGray);
-        Ref<PBRMaterial> joint_mat = PBRMaterial::quick(colors::Blue);
+        link_mat = PBRMaterial::quick(colors::LightGray);
+        joint_mat = PBRMaterial::quick(colors::Blue);
         art_render = ArticulationRender(&system.get_articulation(), link_mat, joint_mat);
 
         resetPhysics();
-
-        orig_mesh_mat = PBRMaterial::quick(colors::Green);
 
         soft_body_selection_mask.resize(system.get_num_soft_bodies(), true);
     }
@@ -125,9 +124,6 @@ public:
         using real = artsim::real;
         using MatrixXr = Matrix<real, Dynamic, Dynamic>;
         using VectorXr = Matrix<real, Dynamic, 1>;
-
-        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
 
@@ -257,7 +253,7 @@ private:
     Ref<PBRMaterial> ground_mat;
     Ref<Mesh> ground_mesh;
 
-    Ref<PBRMaterial> orig_mesh_mat, joint_mat;
+    Ref<PBRMaterial> link_mat, joint_mat;
     int art_type = 1;
 
     std::default_random_engine random_engine;
@@ -273,6 +269,7 @@ int main(int argc, char** argv)
     settings.useDisplayFPS = false;
     settings.skipRenderFramesOnLag = true;
     settings.updateFPS = 60;
+
     MyApp app(settings);
     app.load();
     app.startMainLoop();

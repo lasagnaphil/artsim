@@ -48,6 +48,8 @@ public:
         pbRenderer.dirLight.color = glm::vec3(1.0f);
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
+        soft_body_mat->transparent = true;
+        soft_body_mat->alpha = 1.0f;
 
         TetMesh tet_mesh;
         tet_mesh.load_obj("demo/resources/soft_body/octopus.obj");
@@ -129,7 +131,7 @@ public:
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
 
         soft_body_render.render(pbRenderer, sb_pos.data());
-        soft_body_render.render_debug_surface(imRenderer, sb_pos.data());
+        // soft_body_render.render_debug_surface(imRenderer, sb_pos.data());
 
         pbRenderer.render();
         imRenderer.render();

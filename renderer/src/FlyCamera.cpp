@@ -88,21 +88,7 @@ void FlyCamera::updateCameraVectors() {
 }
 
 void FlyCamera::renderImGui() {
-    auto trans = transform.get();
-    // auto focusTrans = trackballFocus.get();
-
-    /*
-    ImGui::Begin("Trackball");
-    ImGui::Text("Position of trackball focus: %s", glm::to_string(focusTrans->getGlobalPosition()).c_str());
-    ImGui::Text("Position of trackball camera: %s", glm::to_string(trans->getGlobalPosition()).c_str());
-    ImGui::Text("Theta: %f", glm::degrees(theta));
-    ImGui::Text("GlobalFrontVec: %s", glm::to_string(trans->getGlobalFrontVec()).c_str());
-    ImGui::Text("GlobalUpVec: %s", glm::to_string(trans->getGlobalUpVec()).c_str());
-    ImGui::Text("Distance: %f", distance);
-    ImGui::Text("Fov: %f", fov);
-    ImGui::Checkbox("Use zoom instead of dolly", &enableZoom);
-    ImGui::End();
-     */
+    // TODO
 }
 
 void FlyCamera::processInput(SDL_Event& ev) {
