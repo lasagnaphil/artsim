@@ -431,22 +431,33 @@ void ArtWithSoftBodies::reset() {
     f_r.setZero();
 }
 
+void ArtWithSoftBodies::admm_calc_deformation_field_and_svd(
+        const glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd) {
+    for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
+        auto& sb = soft_bodies[sb_idx];
+        int start_vidx = sb_vert_start_idx[sb_idx];
+        int start_tidx = sb_tet_start_idx[sb_idx];
+        soft_body_calc_deformation_field(sb, (glm::rvec3*)x_s.data() + 3*start_vidx, u,
+                                         OUT F + start_tidx);
+    }
+    glmx::fastsvd(F, N_t, F_svd);
+}
+
 void ArtWithSoftBodies::admm_local_solve(
-        const glm::tvec3<real>* x,
-        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
-        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd) {
+        const glm::tmat3x3<real>* F, const glmx::SVD_mats<real>* F_svd,
+        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u) {
 
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
         auto& sb = soft_bodies[sb_idx];
         auto& constraints = sb_constraints[sb_idx];
-        int start_vidx = sb_vert_start_idx[sb_idx];
         int start_tidx = sb_tet_start_idx[sb_idx];
 #define X(CTYPE, CFIELD) \
         admm_vel_volume_constraint_local_solve( \
                 soft_bodies[sb_idx], \
                 constraints.CFIELD.data(), \
                 constraints.CFIELD.size(), \
-                x + start_vidx, z + start_tidx, u + start_tidx, F + start_tidx, F_svd + start_tidx);
+                F + start_tidx, F_svd + start_tidx, \
+                OUT z + start_tidx, OUT u + start_tidx);
         ADMM_VOLUME_CONSTRAINTS
 #undef X
     }
@@ -652,7 +663,8 @@ void ArtWithSoftBodies::integrate_admm_coupled() {
         z_prev = z;
         u_prev = u;
 
-        admm_local_solve((glm::rvec3*)x_s.data(), OUT z.data(), OUT u.data(), OUT F.data(), OUT F_svd.data());
+        admm_calc_deformation_field_and_svd(u.data(), OUT F.data(), OUT F_svd.data());
+        admm_local_solve(F.data(), F_svd.data(), OUT z.data(), OUT u.data());
 
         // Global solve
         v_s_prev = v_s;

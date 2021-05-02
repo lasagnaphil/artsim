@@ -129,12 +129,18 @@ struct SVD_mats {
     glm::tvec3<T> Sigma;
     glm::tmat3x3<T> V;
 
-    glm::tmat3x3<T> recover_matrix() {
+    glm::tmat3x3<T> recover_matrix() const {
         // TODO: optimize this
         glm::tmat3x3<T> S(Sigma.x, 0, 0, 0, Sigma.y, 0, 0, 0, Sigma.z);
         return U * S * glm::transpose(V);
     }
 };
+
+template <class T>
+glm::tmat3x3<T> svd_mult(const glm::tmat3x3<T>& U, const glm::tvec3<T>& sigma, const glm::tmat3x3<T>& V) {
+    glm::tmat3x3<T> S(sigma.x, 0, 0, 0, sigma.y, 0, 0, 0, sigma.z);
+    return U * S * glm::transpose(V);
+}
 
 template<class T>
 SVD_mats<T> svd(glm::tmat3x3<T> A) {

@@ -138,9 +138,10 @@ public:
 
 
 protected:
-    void admm_local_solve(const glm::tvec3<real>* x,
-            OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
-            OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd);
+    void admm_calc_deformation_field_and_svd(const glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd);
+    void admm_local_solve(
+            const glm::tmat3x3<real>* F, const glmx::SVD_mats<real>* F_svd,
+            OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u);
 
     void admm_update_b(real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0,
             INOUT real* b);

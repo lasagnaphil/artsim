@@ -110,7 +110,7 @@ void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out, int num_th
     }
 
     // Deallocate memory
-    delete[] buf;
+    free(buf);
 }
 
 template void fastsvd(const glm::tmat3x3<artsim::real>* A, int A_count, SVD_mats<artsim::real>* out, int num_threads);

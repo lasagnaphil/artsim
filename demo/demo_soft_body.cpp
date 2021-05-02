@@ -16,8 +16,9 @@
 #include <gengine_artsim/soft_body_render.h>
 #include <omp.h>
 
-#define DEMO_PD
+// #define DEMO_PD
 // #define DEMO_ADMM
+#define DEMO_QUASINEWTON
 
 // #define DEMO_QUASISTATIC
 
@@ -62,11 +63,11 @@ public:
 #if defined(DEMO_PD)
         for (int i = 0; i < soft_body.tetrahedrons.size(); i++) {
             constraints.linear_strain_energy.push_back({i, 1e7, 1.0, 1.0});
-            // constraints.volume_preservation_energy.push_back({i, 1e5, 0.9, 1.1});
+            constraints.volume_preservation_energy.push_back({i, 1e5, 0.9, 1.1});
         }
         constraints.positional.push_back({0, 1e7, glm::rvec3(0, 0, 0)});
         constraints.positional.push_back({400, 1e7, glm::rvec3(0, 0, 0)});
-#elif defined(DEMO_ADMM)
+#elif defined(DEMO_ADMM) || defined(DEMO_QUASINEWTON)
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();
@@ -113,6 +114,9 @@ public:
 #elif defined(DEMO_ADMM)
             admm_dynamics(soft_body, soft_body_precalc, constraints, sim_dt, 20, (real*) sb_force.data(),
                           INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
+#elif defined(DEMO_QUASINEWTON)
+            quasinewton_dynamics(soft_body, soft_body_precalc, constraints, sim_dt, 5, (real*) sb_force.data(),
+                                 INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
 #endif
 
 
@@ -189,7 +193,7 @@ private:
     SoftBodyPrecalcData soft_body_precalc;
 #if defined(DEMO_PD)
     PDConstraints constraints;
-#elif defined(DEMO_ADMM)
+#elif defined(DEMO_ADMM) || defined(DEMO_QUASINEWTON)
     ADMMConstraints constraints;
 #endif
     std::vector<glm::tvec3<real>> sb_pos;

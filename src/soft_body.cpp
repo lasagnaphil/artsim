@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 #include <Eigen/IterativeLinearSolvers>
 #include <unordered_map>
+#include <deque>
 #include <glm/gtx/hash.hpp>
 #include <glm/gtx/string_cast.hpp>
 
@@ -248,6 +249,20 @@ template void soft_body_precomputation<PDConstraints>(SoftBodyData& body, const 
 template void soft_body_precomputation<ADMMConstraints>(SoftBodyData& body, const ADMMConstraints& constraints, real dt,
         OUT SoftBodyPrecalcData& precalc);
 
+real energy_eigvec(glm::tvec3<real> S, const CorotationalEnergyConstraint& c) {
+    glm::rvec3 dS = S - glm::rvec3(1);
+    real tr_dS = dS[0] + dS[1] + dS[2];
+    return c.mu * glm::length2(dS) + (c.lambda/2) * tr_dS * tr_dS;
+}
+
+real energy_eigvec(glm::tvec3<real> S, const NeoHookeanEnergyConstraint& c) {
+    glm::rvec3 S_pow2 = S * S;
+    real I1 = S[0]*S[0] + S[1]*S[1] + S[2]*S[2];
+    real J = S[0]*S[1]*S[2];
+    real log_J = glm::log(J);
+    return (c.mu/2) * (I1 - 2*log_J - 3) + (c.lambda/2)*log_J*log_J;
+}
+
 glm::tvec3<real> projection_eigvec(glm::tvec3<real> S, const LinearStrainEnergyConstraint& c) {
     S = glm::clamp(S, c.sigma_min, c.sigma_max);
     // Flip last singular value if determinant is negative
@@ -328,20 +343,28 @@ glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const Constraint& c) {
     return F_svd.U * Sigma * glm::transpose(F_svd.V);
 }
 
+void soft_body_calc_deformation_field(const SoftBodyData& body, const glm::rvec3* x, OUT glm::rmat3* F) {
+    int num_tets = body.tetrahedrons.size();
+    for (int tidx = 0; tidx < num_tets; tidx++) {
+        auto& tet = body.tetrahedrons[tidx];
+        F[tidx] = glm::rmat3(x[tet[0]] - x[tet[3]], x[tet[1]] - x[tet[3]], x[tet[2]] - x[tet[3]]) * body.B_m[tidx];
+    }
+}
+
+void soft_body_calc_deformation_field(const SoftBodyData& body, const glm::rvec3* x, const glm::rmat3* u, OUT glm::rmat3* F) {
+    int num_tets = body.tetrahedrons.size();
+    for (int tidx = 0; tidx < num_tets; tidx++) {
+        auto& tet = body.tetrahedrons[tidx];
+        glm::rmat3 Dx = glm::rmat3(x[tet[0]] - x[tet[3]], x[tet[1]] - x[tet[3]], x[tet[2]] - x[tet[3]]) * body.B_m[tidx];
+        F[tidx] = Dx + u[tidx];
+    }
+}
+
 template <class Constraint>
 void projective_dynamics_volume_constraint_local_solve(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-        const glm::tvec3<real>* x,
-        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd,
-        OUT glm::tmat3x3<real>* p) {
+        OUT glmx::SVD_mats<real>* F_svd, OUT glm::tmat3x3<real>* p) {
 
-    for (int cidx = 0; cidx < num_constraints; cidx++) {
-        auto& c = constraints[cidx];
-        glm::ivec4 tet = body.tetrahedrons[c.tet_id];
-        glm::tmat3x3<real> D_s(x[tet[0]] - x[tet[3]], x[tet[1]] - x[tet[3]], x[tet[2]] - x[tet[3]]);
-        F[c.tet_id] = D_s * body.B_m[c.tet_id];
-    }
-    glmx::fastsvd(F, num_constraints, F_svd);
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         F_svd[c.tet_id].Sigma = projection_eigvec(F_svd[c.tet_id].Sigma, c);
@@ -351,8 +374,8 @@ void projective_dynamics_volume_constraint_local_solve(
 
 #define X(CTYPE, CFIELD) \
 template void projective_dynamics_volume_constraint_local_solve( \
-        const SoftBodyData&, const CTYPE*, uint32_t, const glm::tvec3<real>*, \
-        OUT glm::tmat3x3<real>*, OUT glmx::SVD_mats<real>*, OUT glm::tmat3x3<real>*);
+        const SoftBodyData&, const CTYPE*, uint32_t, \
+        OUT glmx::SVD_mats<real>*, OUT glm::tmat3x3<real>*);
 PD_VOLUME_CONSTRAINTS
 #undef X
 
@@ -399,23 +422,14 @@ void projective_dynamics_positional_constraint_update_b(
 template <class Constraint>
 void admm_vel_volume_constraint_local_solve(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-        const glm::tvec3<real>* x,
-        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u,
-        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd) {
+        const glm::tmat3x3<real>* F, const glmx::SVD_mats<real>* F_svd,
+        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u) {
 
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
-        glm::ivec4 tet = body.tetrahedrons[c.tet_id];
-        auto D_x = glm::rmat3(x[tet[0]] - x[tet[3]], x[tet[1]] - x[tet[3]], x[tet[2]] - x[tet[3]]) * body.B_m[c.tet_id];
-        F[c.tet_id] = D_x + u[c.tet_id];
-    }
-
-    glmx::fastsvd(F, num_constraints, F_svd);
-
-    for (int cidx = 0; cidx < num_constraints; cidx++) {
-        auto& c = constraints[cidx];
-        F_svd[c.tet_id].Sigma = proximal_eigvec(F_svd[c.tet_id].Sigma, c);
-        z[c.tet_id] = F_svd[c.tet_id].recover_matrix();
+        auto& svd = F_svd[c.tet_id];
+        glm::rvec3 sigma = proximal_eigvec(svd.Sigma, c);
+        z[c.tet_id] = glmx::svd_mult(svd.U, sigma, svd.V);
         u[c.tet_id] = F[c.tet_id] - z[c.tet_id];
     }
 }
@@ -423,9 +437,8 @@ void admm_vel_volume_constraint_local_solve(
 #define X(CTYPE, CFIELD) \
 template void admm_vel_volume_constraint_local_solve( \
         const SoftBodyData&, const CTYPE*, uint32_t, \
-        const glm::tvec3<real>*, \
-        OUT glm::tmat3x3<real>*, OUT glm::tmat3x3<real>*, \
-        OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd);
+        const glm::tmat3x3<real>* F, const glmx::SVD_mats<real>* F_svd, \
+        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u);
 ADMM_VOLUME_CONSTRAINTS
 #undef X
 
@@ -481,6 +494,29 @@ template void admm_vel_volume_constraint_update_residuals( \
 ADMM_VOLUME_CONSTRAINTS
 #undef X
 
+template <class Constraint>
+real quasinewton_dynamics_volume_constraint_energy(
+        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
+        const glmx::SVD_mats<real>* F_svd) {
+    real E = 0;
+    for (int cidx = 0; cidx < num_constraints; cidx++) {
+        auto& c = constraints[cidx];
+        E += c.k * energy_eigvec(F_svd[c.tet_id].Sigma, c);
+    }
+    return E;
+}
+
+real quasinewton_dynamics_positional_constraint_energy(
+        const SoftBodyData& body, const PositionalConstraint* constraints, uint32_t num_constraints,
+        const glm::rvec3* x) {
+    real E = 0;
+    for (int cidx = 0; cidx < num_constraints; cidx++) {
+        auto& c = constraints[cidx];
+        E += c.k * glm::length2(x[c.vert_id] - c.target_pos);
+    }
+    return E;
+}
+
 void projective_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
                          const PDConstraints& constraints, real dt, int num_iters, const real* f,
                          INOUT real* pos, INOUT real* vel) {
@@ -494,18 +530,21 @@ void projective_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& pr
     std::vector<glm::tmat3x3<real>> p(body.tetrahedrons.size());
 
     for (int iter = 0; iter < num_iters; iter++) {
+        soft_body_calc_deformation_field(body, (glm::rvec3*) x.data(), OUT F.data());
+        glmx::fastsvd(F.data(), body.tetrahedrons.size(), OUT F_svd.data());
+
+        // Local solve
 #define X(CTYPE, CFIELD) \
         projective_dynamics_volume_constraint_local_solve( \
-                body, constraints.CFIELD.data(), constraints.CFIELD.size(), \
-                (glm::rvec3*) x.data(), OUT F.data(), OUT F_svd.data(), OUT p.data());
+                body, constraints.CFIELD.data(), constraints.CFIELD.size(), OUT F_svd.data(), OUT p.data());
         PD_VOLUME_CONSTRAINTS
 #undef X
 
+        // Global solve
         VectorXr b = body.M * x_tilde;
 #define X(CTYPE, CFIELD) \
         projective_dynamics_volume_constraint_update_b( \
-                body, constraints.CFIELD.data(), constraints.CFIELD.size(), dt, \
-                p.data(), INOUT b.data());
+                body, constraints.CFIELD.data(), constraints.CFIELD.size(), dt, p.data(), INOUT b.data());
         PD_VOLUME_CONSTRAINTS
 #undef X
         projective_dynamics_positional_constraint_update_b(
@@ -526,18 +565,21 @@ void projective_dynamics_quasistatic(const SoftBodyData& body, const SoftBodyPre
     std::vector<glm::tmat3x3<real>> p(body.tetrahedrons.size());
 
     for (int iter = 0; iter < num_iters; iter++) {
+        soft_body_calc_deformation_field(body, (glm::rvec3*) x.data(), OUT F.data());
+        glmx::fastsvd(F.data(), body.tetrahedrons.size(), OUT F_svd.data());
+
+        // Global solve
 #define X(CTYPE, CFIELD) \
         projective_dynamics_volume_constraint_local_solve( \
-                body, constraints.CFIELD.data(), constraints.CFIELD.size(), \
-                (glm::rvec3*) x.data(), OUT F.data(), OUT F_svd.data(), OUT p.data());
+                body, constraints.CFIELD.data(), constraints.CFIELD.size(), OUT F_svd.data(), OUT p.data());
         PD_VOLUME_CONSTRAINTS
 #undef X
 
+        // Local solve
         VectorXr b = f_ext;
 #define X(CTYPE, CFIELD) \
         projective_dynamics_volume_constraint_update_b( \
-                body, constraints.CFIELD.data(), constraints.CFIELD.size(), 1.0, \
-                p.data(), INOUT b.data());
+                body, constraints.CFIELD.data(), constraints.CFIELD.size(), 1.0, p.data(), INOUT b.data());
         PD_VOLUME_CONSTRAINTS
 #undef X
         projective_dynamics_positional_constraint_update_b(
@@ -551,28 +593,39 @@ void admm_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
                    const ADMMConstraints& constraints, real dt, int num_iters, const real* f,
                    INOUT real* pos, INOUT real* vel) {
 
-    Map<VectorXr> x(pos, 3*body.vertices.size());
-    Map<VectorXr> v(vel, 3*body.vertices.size());
-    Map<const VectorXr> f_ext(f, 3*body.vertices.size());
+    int num_vertices = body.vertices.size();
+    int num_tets = body.tetrahedrons.size();
+
+    Map<VectorXr> x(pos, 3*num_vertices);
+    Map<VectorXr> v(vel, 3*num_vertices);
+    Map<const VectorXr> f_ext(f, 3*num_vertices);
     VectorXr x_orig = x;
     VectorXr v_tilde = v + dt*body.M_LDLt.solve(f_ext);
     v.noalias() = v_tilde;
     x.noalias() = x_orig + dt*v;
 
-    std::vector<glm::tmat3x3<real>> u(body.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
-    std::vector<glm::tmat3x3<real>> z(body.tetrahedrons.size(), glm::tmat3x3<real>(0.0));
-    std::vector<glm::tmat3x3<real>> z_prev(body.tetrahedrons.size());
-    std::vector<glm::tmat3x3<real>> F(body.tetrahedrons.size());
-    std::vector<glmx::SVD_mats<real>> F_svd(body.tetrahedrons.size());
+    std::vector<glm::tmat3x3<real>> u(num_tets, glm::tmat3x3<real>(0.0));
+    std::vector<glm::tmat3x3<real>> z(num_tets, glm::tmat3x3<real>(0.0));
+    std::vector<glm::tmat3x3<real>> z_prev(num_tets);
+    std::vector<glm::tmat3x3<real>> F(num_tets);
+    std::vector<glmx::SVD_mats<real>> F_svd(num_tets);
 
     std::cout << std::endl << "Starting ADMM loop" << std::endl;
     for (int iter = 0; iter < num_iters; iter++) {
         z_prev = z;
 
+        for (int tidx = 0; tidx < num_tets; tidx++) {
+            auto& tet = body.tetrahedrons[tidx];
+            glm::rvec3* X = (glm::rvec3*) x.data();
+            glm::rmat3 Dx = glm::rmat3(X[tet[0]] - X[tet[3]], X[tet[1]] - X[tet[3]], X[tet[2]] - X[tet[3]]) * body.B_m[tidx];
+            F[tidx] = Dx + u[tidx];
+        }
+        glmx::fastsvd(F.data(), num_tets, F_svd.data());
+
         // Local solve
 #define X(CTYPE, CFIELD) \
         admm_vel_volume_constraint_local_solve(body, constraints.CFIELD.data(), constraints.CFIELD.size(), \
-            (glm::rvec3*) x.data(), OUT z.data(), OUT u.data(), OUT F.data(), OUT F_svd.data());
+            F.data(), F_svd.data(), OUT z.data(), OUT u.data());
         ADMM_VOLUME_CONSTRAINTS
 #undef X
 
@@ -598,4 +651,127 @@ void admm_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
         std::cout << "primal_res = " << sqrt(primal_res_sq) << ", dual_res= " << sqrt(dual_res_sq) << std::endl;
     }
 }
+
+real quasinewton_dynamics_objective_fn(
+        const SoftBodyData& body, const SoftBodyPrecalcData& precalc, const ADMMConstraints& constraints, real dt,
+        const glmx::SVD_mats<real>* F_svd, const VectorXr& x, const VectorXr& x_tilde, const VectorXr& b) {
+    VectorXr dx = x - x_tilde;
+    real E = dx.dot(body.M * dx);
+    real dt_sq = dt * dt;
+#define X(CTYPE, CFIELD) \
+    E += dt_sq * quasinewton_dynamics_volume_constraint_energy( \
+        body, constraints.CFIELD.data(), constraints.CFIELD.size(), F_svd);
+    ADMM_VOLUME_CONSTRAINTS
+#undef X
+    E += dt_sq * quasinewton_dynamics_positional_constraint_energy(
+            body, constraints.positional.data(), constraints.positional.size(), (glm::rvec3*) x.data());
+    return E;
+}
+
+struct SoftBodyQuasiNewtonHistory {
+    std::deque<VectorXr> x;
+    std::deque<VectorXr> s, t;
+    std::deque<real> rho, zeta;
+    int max_hist_count = 5;
+
+    explicit SoftBodyQuasiNewtonHistory(int max_hist_count) : max_hist_count(max_hist_count) {}
+
+    void calc_descent_dir(const SoftBodyData& body, const SoftBodyPrecalcData& precalc, const VectorXr& b,
+                          const VectorXr& new_x,
+                          OUT VectorXr& r) {
+        VectorXr q = -precalc.A * new_x + b;
+
+        if (x.empty()) {
+            r = precalc.A_LDLt.solve(q);
+            x.push_front(new_x);
+            return;
+        }
+
+        VectorXr s0 = new_x - x[0];
+        VectorXr t0 = precalc.A * s0;
+        real rho0 = s0.dot(t0);
+        real zeta0 = s0.dot(q) / rho0;
+
+        x.push_front(new_x);
+        s.push_front(s0);
+        t.push_front(t0);
+        rho.push_front(rho0);
+        zeta.push_front(zeta0);
+        if (s.size() > max_hist_count) {
+            x.pop_back();
+            s.pop_back();
+            t.pop_back();
+            rho.pop_back();
+            zeta.pop_back();
+        }
+
+        // TODO: cache this summed value!
+        for (int i = 0; i < t.size(); i++) {
+            q -= zeta[i] * t[i];
+        }
+
+        r = precalc.A_LDLt.solve(q);
+        // TODO: cache this summed value!
+        for (int i = t.size()-1; i >= 0; i--) {
+            real eta = t[i].dot(r) / rho[i];
+            r += s[i] * (zeta[i] - eta);
+        }
+    }
+};
+
+void quasinewton_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
+                          const ADMMConstraints& constraints, real dt, int num_iters, const real* f,
+                          INOUT real* pos, INOUT real* vel) {
+    Map<VectorXr> x(pos, 3*body.vertices.size());
+    Map<VectorXr> v(vel, 3*body.vertices.size());
+    Map<const VectorXr> f_ext(f, 3*body.vertices.size());
+    VectorXr x_tilde = x + dt*v + dt*dt*body.M_LDLt.solve(f_ext);
+
+    std::vector<glm::tmat3x3<real>> F(body.tetrahedrons.size());
+    std::vector<glmx::SVD_mats<real>> F_svd(body.tetrahedrons.size());
+    std::vector<glm::tmat3x3<real>> p(body.tetrahedrons.size());
+
+    for (int iter = 0; iter < num_iters; iter++) {
+        soft_body_calc_deformation_field(body, (glm::rvec3*) x.data(), OUT F.data());
+        glmx::fastsvd(F.data(), body.tetrahedrons.size(), OUT F_svd.data());
+
+        // Calculate b
+        VectorXr b = body.M * x_tilde;
+#define X(CTYPE, CFIELD) \
+        projective_dynamics_volume_constraint_update_b( \
+                body, constraints.CFIELD.data(), constraints.CFIELD.size(), dt, \
+                p.data(), INOUT b.data());
+        ADMM_VOLUME_CONSTRAINTS
+#undef X
+        projective_dynamics_positional_constraint_update_b(
+                body, constraints.positional.data(), constraints.positional.size(), dt, INOUT b.data());
+
+        // Begin Quasi-Newton solver
+        SoftBodyQuasiNewtonHistory hist(5);
+        const real gamma = 0.3;
+        const int max_bt_iters = 10;
+        x = x_tilde;
+        real g_x0 = quasinewton_dynamics_objective_fn(body, precalc, constraints, dt, F_svd.data(), x, x_tilde, b);
+        VectorXr g_x0_grad(x.size());
+        VectorXr d_x0(x.size());
+        for (int k = 1; k <= num_iters; k++) {
+            g_x0_grad = precalc.A * x - b;
+            // hist.calc_descent_dir(body, precalc, b, x, OUT d_x0);
+            d_x0 = -precalc.A_LDLt.solve(x);
+            real alpha = real(2.0);
+            real g_x;
+            real g_x_threshold = g_x0 + gamma * alpha * g_x0_grad.dot(d_x0);
+            printf("g_x_threshold = %f\n", g_x_threshold);
+            for (int iter = 0; iter < max_bt_iters; iter++) {
+                x += alpha * d_x0;
+                g_x = quasinewton_dynamics_objective_fn(body, precalc, constraints, dt, F_svd.data(), x, x_tilde, b);
+                printf("g_x = %f\n", g_x);
+                if (g_x > g_x_threshold) break;
+                alpha = alpha / 2;
+            }
+        }
+    }
+}
+
+
 }
