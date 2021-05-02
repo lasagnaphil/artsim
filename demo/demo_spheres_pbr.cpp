@@ -17,25 +17,26 @@ public:
         };
         pbRenderer.shadowFramebufferSize = {2048, 2048};
 
-        pbRenderer.dirLight.enabled = true;
-        pbRenderer.dirLight.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, -2.0f});
-        pbRenderer.dirLight.color = {0.5f, 0.5f, 0.5f};
+        auto& ub = pbRenderer.lights;
+        ub.dir.enabled = true;
+        ub.dir.direction = glm::normalize(glm::vec3 {2.0f, -3.0f, -2.0f});
+        ub.dir.color = {0.5f, 0.5f, 0.5f};
 
-        pbRenderer.pointLights[0].enabled = true;
-        pbRenderer.pointLights[0].position = {-10.0f, 10.0f + 17.5f, 10.0f};
-        pbRenderer.pointLights[0].color = {100.f, 100.f, 100.f};
+        ub.point[0].enabled = true;
+        ub.point[0].position = {-10.0f, 10.0f + 17.5f, 10.0f};
+        ub.point[0].color = {100.f, 100.f, 100.f};
 
-        pbRenderer.pointLights[1].enabled = true;
-        pbRenderer.pointLights[1].position = {10.0f, 10.0f + 17.5f, 10.0f};
-        pbRenderer.pointLights[1].color = {100.f, 100.f, 100.f};
+        ub.point[1].enabled = true;
+        ub.point[1].position = {10.0f, 10.0f + 17.5f, 10.0f};
+        ub.point[1].color = {100.f, 100.f, 100.f};
 
-        pbRenderer.pointLights[2].enabled = true;
-        pbRenderer.pointLights[2].position = {-10.0f, -10.0f + 17.5f, 10.0f};
-        pbRenderer.pointLights[2].color = {100.f, 100.f, 100.f};
+        ub.point[2].enabled = true;
+        ub.point[2].position = {-10.0f, -10.0f + 17.5f, 10.0f};
+        ub.point[2].color = {100.f, 100.f, 100.f};
 
-        pbRenderer.pointLights[3].enabled = true;
-        pbRenderer.pointLights[3].position = {10.0f, -10.0f + 17.5f, 10.0f};
-        pbRenderer.pointLights[3].color = {100.f, 100.f, 100.f};
+        ub.point[3].enabled = true;
+        ub.point[3].position = {10.0f, -10.0f + 17.5f, 10.0f};
+        ub.point[3].color = {100.f, 100.f, 100.f};
 
         ground_mat = PBRMaterial::quick(
                 "resources/textures/mossy-ground1-albedo.png",
@@ -122,7 +123,7 @@ public:
         }
         pbRenderer.render();
 
-        for (auto& light : pbRenderer.pointLights) {
+        for (auto& light : pbRenderer.lights.point) {
             if (light.enabled) {
                 imRenderer.drawPoint(light.position, colors::Yellow, 4.0f, true);
             }

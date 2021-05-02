@@ -1,3 +1,8 @@
+const float PI = 3.14159265359;
+
+#define NR_POINT_LIGHTS 16
+#define NR_SPOT_LIGHTS 8
+
 struct PBRMaterial {
     sampler2D texAlbedo;
     sampler2D texMetallic;
@@ -45,34 +50,16 @@ in VS_OUT {
     vec4 fragPos_DirLightSpace;
 } fs_in;
 
+uniform sampler2D shadowMap;
+uniform PBRMaterial mat;
 uniform vec3 viewPos;
 
-uniform PBRMaterial mat;
-
-const float PI = 3.14159265359;
-
-#define NR_POINT_LIGHTS 16
-#define NR_SPOT_LIGHTS 8
-
-uniform PBRDirLight dirLight;
-uniform PBRPointLight pointLights[NR_POINT_LIGHTS];
-uniform PBRSpotLight spotLights[NR_SPOT_LIGHTS];
-
-/*
-layout (std140, binding=0) uniform DirLightBlock {
+layout (std140, binding=0)
+uniform UniformBlock {
     PBRDirLight dirLight;
-};
-
-layout (std140, binding=1) uniform PointLightBlock {
     PBRPointLight pointLights[NR_POINT_LIGHTS];
-};
-
-layout (std140, binding=2) uniform SpotLightBlock {
     PBRSpotLight spotLights[NR_SPOT_LIGHTS];
 };
-*/
-
-uniform sampler2D shadowMap;
 
 float shadowCalculation(vec4 fragPosLightSpace) {
     float bias = 0.0005;

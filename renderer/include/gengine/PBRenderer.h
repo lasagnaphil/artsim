@@ -55,26 +55,32 @@ struct PBRMaterial {
 };
 
 struct PBRDirLight {
-    glm::vec3 direction;
-    glm::vec3 color;
+    alignas(16) glm::vec3 direction;
+    alignas(16) glm::vec3 color;
     uint32_t enabled = false;
 };
 
 struct PBRPointLight {
-    glm::vec3 position;
-    glm::vec3 color;
+    alignas(16) glm::vec3 position;
+    alignas(16) glm::vec3 color;
     uint32_t enabled = false;
 };
 
 struct PBRSpotLight {
-    glm::vec3 position;
-    glm::vec3 direction;
-    glm::vec3 color;
+    alignas(16) glm::vec3 position;
+    alignas(16) glm::vec3 direction;
+    alignas(16) glm::vec3 color;
 
     float cutOff;
     float outerCutOff;
 
     uint32_t enabled = false;
+};
+
+struct PBRLights {
+    alignas(16) PBRDirLight dir;
+    alignas(16) std::array<PBRPointLight, NUM_PBR_POINT_LIGHTS> point;
+    alignas(16) std::array<PBRSpotLight, NUM_PBR_SPOT_LIGHTS> spot;
 };
 
 struct PBRCommand {
@@ -85,6 +91,7 @@ struct PBRCommand {
 
 class PBRenderer {
 public:
+
     PBRenderer(Camera* camera = nullptr);
 
     void setCamera(Camera* camera) {
@@ -114,21 +121,15 @@ public:
     glm::vec3 skyColor = {1.0f, 1.0f, 1.0f};
     float exposure = 5.0f;
 
-    PBRDirLight dirLight = {
-            glm::normalize(glm::vec3 {2.0f, -3.0f, 2.0f}),
-            {1.0f, 1.0f, 1.0f},
-            true
-    };
-
-    std::array<PBRPointLight, NUM_PBR_POINT_LIGHTS> pointLights;
-    std::array<PBRSpotLight, NUM_PBR_SPOT_LIGHTS> spotLights;
-
     glmx::box dirLightProjVolume = {
             {-10.f, -10.f, 0.f}, {10.f, 10.f, 100.f}
     };
     glm::ivec2 shadowFramebufferSize = {2048, 2048};
 
+    PBRLights lights;
+
 private:
+    glm::mat4 calcDirLightSpaceMatrix();
     void setLightingUniforms(Ref<Shader> shader, bool shadows);
     void renderPass(Ref<Shader> shader, std::vector<PBRCommand>& commands);
 
@@ -143,9 +144,7 @@ private:
     std::vector<PBRCommand> renderSolidCommands;
     std::vector<PBRCommand> renderTransparentCommands;
 
-    GLuint dirLightUBO;
-    GLuint pointLightUBO;
-    GLuint spotLightUBO;
+    GLuint lightUBO;
 
     Camera* camera;
 

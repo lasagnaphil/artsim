@@ -141,30 +141,15 @@ void PBRenderer::init() {
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    /*
-    glUniformBlockBinding(pbrShader->program, 0, 0);
-    glUniformBlockBinding(pbrShader->program, 1, 1);
-    glUniformBlockBinding(pbrShader->program, 2, 2);
-
-    glGenBuffers(1, &dirLightUBO);
-    glGenBuffers(1, &pointLightUBO);
-    glGenBuffers(1, &spotLightUBO);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, dirLightUBO);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(PBRDirLight), nullptr, GL_DYNAMIC_DRAW);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, pointLightUBO);
-    glBufferData(GL_UNIFORM_BUFFER, NUM_PBR_POINT_LIGHTS * sizeof(PBRPointLight), nullptr, GL_DYNAMIC_DRAW);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, spotLightUBO);
-    glBufferData(GL_UNIFORM_BUFFER, NUM_PBR_SPOT_LIGHTS * sizeof(PBRSpotLight), nullptr, GL_DYNAMIC_DRAW);
-
+    glGenBuffers(1, &lightUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, lightUBO);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(PBRLights), nullptr, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, dirLightUBO);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 1, pointLightUBO);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 2, spotLightUBO);
-     */
+    glUniformBlockBinding(pbrSolidShader->program, glGetUniformBlockIndex(pbrSolidShader->program, "UniformBlock"), 0);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, lightUBO);
+    glUniformBlockBinding(pbrTransparentShader->program, glGetUniformBlockIndex(pbrTransparentShader->program, "UniformBlock"), 0);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, lightUBO);
 }
 
 void PBRenderer::render(bool shadows) {
@@ -173,14 +158,7 @@ void PBRenderer::render(bool shadows) {
     float near_plane = 0.1f;
     float far_plane = 1000.0f;
 
-    glm::mat4 dirLightProjection = glm::ortho(dirLightProjVolume.min.x, dirLightProjVolume.max.x,
-                                              dirLightProjVolume.min.y, dirLightProjVolume.max.y,
-                                              dirLightProjVolume.min.z, dirLightProjVolume.max.z);
-
-    glm::vec3 dirLightPos = -glm::normalize(dirLight.direction) * dirLightProjVolume.max.z * 0.5f;
-    glm::mat4 dirLightView = glm::lookAt(dirLightPos, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
-    glm::mat4 dirLightSpaceMatrix = dirLightProjection * dirLightView;
-
+    glm::mat4 dirLightSpaceMatrix = calcDirLightSpaceMatrix();
     depthShader->use();
     depthShader->setMat4("dirLightSpaceMatrix", dirLightSpaceMatrix);
 
@@ -200,17 +178,6 @@ void PBRenderer::render(bool shadows) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     glViewport(origViewport[0], origViewport[1], origViewport[2], origViewport[3]);
-
-    /*
-    glBindBuffer(GL_UNIFORM_BUFFER, dirLightUBO);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PBRDirLight), &dirLight);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, pointLightUBO);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, NUM_PBR_POINT_LIGHTS * sizeof(PBRPointLight), &pointLights);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, spotLightUBO);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, NUM_PBR_SPOT_LIGHTS * sizeof(PBRSpotLight), &spotLights);
-     */
 
     glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
 
@@ -279,19 +246,21 @@ void PBRenderer::renderImGui() {
     ImGui::Begin("PBRenderer Settings");
 
     if (ImGui::CollapsingHeader("Directional Light Settings")) {
+        auto& dirLight = lights.dir;
         ImGui::Checkbox("Enabled", (bool*) &dirLight.enabled);
         ImGui::DragFloat3("Direction", (float *) &dirLight.direction, 0.01f, -5.0f, 5.0f);
         ImGui::DragFloat3("Color", (float *) &dirLight.color, 0.01f, 0.0f, 1.0f);
     }
 
     if (ImGui::CollapsingHeader("Point Light Settings")) {
-        for (int i = 0; i < pointLights.size(); i++) {
+        for (int i = 0; i < lights.point.size(); i++) {
             auto label = fmt::format("PointLight {}", i + 1);
             if (ImGui::TreeNode(label.c_str())) {
                 ImGui::PushID(i);
-                ImGui::Checkbox("Enabled##pointlight", (bool*) &pointLights[i].enabled);
-                ImGui::DragFloat3("Position##pointlight", (float*) &pointLights[i].position, 0.01f);
-                ImGui::DragFloat3("Color##pointlight", (float*) &pointLights[i].color, 0.01f);
+                auto& pointLight = lights.point[i];
+                ImGui::Checkbox("Enabled##pointlight", (bool*) &pointLight.enabled);
+                ImGui::DragFloat3("Position##pointlight", (float*) &pointLight.position, 0.01f);
+                ImGui::DragFloat3("Color##pointlight", (float*) &pointLight.color, 0.01f);
                 ImGui::TreePop();
                 ImGui::PopID();
             }
@@ -299,15 +268,16 @@ void PBRenderer::renderImGui() {
     }
 
     if (ImGui::CollapsingHeader("Spot Light Settings")) {
-        for (int i = 0; i < spotLights.size(); i++) {
+        for (int i = 0; i < lights.spot.size(); i++) {
             auto label = fmt::format("SpotLight {}", i + 1);
             if (ImGui::TreeNode(label.c_str())) {
                 ImGui::PushID(i);
-                ImGui::Checkbox("Enabled##spotlight", (bool*) &spotLights[i].enabled);
-                ImGui::DragFloat3("Position##spotlight", (float*) &spotLights[i].position, 0.01f);
-                ImGui::DragFloat3("Color##spotlight", (float*) &spotLights[i].color, 0.01f);
-                ImGui::DragFloat("Cutoff##spotlight", &spotLights[i].cutOff, 0.01f, 0.0f, 1.0f);
-                ImGui::DragFloat("OuterCutoff##spotlight", &spotLights[i].outerCutOff, 0.01f, 0.0f, 1.0f);
+                auto& spotLight = lights.spot[i];
+                ImGui::Checkbox("Enabled##spotlight", (bool*) &spotLight.enabled);
+                ImGui::DragFloat3("Position##spotlight", (float*) &spotLight.position, 0.01f);
+                ImGui::DragFloat3("Color##spotlight", (float*) &spotLight.color, 0.01f);
+                ImGui::DragFloat("Cutoff##spotlight", &spotLight.cutOff, 0.01f, 0.0f, 1.0f);
+                ImGui::DragFloat("OuterCutoff##spotlight", &spotLight.outerCutOff, 0.01f, 0.0f, 1.0f);
                 ImGui::TreePop();
                 ImGui::PopID();
             }
@@ -321,6 +291,17 @@ void PBRenderer::renderImGui() {
     ImGui::End();
 }
 
+glm::mat4 PBRenderer::calcDirLightSpaceMatrix() {
+    glm::mat4 dirLightProjection = glm::ortho(dirLightProjVolume.min.x, dirLightProjVolume.max.x,
+                                              dirLightProjVolume.min.y, dirLightProjVolume.max.y,
+                                              dirLightProjVolume.min.z, dirLightProjVolume.max.z);
+
+    glm::vec3 dirLightPos = -glm::normalize(lights.dir.direction) * dirLightProjVolume.max.z * 0.5f;
+    glm::mat4 dirLightView = glm::lookAt(dirLightPos, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
+    glm::mat4 dirLightSpaceMatrix = dirLightProjection * dirLightView;
+    return dirLightSpaceMatrix;
+}
+
 void PBRenderer::setLightingUniforms(Ref<Shader> shader, bool shadows) {
     shader->use();
 
@@ -331,40 +312,12 @@ void PBRenderer::setLightingUniforms(Ref<Shader> shader, bool shadows) {
         std::cerr << "Error in PBRenderer: camera not set" << std::endl;
     }
 
-    shader->setBool("dirLight.enabled", dirLight.enabled);
-    if (dirLight.enabled) {
-        shader->setVec3("dirLight.direction", dirLight.direction);
-        shader->setVec3("dirLight.color", dirLight.color);
-    }
-
-    for (int i = 0; i < NUM_PBR_POINT_LIGHTS; i++) {
-        std::string lname = std::string("pointLights[") + std::to_string(i) + "]";
-        shader->setBool((lname + ".enabled").c_str(), pointLights[i].enabled);
-        if (pointLights[i].enabled) {
-            shader->setVec3((lname + ".position").c_str(), pointLights[i].position);
-            shader->setVec3((lname + ".color").c_str(), pointLights[i].color);
-        }
-    }
-
-    for (int i = 0; i < NUM_PBR_SPOT_LIGHTS; i++) {
-        std::string lname = std::string("spotLights[") + std::to_string(i) + "]";
-        shader->setBool((lname + ".enabled").c_str(), spotLights[i].enabled);
-        if (spotLights[i].enabled) {
-            shader->setVec3((lname + ".position").c_str(), spotLights[i].position);
-            shader->setVec3((lname + ".direction").c_str(), spotLights[i].direction);
-            shader->setVec3((lname + ".color").c_str(), spotLights[i].color);
-        }
-    }
+    glBindBuffer(GL_UNIFORM_BUFFER, lightUBO);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PBRLights), (void*)&lights);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     if (shadows) {
-        glm::mat4 dirLightProjection = glm::ortho(dirLightProjVolume.min.x, dirLightProjVolume.max.x,
-                                                  dirLightProjVolume.min.y, dirLightProjVolume.max.y,
-                                                  dirLightProjVolume.min.z, dirLightProjVolume.max.z);
-
-        glm::vec3 dirLightPos = -glm::normalize(dirLight.direction) * dirLightProjVolume.max.z * 0.5f;
-        glm::mat4 dirLightView = glm::lookAt(dirLightPos, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
-        glm::mat4 dirLightSpaceMatrix = dirLightProjection * dirLightView;
-
+        glm::mat4 dirLightSpaceMatrix = calcDirLightSpaceMatrix();
         shader->setMat4("dirLightSpaceMatrix", dirLightSpaceMatrix);
 
         glActiveTexture(GL_TEXTURE8);
