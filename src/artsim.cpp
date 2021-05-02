@@ -181,7 +181,7 @@ Link Link::create(const tsmat3x3<real>& inertia, real mass,
     return link;
 }
 
-void ArticulatedBody::setup(bool use_bullet, btCollisionWorld* bt_collision_world) {
+void ArticulatedBody::setup(bool use_bullet, btCollisionWorld* bt_col_world) {
     int num_joints = get_num_joints();
     joint_pos_dofs.resize(num_joints);
     joint_pos_dof_starts.resize(num_joints + 1);
@@ -236,18 +236,21 @@ void ArticulatedBody::setup(bool use_bullet, btCollisionWorld* bt_collision_worl
     }
 
     if (use_bullet) {
-        if (bt_collision_world == nullptr) {
+        if (bt_col_world == nullptr) {
             auto bt_collision_config = new btDefaultCollisionConfiguration;
             auto bt_dispatcher = new btCollisionDispatcher(bt_collision_config);
             auto bt_broadphase = new btDbvtBroadphase;
-            bt_collision_world = new btCollisionWorld(bt_dispatcher, bt_broadphase, bt_collision_config);
+            this->bt_collision_world = new btCollisionWorld(bt_dispatcher, bt_broadphase, bt_collision_config);
 
             auto bt_plane_col = new btCollisionObject;
             bt_plane_col->setCollisionShape(new btStaticPlaneShape(btVector3(0, 1, 0), 0));
             bt_plane_col->setWorldTransform(btTransform::getIdentity());
             bt_plane_col->setUserIndex(0);
             bt_plane_col->setUserIndex2(0);
-            bt_collision_world->addCollisionObject(bt_plane_col, btBroadphaseProxy::DefaultFilter, btBroadphaseProxy::AllFilter);
+            this->bt_collision_world->addCollisionObject(bt_plane_col, btBroadphaseProxy::DefaultFilter, btBroadphaseProxy::AllFilter);
+        }
+        else {
+            this->bt_collision_world = bt_col_world;
         }
 
         for (int i = 0; i < links.size(); i++) {

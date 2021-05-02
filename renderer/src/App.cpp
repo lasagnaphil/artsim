@@ -298,11 +298,6 @@ void App::internalRender() {
 
     auto& io = ImGui::GetIO();
 
-    // clear screen
-    glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-    glClearColor(0.529f, 0.808f, 0.922f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     // draw things
     render();
 

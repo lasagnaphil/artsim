@@ -6,7 +6,6 @@ layout (location = 0) out vec4 accum;
 layout (location = 1) out float reveal;
 
 void main() {
-    /*
     vec3 N = normalize(fs_in.normal);
     vec3 V = normalize(viewPos - fs_in.fragPos);
 
@@ -38,16 +37,15 @@ void main() {
 
     vec3 ambient = vec3(0.03) * params.albedo * params.ao;
     vec3 color = ambient + Lo;
-    */
 
-    vec3 color = texture(mat.texAlbedo, fs_in.texCoord).rgb;
+    float alpha = mat.alpha;
 
     // weight function
-    float weight = clamp(pow(min(1.0, mat.alpha * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - fs_in.fragPos.z * 0.9, 3.0), 1e-2, 3e3);
+    float weight = clamp(pow(min(1.0, alpha * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - gl_FragCoord.z * 0.9, 3.0), 1e-2, 3e3);
 
     // store pixel color accumulation
-    accum = vec4(color * mat.alpha, mat.alpha) * weight;
+    accum = vec4(color * alpha, alpha) * weight;
 
     // store pixel revealage threshold
-    reveal = mat.alpha;
+    reveal = alpha;
 }

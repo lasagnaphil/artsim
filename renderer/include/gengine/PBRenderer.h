@@ -112,6 +112,7 @@ public:
     void renderImGui();
 
     glm::vec3 skyColor = {1.0f, 1.0f, 1.0f};
+    float exposure = 5.0f;
 
     PBRDirLight dirLight = {
             glm::normalize(glm::vec3 {2.0f, -3.0f, 2.0f}),
@@ -128,11 +129,12 @@ public:
     glm::ivec2 shadowFramebufferSize = {2048, 2048};
 
 private:
+    void setLightingUniforms(Ref<Shader> shader, bool shadows);
     void renderPass(Ref<Shader> shader, std::vector<PBRCommand>& commands);
 
     GLuint quadVAO, quadVBO;
 
-    GLuint opaqueFBO, transparentFBO;
+    GLuint screenFBO;
     GLuint opaqueTexture, depthTexture, accumTexture, revealTexture;
 
     GLuint depthMapFBO;

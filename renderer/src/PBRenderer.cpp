@@ -98,8 +98,7 @@ void PBRenderer::init() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Create FBO and textures for opaque / transparent rendering
-    glGenFramebuffers(1, &opaqueFBO);
-    glGenFramebuffers(1, &transparentFBO);
+    glGenFramebuffers(1, &screenFBO);
 
     GLint gl_viewport[4];
     glGetIntegerv(GL_VIEWPORT, gl_viewport);
@@ -116,16 +115,6 @@ void PBRenderer::init() {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, gl_viewport[2], gl_viewport[3], 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, opaqueFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, opaqueTexture, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
-
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        fmt::print("Error: Opqaue framebuffer is not complete!\n");
-        exit(EXIT_FAILURE);
-    }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
     glGenTextures(1, &accumTexture);
     glBindTexture(GL_TEXTURE_2D, accumTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, gl_viewport[2], gl_viewport[3], 0, GL_RGBA, GL_HALF_FLOAT, nullptr);
@@ -140,13 +129,11 @@ void PBRenderer::init() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, transparentFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, accumTexture, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, revealTexture, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, opaqueTexture, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, accumTexture, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, revealTexture, 0);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
-
-    const GLenum transparentDrawBuffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
-    glDrawBuffers(2, transparentDrawBuffers);
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         fmt::print("Error: Transparent framebuffer is not complete!\n");
@@ -178,10 +165,6 @@ void PBRenderer::init() {
     glBindBufferBase(GL_UNIFORM_BUFFER, 1, pointLightUBO);
     glBindBufferBase(GL_UNIFORM_BUFFER, 2, spotLightUBO);
      */
-
-    // Solid shader uses depth map texture to draw shadows
-    pbrSolidShader->use();
-    pbrSolidShader->setInt("depthMap", 8);
 }
 
 void PBRenderer::render(bool shadows) {
@@ -218,15 +201,6 @@ void PBRenderer::render(bool shadows) {
 
     glViewport(origViewport[0], origViewport[1], origViewport[2], origViewport[3]);
 
-    pbrSolidShader->use();
-
-    if (camera) {
-        pbrSolidShader->setCamera(camera);
-    }
-    else {
-        std::cerr << "Error in PBRenderer: camera not set" << std::endl;
-    }
-
     /*
     glBindBuffer(GL_UNIFORM_BUFFER, dirLightUBO);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PBRDirLight), &dirLight);
@@ -238,45 +212,18 @@ void PBRenderer::render(bool shadows) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, NUM_PBR_SPOT_LIGHTS * sizeof(PBRSpotLight), &spotLights);
      */
 
-    pbrSolidShader->setBool("dirLight.enabled", dirLight.enabled);
-    if (dirLight.enabled) {
-        pbrSolidShader->setVec3("dirLight.direction", dirLight.direction);
-        pbrSolidShader->setVec3("dirLight.color", dirLight.color);
-    }
-
-    for (int i = 0; i < NUM_PBR_POINT_LIGHTS; i++) {
-        std::string lname = std::string("pointLights[") + std::to_string(i) + "]";
-        pbrSolidShader->setBool((lname + ".enabled").c_str(), pointLights[i].enabled);
-        if (pointLights[i].enabled) {
-            pbrSolidShader->setVec3((lname + ".position").c_str(), pointLights[i].position);
-            pbrSolidShader->setVec3((lname + ".color").c_str(), pointLights[i].color);
-        }
-    }
-
-    for (int i = 0; i < NUM_PBR_SPOT_LIGHTS; i++) {
-        std::string lname = std::string("spotLights[") + std::to_string(i) + "]";
-        pbrSolidShader->setBool((lname + ".enabled").c_str(), spotLights[i].enabled);
-        if (spotLights[i].enabled) {
-            pbrSolidShader->setVec3((lname + ".position").c_str(), spotLights[i].position);
-            pbrSolidShader->setVec3((lname + ".direction").c_str(), spotLights[i].direction);
-            pbrSolidShader->setVec3((lname + ".color").c_str(), spotLights[i].color);
-        }
-    }
-
-    pbrSolidShader->setMat4("dirLightSpaceMatrix", dirLightSpaceMatrix);
-
-    glActiveTexture(GL_TEXTURE8);
-    glBindTexture(GL_TEXTURE_2D, depthMap);
-    pbrSolidShader->setInt("shadowMap", 8);
+    glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
 
     // Solid render pass
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
+    const GLenum opaqueDrawBuffers[] = {GL_COLOR_ATTACHMENT0};
+    glDrawBuffers(1, opaqueDrawBuffers);
     glClearColor(skyColor.x, skyColor.y, skyColor.z, 1.0f);
-    glBindFramebuffer(GL_FRAMEBUFFER, opaqueFBO);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    setLightingUniforms(pbrSolidShader, true);
     renderPass(pbrSolidShader, renderSolidCommands);
 
     // Translucent render pass
@@ -287,16 +234,19 @@ void PBRenderer::render(bool shadows) {
     glBlendEquation(GL_FUNC_ADD);
     glm::vec4 zeroFillerVec(0.0f);
     glm::vec4 oneFillerVec(1.0f);
-    glBindFramebuffer(GL_FRAMEBUFFER, transparentFBO);
+    const GLenum transparentDrawBuffers[] = {GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2};
+    glDrawBuffers(2, transparentDrawBuffers);
     glClearBufferfv(GL_COLOR, 0, &zeroFillerVec[0]);
     glClearBufferfv(GL_COLOR, 1, &oneFillerVec[0]);
+    setLightingUniforms(pbrTransparentShader, false);
     renderPass(pbrTransparentShader, renderTransparentCommands);
 
     // Composite the solid and transparent render results
     glDepthFunc(GL_ALWAYS);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glBindFramebuffer(GL_FRAMEBUFFER, opaqueFBO);
+    const GLenum compositeDrawBuffers[] = {GL_COLOR_ATTACHMENT0};
+    glDrawBuffers(1, compositeDrawBuffers);
     compositeShader->use();
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, accumTexture);
@@ -310,9 +260,9 @@ void PBRenderer::render(bool shadows) {
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glClearColor(skyColor.x, skyColor.y, skyColor.z, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     screenShader->use();
+    screenShader->setFloat("exposure", exposure);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, opaqueTexture);
     glBindVertexArray(quadVAO);
@@ -364,7 +314,63 @@ void PBRenderer::renderImGui() {
         }
     }
 
+    if (ImGui::CollapsingHeader("Postprocessing")) {
+        ImGui::DragFloat("Exposure##postprocessing", &exposure, 0.01f, 0.0f, 10.0f);
+    }
+
     ImGui::End();
+}
+
+void PBRenderer::setLightingUniforms(Ref<Shader> shader, bool shadows) {
+    shader->use();
+
+    if (camera) {
+        shader->setCamera(camera);
+    }
+    else {
+        std::cerr << "Error in PBRenderer: camera not set" << std::endl;
+    }
+
+    shader->setBool("dirLight.enabled", dirLight.enabled);
+    if (dirLight.enabled) {
+        shader->setVec3("dirLight.direction", dirLight.direction);
+        shader->setVec3("dirLight.color", dirLight.color);
+    }
+
+    for (int i = 0; i < NUM_PBR_POINT_LIGHTS; i++) {
+        std::string lname = std::string("pointLights[") + std::to_string(i) + "]";
+        shader->setBool((lname + ".enabled").c_str(), pointLights[i].enabled);
+        if (pointLights[i].enabled) {
+            shader->setVec3((lname + ".position").c_str(), pointLights[i].position);
+            shader->setVec3((lname + ".color").c_str(), pointLights[i].color);
+        }
+    }
+
+    for (int i = 0; i < NUM_PBR_SPOT_LIGHTS; i++) {
+        std::string lname = std::string("spotLights[") + std::to_string(i) + "]";
+        shader->setBool((lname + ".enabled").c_str(), spotLights[i].enabled);
+        if (spotLights[i].enabled) {
+            shader->setVec3((lname + ".position").c_str(), spotLights[i].position);
+            shader->setVec3((lname + ".direction").c_str(), spotLights[i].direction);
+            shader->setVec3((lname + ".color").c_str(), spotLights[i].color);
+        }
+    }
+
+    if (shadows) {
+        glm::mat4 dirLightProjection = glm::ortho(dirLightProjVolume.min.x, dirLightProjVolume.max.x,
+                                                  dirLightProjVolume.min.y, dirLightProjVolume.max.y,
+                                                  dirLightProjVolume.min.z, dirLightProjVolume.max.z);
+
+        glm::vec3 dirLightPos = -glm::normalize(dirLight.direction) * dirLightProjVolume.max.z * 0.5f;
+        glm::mat4 dirLightView = glm::lookAt(dirLightPos, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
+        glm::mat4 dirLightSpaceMatrix = dirLightProjection * dirLightView;
+
+        shader->setMat4("dirLightSpaceMatrix", dirLightSpaceMatrix);
+
+        glActiveTexture(GL_TEXTURE8);
+        glBindTexture(GL_TEXTURE_2D, depthMap);
+        shader->setInt("shadowMap", 8);
+    }
 }
 
 void PBRenderer::renderPass(Ref<Shader> shader, std::vector<PBRCommand>& commands) {

@@ -23,19 +23,19 @@ public:
 
         pbRenderer.pointLights[0].enabled = true;
         pbRenderer.pointLights[0].position = {-10.0f, 10.0f + 17.5f, 10.0f};
-        pbRenderer.pointLights[0].color = {300.f, 300.f, 300.f};
+        pbRenderer.pointLights[0].color = {100.f, 100.f, 100.f};
 
         pbRenderer.pointLights[1].enabled = true;
         pbRenderer.pointLights[1].position = {10.0f, 10.0f + 17.5f, 10.0f};
-        pbRenderer.pointLights[1].color = {300.f, 300.f, 300.f};
+        pbRenderer.pointLights[1].color = {100.f, 100.f, 100.f};
 
         pbRenderer.pointLights[2].enabled = true;
         pbRenderer.pointLights[2].position = {-10.0f, -10.0f + 17.5f, 10.0f};
-        pbRenderer.pointLights[2].color = {300.f, 300.f, 300.f};
+        pbRenderer.pointLights[2].color = {100.f, 100.f, 100.f};
 
         pbRenderer.pointLights[3].enabled = true;
         pbRenderer.pointLights[3].position = {10.0f, -10.0f + 17.5f, 10.0f};
-        pbRenderer.pointLights[3].color = {300.f, 300.f, 300.f};
+        pbRenderer.pointLights[3].color = {100.f, 100.f, 100.f};
 
         ground_mat = PBRMaterial::quick(
                 "resources/textures/mossy-ground1-albedo.png",
@@ -75,6 +75,8 @@ public:
                         Texture::fromSingleColor({(float)j / (float)N, 0.0f, 0.0f});
                 sphereMats[id]->texRoughness =
                         Texture::fromSingleColor({glm::clamp((float)i / (float)N, 0.05f, 1.0f), 0.0f, 0.0f});
+                // sphereMats[id]->transparent = true;
+                // sphereMats[id]->alpha = 0.8f;
             }
         }
     }

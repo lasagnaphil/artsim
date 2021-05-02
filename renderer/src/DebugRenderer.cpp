@@ -167,7 +167,6 @@ void DebugRenderer::flushLineVerts(bool depthEnabled) {
 
     glEnable(GL_LINE_SMOOTH);
     glEnable(GL_BLEND);
-    glLineWidth(2.0f);
 
     glBindVertexArray(lineVao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);

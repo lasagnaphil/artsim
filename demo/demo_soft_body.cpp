@@ -49,7 +49,7 @@ public:
 
         Ref<PBRMaterial> soft_body_mat = PBRMaterial::quick(colors::Red);
         soft_body_mat->transparent = true;
-        soft_body_mat->alpha = 1.0f;
+        soft_body_mat->alpha = 0.8f;
 
         TetMesh tet_mesh;
         tet_mesh.load_obj("demo/resources/soft_body/octopus.obj");
