@@ -12,19 +12,42 @@ template <class T>
 void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out, int num_threads) {
     using namespace Singular_Value_Decomposition;
 
-    float *a11,*a21,*a31,*a12,*a22,*a32,*a13,*a23,*a33;
-    float *u11,*u21,*u31,*u12,*u22,*u32,*u13,*u23,*u33;
-    float *v11,*v21,*v31,*v12,*v22,*v32,*v13,*v23,*v33;
-    float *sigma1,*sigma2,*sigma3;
+    int buf_size = 8 * ((A_count + 1) / 8) + 8;
+    float* buf = (float*)aligned_alloc(32, buf_size*30*sizeof(float));
 
-    int size = A_count;
+    float* a11 = buf + 0*buf_size;
+    float* a12 = buf + 1*buf_size;
+    float* a13 = buf + 2*buf_size;
+    float* a21 = buf + 3*buf_size;
+    float* a22 = buf + 4*buf_size;
+    float* a23 = buf + 5*buf_size;
+    float* a31 = buf + 6*buf_size;
+    float* a32 = buf + 7*buf_size;
+    float* a33 = buf + 8*buf_size;
 
-    // Allocate data
-    Singular_Value_Decomposition_Size_Specific_Helper<float>::Allocate_Data(size + 8,
-                                                                            a11,a21,a31,a12,a22,a32,a13,a23,a33,
-                                                                            u11,u21,u31,u12,u22,u32,u13,u23,u33,
-                                                                            v11,v21,v31,v12,v22,v32,v13,v23,v33,
-                                                                            sigma1,sigma2,sigma3);
+    float* u11 = buf + 9*buf_size;
+    float* u12 = buf + 10*buf_size;
+    float* u13 = buf + 11*buf_size;
+    float* u21 = buf + 12*buf_size;
+    float* u22 = buf + 13*buf_size;
+    float* u23 = buf + 14*buf_size;
+    float* u31 = buf + 15*buf_size;
+    float* u32 = buf + 16*buf_size;
+    float* u33 = buf + 17*buf_size;
+
+    float* v11 = buf + 18*buf_size;
+    float* v12 = buf + 19*buf_size;
+    float* v13 = buf + 20*buf_size;
+    float* v21 = buf + 21*buf_size;
+    float* v22 = buf + 22*buf_size;
+    float* v23 = buf + 23*buf_size;
+    float* v31 = buf + 24*buf_size;
+    float* v32 = buf + 25*buf_size;
+    float* v33 = buf + 26*buf_size;
+
+    float* sigma1 = buf + 27*buf_size;
+    float* sigma2 = buf + 28*buf_size;
+    float* sigma3 = buf + 29*buf_size;
 
     // Insert data
     for (int i = 0; i < A_count; i++) {
@@ -40,7 +63,7 @@ void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out, int num_th
     }
 
     // Run kernel
-    Singular_Value_Decomposition_Size_Specific_Helper<float> task(size,
+    Singular_Value_Decomposition_Size_Specific_Helper<float> task(A_count,
                                                                   a11,a21,a31,a12,a22,a32,a13,a23,a33,
                                                                   u11,u21,u31,u12,u22,u32,u13,u23,u33,
                                                                   v11,v21,v31,v12,v22,v32,v13,v23,v33,
@@ -50,11 +73,11 @@ void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out, int num_th
         task.Run();
     }
     else {
-#pragma omp parallel for default(none) firstprivate(num_threads, size, task)
+#pragma omp parallel for default(none) firstprivate(num_threads, A_count, task)
         for (int partition = 0; partition < num_threads; partition++) {
-            int imin = (size / num_threads) * partition + std::min(size % num_threads, partition);
+            int imin = (A_count / num_threads) * partition + std::min(A_count % num_threads, partition);
             int imax_plus_one =
-                    (size / num_threads) * (partition + 1) + std::min(size % num_threads, partition + 1);
+                    (A_count / num_threads) * (partition + 1) + std::min(A_count % num_threads, partition + 1);
             task.Run_Index_Range(imin, imax_plus_one);
         }
     }
@@ -85,6 +108,9 @@ void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out, int num_th
         out[i].Sigma[1] = sigma2[i];
         out[i].Sigma[2] = sigma3[i];
     }
+
+    // Deallocate memory
+    delete[] buf;
 }
 
 template void fastsvd(const glm::tmat3x3<artsim::real>* A, int A_count, SVD_mats<artsim::real>* out, int num_threads);
