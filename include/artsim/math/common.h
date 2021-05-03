@@ -161,8 +161,13 @@ namespace glmx {
     }
 
     template <class T>
-    inline glm::tvec3<T> skew_symmetric_cast(glm::tmat3x3<T> m) {
+    inline glm::tvec3<T> skew_symmetric_cast(const glm::tmat3x3<T>& m) {
         return glm::tvec3<T>(m[1][2], m[2][0], m[0][1]);
+    }
+
+    template <class T>
+    inline T tr(const glm::tmat3x3<T>& m) {
+        return m[0][0] + m[1][1] + m[2][2];
     }
 
     // TODO: optimize this

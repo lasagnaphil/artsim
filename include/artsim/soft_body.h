@@ -160,7 +160,7 @@ void soft_body_calc_deformation_field(const SoftBodyData& body, const glm::rvec3
 template <class Constraint>
 void projective_dynamics_volume_constraint_local_solve(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
-        OUT glmx::SVD_mats<real>* F_svd, OUT glm::tmat3x3<real>* p);
+        const glmx::SVD_mats<real>* F_svd, OUT glm::tmat3x3<real>* p);
 
 template <class Constraint>
 void projective_dynamics_volume_constraint_update_b(

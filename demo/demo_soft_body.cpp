@@ -33,7 +33,6 @@ public:
     void loadResources() {
         random_engine = std::default_random_engine(0);
         Eigen::setNbThreads(0);
-        // omp_set_num_threads(8);
 
         FlyCamera* camera = dynamic_cast<FlyCamera*>(this->camera.get());
         Ref<Transform> cameraTransform = camera->transform;
@@ -63,7 +62,7 @@ public:
 #if defined(DEMO_PD)
         for (int i = 0; i < soft_body.tetrahedrons.size(); i++) {
             constraints.linear_strain_energy.push_back({i, 1e7, 1.0, 1.0});
-            constraints.volume_preservation_energy.push_back({i, 1e5, 0.9, 1.1});
+            // constraints.volume_preservation_energy.push_back({i, 1e5, 0.9, 1.1});
         }
         constraints.positional.push_back({0, 1e7, glm::rvec3(0, 0, 0)});
         constraints.positional.push_back({400, 1e7, glm::rvec3(0, 0, 0)});
@@ -72,9 +71,12 @@ public:
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();
         for (int i = 0; i < soft_body.tetrahedrons.size(); i++) {
+            // constraints.corotational_energy.push_back({i, 210, 5, 200});
             constraints.corotational_energy.push_back({i, stiffness, mu, lambda});
             // constraints.neohookean_energy.push_back({i, stiffness, mu, lambda});
         }
+        constraints.positional.push_back({0, 1e3, glm::rvec3(0, 0, 0)});
+        constraints.positional.push_back({400, 1e3, glm::rvec3(0, 0, 0)});
 #endif
         soft_body_precomputation(soft_body, constraints, sim_dt, OUT soft_body_precalc);
 
@@ -156,13 +158,11 @@ public:
             ImGui::TreePop();
         }
         if (ImGui::TreeNode("Constraints")) {
-#if defined(DEMO_PD)
             real* pos1 = (real*)&constraints.positional[0].target_pos;
             real* pos2 = (real*)&constraints.positional[1].target_pos;
             real p_min = -10.0, p_max = 10.0;
             ImGui::SliderScalarN("Target pos 1", ImGuiDataType_Double, pos1, 3, &p_min, &p_max);
             ImGui::SliderScalarN("Target pos 2", ImGuiDataType_Double, pos2, 3, &p_min, &p_max);
-#endif
         }
         ImGui::End();
     }

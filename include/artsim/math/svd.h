@@ -123,6 +123,22 @@ QR_mats<T> qr_decomp(glm::tmat3x3<T> B) {
     return qr_decomp_result;
 }
 
+template <class T>
+glm::tmat3x3<T> svd_mult(const glm::tmat3x3<T>& U, const glm::tvec3<T>& sigma, const glm::tmat3x3<T>& V) {
+    glm::tmat3x3<T> F;
+    F[0][0] = sigma[0]*U[0][0]*V[0][0] + sigma[1]*U[1][0]*V[1][0] + sigma[2]*U[2][0]*V[2][0];
+    F[0][1] = sigma[0]*U[0][1]*V[0][0] + sigma[1]*U[1][1]*V[1][0] + sigma[2]*U[2][1]*V[2][0];
+    F[0][2] = sigma[0]*U[0][2]*V[0][0] + sigma[1]*U[1][2]*V[1][0] + sigma[2]*U[2][2]*V[2][0];
+    F[1][0] = sigma[0]*U[0][0]*V[0][1] + sigma[1]*U[1][0]*V[1][1] + sigma[2]*U[2][0]*V[2][1];
+    F[1][1] = sigma[0]*U[0][1]*V[0][1] + sigma[1]*U[1][1]*V[1][1] + sigma[2]*U[2][1]*V[2][1];
+    F[1][2] = sigma[0]*U[0][2]*V[0][1] + sigma[1]*U[1][2]*V[1][1] + sigma[2]*U[2][2]*V[2][1];
+    F[2][0] = sigma[0]*U[0][0]*V[0][2] + sigma[1]*U[1][0]*V[1][2] + sigma[2]*U[2][0]*V[2][2];
+    F[2][1] = sigma[0]*U[0][1]*V[0][2] + sigma[1]*U[1][1]*V[1][2] + sigma[2]*U[2][1]*V[2][2];
+    F[2][2] = sigma[0]*U[0][2]*V[0][2] + sigma[1]*U[1][2]*V[1][2] + sigma[2]*U[2][2]*V[2][2];
+    return F;
+    // return U * glm::tmat3x3<T>(sigma[0], 0, 0, 0, sigma[1], 0, 0, 0, sigma[2]) * glm::transpose(V);
+}
+
 template<class T>
 struct SVD_mats {
     glm::tmat3x3<T> U;
@@ -130,17 +146,17 @@ struct SVD_mats {
     glm::tmat3x3<T> V;
 
     glm::tmat3x3<T> recover_matrix() const {
-        // TODO: optimize this
-        glm::tmat3x3<T> S(Sigma.x, 0, 0, 0, Sigma.y, 0, 0, 0, Sigma.z);
-        return U * S * glm::transpose(V);
+        return glmx::svd_mult(U, Sigma, V);
+    }
+
+    glm::tmat3x3<T> recover_inverse_matrix() const {
+        return glmx::svd_mult(V, glm::tvec3<T>(1) / Sigma, U);
+    }
+
+    glm::tmat3x3<T> recover_inverse_transpose_matrix() const {
+        return glmx::svd_mult(U, glm::tvec3<T>(1) / Sigma, V);
     }
 };
-
-template <class T>
-glm::tmat3x3<T> svd_mult(const glm::tmat3x3<T>& U, const glm::tvec3<T>& sigma, const glm::tmat3x3<T>& V) {
-    glm::tmat3x3<T> S(sigma.x, 0, 0, 0, sigma.y, 0, 0, 0, sigma.z);
-    return U * S * glm::transpose(V);
-}
 
 template<class T>
 SVD_mats<T> svd(glm::tmat3x3<T> A) {
