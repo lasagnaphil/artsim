@@ -84,6 +84,10 @@ struct PDConstraints {
     std::vector<LinearStrainEnergyConstraint> linear_strain_energy;
     std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy;
     std::vector<PositionalConstraint> positional;
+
+    int count() {
+        return linear_strain_energy.size() + volume_preservation_energy.size() + positional.size();
+    }
 };
 
 #define PD_VOLUME_CONSTRAINTS \

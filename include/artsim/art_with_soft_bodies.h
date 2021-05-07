@@ -69,11 +69,17 @@ public:
         return soft_bodies.size();
     }
 
-    int get_soft_body_dof(int sb_idx) {
+    int get_soft_body_vert_dof(int sb_idx) {
         return sb_vert_start_idx[sb_idx + 1] - sb_vert_start_idx[sb_idx];
+    }
+    int get_soft_body_tet_dof(int sb_idx) {
+        return sb_tet_start_idx[sb_idx + 1] - sb_tet_start_idx[sb_idx];
     }
     int get_soft_body_start_vidx(int sb_idx) {
         return sb_vert_start_idx[sb_idx];
+    }
+    int get_soft_body_start_tidx(int sb_idx) {
+        return sb_tet_start_idx[sb_idx];
     }
 
     std::map<int, std::vector<int>> get_soft_body_attachments(int sb_idx) {
