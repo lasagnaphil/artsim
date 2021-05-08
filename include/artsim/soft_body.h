@@ -14,7 +14,6 @@
 #include <artsim/utils/pymesh/MshLoader.h>
 #include <Eigen/SparseCholesky>
 
-
 namespace artsim {
 
 struct SoftBodyProperties {
@@ -116,6 +115,7 @@ struct SoftBodyPrecalcData {
 
 struct SoftBodyData {
     std::vector<glm::tvec3<real>> vertices;
+    std::vector<glm::ivec2> edges;
     std::vector<glm::ivec3> triangles;
     std::vector<glm::ivec4> tetrahedrons;
 

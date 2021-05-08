@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 #include <Eigen/IterativeLinearSolvers>
 #include <unordered_map>
+#include <unordered_set>
 #include <deque>
 #include <glm/gtx/hash.hpp>
 #include <glm/gtx/string_cast.hpp>
@@ -77,6 +78,18 @@ void gen_surface_triangles_from_tet_mesh(const std::vector<glm::ivec4>& tetrahed
         }
     }
 #endif
+
+}
+
+void gen_edges_from_triangle_mesh(const std::vector<glm::ivec3>& triangles,
+                                  OUT std::vector<glm::ivec2>& edges) {
+    std::unordered_set<glm::ivec2> edge_set;
+    for (auto& tri : triangles) {
+        edge_set.insert({tri[0], tri[1]});
+        edge_set.insert({tri[1], tri[2]});
+        edge_set.insert({tri[2], tri[0]});
+    }
+    edges.insert(edges.end(), edge_set.begin(), edge_set.end());
 }
 
 void SoftBodyData::load(const TetMesh& mesh, const SoftBodyProperties& props) {
@@ -84,7 +97,7 @@ void SoftBodyData::load(const TetMesh& mesh, const SoftBodyProperties& props) {
     vertices = mesh.vertices;
     tetrahedrons = mesh.tetrahedrons;
     gen_surface_triangles_from_tet_mesh(tetrahedrons, OUT triangles);
-
+    gen_edges_from_triangle_mesh(triangles, OUT edges);
 
     B_m.resize(tetrahedrons.size());
     W.resize(tetrahedrons.size());
