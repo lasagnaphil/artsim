@@ -115,9 +115,10 @@ struct SoftBodyPrecalcData {
 
 struct SoftBodyData {
     std::vector<glm::tvec3<real>> vertices;
-    std::vector<glm::ivec2> edges;
-    std::vector<glm::ivec3> triangles;
     std::vector<glm::ivec4> tetrahedrons;
+
+    std::vector<glm::ivec2> surface_edges;
+    std::vector<glm::ivec3> surface_triangles;
 
     std::vector<glm::tmat3x3<real>> B_m;
     std::vector<real> W;

@@ -129,4 +129,15 @@ glm::mat4 FlyCamera::getViewMatrix() const {
             transform->getGlobalUpVec());
 }
 
+glm::vec2 FlyCamera::worldPointToScreen(const glm::vec3& pos) {
+    glm::vec4 res = getPerspectiveMatrix() * getViewMatrix() * glm::vec4(pos, 1.f);
+    res.x /= res.w;
+    res.y /= res.w;
+    res.z /= res.w;
+    GLint gl_viewport[4];
+    glGetIntegerv(GL_VIEWPORT, gl_viewport);
+    glm::vec2 screenPos = {0.5f * (1 + res.x) * gl_viewport[2], 0.5f * (1 - res.y) * gl_viewport[3]};
+    return screenPos;
+}
+
 

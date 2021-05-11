@@ -32,6 +32,8 @@ public:
         return transform->getGlobalPosition();
     }
 
+    glm::vec2 worldPointToScreen(const glm::vec3& pos);
+
     Ref<Transform> transform = {};
 
     float fov = 90.0f;

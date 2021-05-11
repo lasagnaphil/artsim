@@ -105,6 +105,11 @@ public:
     const int* get_soft_body_c_to_s_buf() const {
         return index_c_to_s.data();
     }
+
+    int convert_s_to_c(int vidx) const { return index_s_to_c[vidx]; }
+    int convert_c_to_s(int cidx) const { return index_c_to_s[cidx]; }
+
+
     const char* get_soft_body_name(int sb_idx) {
         return sb_names[sb_idx].c_str();
     }

@@ -13,7 +13,7 @@ public:
 
     SoftBodyRender(const artsim::SoftBodyData* data, Ref<PBRMaterial> mat, Camera* camera)
             : data(data), mat(mat), camera(camera) {
-        std::vector<Mesh::Vertex> vertices(3*data->triangles.size());
+        std::vector<Mesh::Vertex> vertices(3*data->surface_triangles.size());
 
         mesh = Resources::make<Mesh>(vertices);
         mesh->initVBO(Mesh::DrawMode::Dynamic);
@@ -26,10 +26,10 @@ public:
     }
 
     void render_debug_surface(DebugRenderer& debug, const glm::tvec3<artsim::real>* vpos) {
-        for (int t = 0; t < data->triangles.size(); t++) {
-            auto i0 = data->triangles[t][0];
-            auto i1 = data->triangles[t][1];
-            auto i2 = data->triangles[t][2];
+        for (int t = 0; t < data->surface_triangles.size(); t++) {
+            auto i0 = data->surface_triangles[t][0];
+            auto i1 = data->surface_triangles[t][1];
+            auto i2 = data->surface_triangles[t][2];
             debug.drawLine(vpos[i0], vpos[i1], colors::Black, true);
             debug.drawLine(vpos[i0], vpos[i2], colors::Black, true);
             debug.drawLine(vpos[i1], vpos[i2], colors::Black, true);
@@ -53,19 +53,19 @@ public:
 
     void update_mesh(const glm::tvec3<artsim::real>* vpos) {
         Mesh& m = *mesh;
-        for (int t = 0; t < data->triangles.size(); t++) {
-            m.vertices[3*t+0].pos = vpos[data->triangles[t][0]];
+        for (int t = 0; t < data->surface_triangles.size(); t++) {
+            m.vertices[3*t+0].pos = vpos[data->surface_triangles[t][0]];
             m.vertices[3*t+0].normal = glm::vec3(0);
             m.vertices[3*t+0].uv = glm::vec2(0);
-            m.vertices[3*t+1].pos = vpos[data->triangles[t][1]];
+            m.vertices[3*t+1].pos = vpos[data->surface_triangles[t][1]];
             m.vertices[3*t+1].normal = glm::vec3(0);
             m.vertices[3*t+1].uv = glm::vec2(0);
-            m.vertices[3*t+2].pos = vpos[data->triangles[t][2]];
+            m.vertices[3*t+2].pos = vpos[data->surface_triangles[t][2]];
             m.vertices[3*t+2].normal = glm::vec3(0);
             m.vertices[3*t+2].uv = glm::vec2(0);
         }
 
-        for (int t = 0; t < data->triangles.size(); t++) {
+        for (int t = 0; t < data->surface_triangles.size(); t++) {
             auto v0 = m.vertices[3*t+0].pos;
             auto v1 = m.vertices[3*t+1].pos;
             auto v2 = m.vertices[3*t+2].pos;

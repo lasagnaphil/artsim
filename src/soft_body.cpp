@@ -40,14 +40,6 @@ std::pair<glm::ivec3, bool> reorder_tri_indices(glm::ivec3 tri) {
 
 void gen_surface_triangles_from_tet_mesh(const std::vector<glm::ivec4>& tetrahedrons,
                                          OUT std::vector<glm::ivec3>& triangles) {
-#if 0
-    for (auto& tet : tetrahedrons) {
-        triangles.push_back({tet[0], tet[2], tet[1]});
-        triangles.push_back({tet[0], tet[1], tet[3]});
-        triangles.push_back({tet[0], tet[3], tet[2]});
-        triangles.push_back({tet[1], tet[2], tet[3]});
-    }
-#else
     std::unordered_map<glm::ivec3, std::pair<int, bool>> tri_overlaps;
     auto insert_triangle = [&](glm::ivec3 tri) {
         auto [tri_p, flipped] = reorder_tri_indices(tri);
@@ -77,12 +69,10 @@ void gen_surface_triangles_from_tet_mesh(const std::vector<glm::ivec4>& tetrahed
             }
         }
     }
-#endif
-
 }
 
-void gen_edges_from_triangle_mesh(const std::vector<glm::ivec3>& triangles,
-                                  OUT std::vector<glm::ivec2>& edges) {
+void gen_edges_from_surface_tri_mesh(const std::vector<glm::ivec3>& triangles,
+                                     OUT std::vector<glm::ivec2>& edges) {
     std::unordered_set<glm::ivec2> edge_set;
     for (auto& tri : triangles) {
         edge_set.insert({tri[0], tri[1]});
@@ -92,12 +82,24 @@ void gen_edges_from_triangle_mesh(const std::vector<glm::ivec3>& triangles,
     edges.insert(edges.end(), edge_set.begin(), edge_set.end());
 }
 
+void gen_edges_from_tet_mesh(const std::vector<glm::ivec4>& tets,
+                             OUT std::vector<glm::ivec2>& edges) {
+    std::unordered_set<glm::ivec2> edge_set;
+    for (auto& tet : tets) {
+        edge_set.insert({tet[0], tet[1]});
+        edge_set.insert({tet[1], tet[2]});
+        edge_set.insert({tet[2], tet[3]});
+        edge_set.insert({tet[3], tet[0]});
+    }
+    edges.insert(edges.end(), edge_set.begin(), edge_set.end());
+}
+
 void SoftBodyData::load(const TetMesh& mesh, const SoftBodyProperties& props) {
     this->props = props;
     vertices = mesh.vertices;
     tetrahedrons = mesh.tetrahedrons;
-    gen_surface_triangles_from_tet_mesh(tetrahedrons, OUT triangles);
-    gen_edges_from_triangle_mesh(triangles, OUT edges);
+    gen_surface_triangles_from_tet_mesh(tetrahedrons, OUT surface_triangles);
+    gen_edges_from_surface_tri_mesh(surface_triangles, OUT surface_edges);
 
     B_m.resize(tetrahedrons.size());
     W.resize(tetrahedrons.size());
@@ -142,7 +144,7 @@ void SoftBodyData::load(const PyMesh::MshLoader& msh, const SoftBodyProperties& 
     for (int i = 0; i < num_elems; i++) {
         tetrahedrons[i] = {elems[4*i+0], elems[4*i+1], elems[4*i+2], elems[4*i+3]};
     }
-    gen_surface_triangles_from_tet_mesh(tetrahedrons, OUT triangles);
+    gen_surface_triangles_from_tet_mesh(tetrahedrons, OUT surface_triangles);
 }
 
 void tetrahedral_mesh_mass_matrix(int num_vertices, real density,
