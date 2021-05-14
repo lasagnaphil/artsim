@@ -196,8 +196,9 @@ void ArtWithSoftBodies::load(const char* metadata, bool do_soft_body_precomputat
     fs::path metadata_path(metadata);
     fs::path folder = metadata_path.parent_path();
 
-    doc.LoadFile(metadata);
-    auto root_el = doc.RootElement();
+    doc = std::make_shared<XMLDocument>();
+    doc->LoadFile(metadata);
+    auto root_el = doc->RootElement();
 
     auto sim_el = root_el->FirstChildElement("simulation");
     int hz = sim_el->IntAttribute("hz");
@@ -302,15 +303,16 @@ void ArtWithSoftBodies::load(const char* metadata, bool do_soft_body_precomputat
                 exit(EXIT_FAILURE);
             }
             int link_idx = it - art.names.begin();
-            auto vertices_el = at_el->FirstChildElement("vertices");
-            std::cout << vertices_el->GetText() << std::endl;
-            std::stringstream ss(vertices_el->GetText());
-            std::string token;
             std::vector<int> constr_vertices;
-            while (ss >> token) {
-                int idx = std::stoi(token);
-                constr_vertices.push_back(idx);
+            for (auto vertices_el = at_el->FirstChildElement("vertices"); vertices_el != nullptr; vertices_el = vertices_el->NextSiblingElement("vertices")) {
+                std::stringstream ss(vertices_el->GetText());
+                std::string token;
+                while (ss >> token) {
+                    int idx = std::stoi(token);
+                    constr_vertices.push_back(idx);
+                }
             }
+
             sb_constr_vertices[sb_idx].insert({link_idx, constr_vertices});
         }
         sb_idx++;
@@ -388,7 +390,7 @@ void ArtWithSoftBodies::update_attachments() {
 }
 
 void ArtWithSoftBodies::save(const char* metadata) {
-    auto root_el = doc.RootElement();
+    auto root_el = doc->RootElement();
 
     // Update attachments in XML file
     int sb_idx = 0;
@@ -414,7 +416,7 @@ void ArtWithSoftBodies::save(const char* metadata) {
         sb_idx++;
     }
 
-    doc.SaveFile(metadata);
+    doc->SaveFile(metadata);
 }
 
 void ArtWithSoftBodies::reset() {
