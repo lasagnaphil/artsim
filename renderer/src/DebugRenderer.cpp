@@ -21,6 +21,7 @@ void DebugRenderer::init() {
         fmt::print(stderr, "Camera not attached to PhongRenderer!\n");
         exit(EXIT_FAILURE);
     }
+    vertexBuffer.resize(IM_VERTEX_BUFFER_SIZE);
 
     imPointShader = Resources::make<Shader>();
     imPointShader->compileFromString(colorpoint3d_vert_shader, colorpoint3d_frag_shader);

@@ -55,7 +55,7 @@ union ImDrawVertex {
     } glyph;
 };
 
-#define IM_VERTEX_BUFFER_SIZE 16384
+#define IM_VERTEX_BUFFER_SIZE (1 << 18)
 
 struct DebugRenderer {
 
@@ -103,7 +103,7 @@ private:
     std::vector<ImPointData> pointData;
     std::vector<ImLineData> lineData;
 
-    std::array<ImDrawVertex, IM_VERTEX_BUFFER_SIZE> vertexBuffer;
+    std::vector<ImDrawVertex> vertexBuffer;
     int vertexBufferUsed = 0;
 
     Ref<Shader> imPointShader;
