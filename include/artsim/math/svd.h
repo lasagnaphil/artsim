@@ -36,14 +36,14 @@ glm::tvec2<T> approx_givens_quat(T s_pp, T s_pq, T s_qq) {
     T s_h2 = s_pq * s_pq;
     T c_h2 = c_h * c_h;
     if (GAMMA * s_h2 < c_h2) {
-        T omega = T(1) / sqrt(s_h2 + c_h2);
+        T omega = glm::inversesqrt(s_h2 + c_h2);
         return glm::tvec2<T>(omega * c_h, omega * s_pq);
     }
     return glm::tvec2<T>(C_STAR, S_STAR);
 }
 
 template<class T>
-glm::tmat3x3<T> symmetric_eigenanalysis(glm::tmat3x3<T> A) {
+glm::tmat3x3<T> symmetric_eigenanalysis(const glm::tmat3x3<T>& A) {
     glm::tmat3x3<T> S = transpose(A) * A;
     // jacobi iteration
     glm::tmat3x3<T> q = glm::tmat3x3<T>(1);
@@ -96,7 +96,7 @@ struct QR_mats {
 };
 
 template<class T>
-QR_mats<T> qr_decomp(glm::tmat3x3<T> B) {
+QR_mats<T> qr_decomp(const glm::tmat3x3<T>& B) {
     QR_mats<T> qr_decomp_result;
     glm::tmat3x3<T> R;
     // 1 0
@@ -159,7 +159,7 @@ struct SVD_mats {
 };
 
 template<class T>
-SVD_mats<T> svd(glm::tmat3x3<T> A) {
+SVD_mats<T> svd(const glm::tmat3x3<T>& A) {
     SVD_mats<T> svd_result;
     svd_result.V = symmetric_eigenanalysis(A);
 
@@ -211,7 +211,7 @@ struct UP_mats {
 };
 
 template<class T>
-UP_mats<T> SVD_to_polar(SVD_mats<T> B) {
+UP_mats<T> SVD_to_polar(const SVD_mats<T>& B) {
     UP_mats<T> polar;
     polar.P = B.V * B.Sigma * transpose(B.V);
     polar.U = B.U * transpose(B.V);
@@ -219,7 +219,7 @@ UP_mats<T> SVD_to_polar(SVD_mats<T> B) {
 }
 
 template<class T>
-UP_mats<T> polar_decomp(glm::tmat3x3<T> A) {
+UP_mats<T> polar_decomp(const glm::tmat3x3<T>& A) {
     SVD_mats<T> B = svd(A);
     UP_mats<T> polar;
     polar.P = B.V * B.Sigma * transpose(B.V);

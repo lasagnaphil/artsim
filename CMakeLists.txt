@@ -26,13 +26,7 @@ if (ARTSIM_USE_ASAN)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -O1")
 endif()
 
-add_subdirectory(libs/bullet_collision)
-add_subdirectory(libs/fastsvd)
-
-# tiny_obj_loader
-set(TINYOBJLOADER_DIR libs/tiny_obj_loader)
-add_library(tinyobjloader STATIC ${TINYOBJLOADER_DIR}/tiny_obj_loader.cc)
-target_include_directories(tinyobjloader PUBLIC ${TINYOBJLOADER_DIR})
+add_subdirectory(libs)
 
 add_library(artsim
         src/artsim.cpp
@@ -50,7 +44,7 @@ add_library(artsim
         src/utils/pymesh/MshLoader.cpp src/utils/pymesh/MshSaver.cpp src/utils/pymesh/IOUtils.cpp)
 
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
-set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision fastsvd tinyobjloader stdc++fs)
+set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision fastsvd tinyobjloader std_simd stdc++fs)
 if (ARTSIM_USE_OPENMP)
     set(ARTSIM_LIB ${ARTSIM_LIB} OpenMP::OpenMP_CXX)
 endif()
