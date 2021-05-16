@@ -19,7 +19,7 @@ static std::string to_string(artsim::real v) {
     return s;
 }
 
-void artsim::export_to_urdf(const artsim::ArticulatedBody& art, const char* robot_name, const char* filename) {
+void artsim::export_to_urdf(const artsim::ArticulatedBodySpec& art, const char* robot_name, const char* filename) {
     using namespace tinyxml2;
 
     XMLDocument doc;

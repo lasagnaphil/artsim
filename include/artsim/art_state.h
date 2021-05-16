@@ -6,15 +6,15 @@
 #define ARTSIM_ART_STATE_H
 
 #include <artsim/artsim.h>
-#include <artsim/dynamics.h>
-#include <artsim/contacts.h>
+#include <artsim/art_dynamics.h>
+#include <artsim/art_contacts.h>
 
 #include <random>
 
 namespace artsim {
 
 struct ArticulationState {
-    artsim::ArticulatedBody* art;
+    artsim::ArticulatedBodySpec* art;
     artsim::Material mat;
 
     size_t num_pos_dofs;
@@ -40,7 +40,7 @@ struct ArticulationState {
 
     ArticulationState() = default;
 
-    ArticulationState(artsim::ArticulatedBody *artPtr, const Material& mat,
+    ArticulationState(artsim::ArticulatedBodySpec *artPtr, const Material& mat,
                       ContactSolverType solverType = ContactSolverType::NCP,
                       uint32_t max_iters = 4)
             : art(artPtr), mat(mat),

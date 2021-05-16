@@ -7,7 +7,6 @@
 
 #include <artsim/artsim.h>
 #include <artsim/soft_body.h>
-#include <artsim/art_state.h>
 
 #include <imgui.h>
 #include <implot.h>
@@ -17,8 +16,8 @@
 #include <omp.h>
 
 // #define DEMO_PD
-// #define DEMO_ADMM
-#define DEMO_QUASINEWTON
+#define DEMO_ADMM
+// #define DEMO_QUASINEWTON
 
 // #define DEMO_QUASISTATIC
 

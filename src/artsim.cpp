@@ -3,6 +3,8 @@
 //
 
 #include "artsim/artsim.h"
+#include "artsim/art_dynamics.h"
+#include "artsim/art_contacts.h"
 #include "artsim/math/se3.h"
 
 #include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
@@ -12,6 +14,7 @@
 #include <BulletCollision/CollisionShapes/btBoxShape.h>
 
 #include <queue>
+#include <random>
 
 using namespace artsim;
 using namespace glmx;
@@ -181,7 +184,7 @@ Link Link::create(const tsmat3x3<real>& inertia, real mass,
     return link;
 }
 
-void ArticulatedBody::setup(bool use_bullet, btCollisionWorld* bt_col_world) {
+void ArticulatedBodySpec::build(bool use_bullet, btCollisionWorld* bt_col_world) {
     int num_joints = get_num_joints();
     joint_pos_dofs.resize(num_joints);
     joint_pos_dof_starts.resize(num_joints + 1);
@@ -229,43 +232,272 @@ void ArticulatedBody::setup(bool use_bullet, btCollisionWorld* bt_col_world) {
         uint32_t num_children = get_num_children(i);
         bfs_iteration_order.push_back(i);
 
-        const uint32_t* i_children = get_children(i);
-        for (uint32_t c = 0; c < num_children; c++) {
+        const int* i_children = get_children(i);
+        for (int c = 0; c < num_children; c++) {
             queue.push(i_children[c]);
         }
     }
 
-    if (use_bullet) {
-        if (bt_col_world == nullptr) {
-            auto bt_collision_config = new btDefaultCollisionConfiguration;
-            auto bt_dispatcher = new btCollisionDispatcher(bt_collision_config);
-            auto bt_broadphase = new btDbvtBroadphase;
-            this->bt_collision_world = new btCollisionWorld(bt_dispatcher, bt_broadphase, bt_collision_config);
+    build_finished = true;
+}
 
-            auto bt_plane_col = new btCollisionObject;
-            bt_plane_col->setCollisionShape(new btStaticPlaneShape(btVector3(0, 1, 0), 0));
-            bt_plane_col->setWorldTransform(btTransform::getIdentity());
-            bt_plane_col->setUserIndex(0);
-            bt_plane_col->setUserIndex2(0);
-            this->bt_collision_world->addCollisionObject(bt_plane_col, btBroadphaseProxy::DefaultFilter, btBroadphaseProxy::AllFilter);
-        }
-        else {
-            this->bt_collision_world = bt_col_world;
-        }
+void ArticulatedBody::init(ArticulatedBodySpec art_spec, Id<Material> mat_id, btCollisionWorld* bt_collision_world)
+{
+    this->spec = std::move(art_spec);
+    this->mat_id = mat_id;
 
-        for (int i = 0; i < links.size(); i++) {
-            // TODO: Allocate these from a separate array!
-            // TODO: Set body_id with current articulation id
-            auto col_shape = links[i].col_shape;
-            if (col_shape.type != CollisionShape::Type::Mesh) {
-                BodyId body_id = BodyId::from_articulation_link({}, i);
-                btCollisionObject* col_obj = new btCollisionObject;
-                col_obj->setCollisionShape(links[i].col_shape.bt_shape);
-                col_obj->setUserIndex(body_id.index);
-                col_obj->setUserIndex2(body_id.generation);
-                bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);
-                links[i].bt_collision_object = col_obj;
+    if (!spec.build_finished) {
+        fprintf(stderr, "ArticulatedBodySpec not built! Call build() before creating articulation\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int num_pos_dofs = get_num_pos_dofs();
+    int num_vel_dofs = get_num_vel_dofs();
+    int num_joints = get_num_joints();
+    q.resize(num_pos_dofs, 0);
+    u.resize(num_vel_dofs, 0);
+    udot.resize(num_vel_dofs, 0);
+    tau.resize(num_vel_dofs, 0);
+    f_ext.resize(num_joints, glmx::tscrew<real>(glmx::IDENTITY));
+    T_link_globals.resize(num_joints, glmx::ttransform<real>(glmx::IDENTITY));
+    T_joint_globals.resize(num_joints, glmx::ttransform<real>(glmx::IDENTITY));
+
+    reset_positions();
+
+    bt_collision_objects.resize(num_joints);
+
+    for (int i = 0; i < spec.links.size(); i++) {
+        // TODO: Allocate these from a separate array!
+        // TODO: Set body_id with current articulation id
+        auto col_shape = spec.links[i].col_shape;
+        if (col_shape.type != CollisionShape::Type::Mesh) {
+            BodyId body_id = BodyId::from_articulation_link({}, i);
+            btCollisionObject* col_obj = new btCollisionObject;
+            col_obj->setCollisionShape(spec.links[i].col_shape.bt_shape);
+            col_obj->setUserIndex(body_id.index);
+            col_obj->setUserIndex2(body_id.generation);
+            bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);
+            bt_collision_objects[i] = col_obj;
+        }
+    }
+}
+
+void ArticulatedBody::reset_positions() {
+    real* qp = q.data();
+    int num_joints = get_num_joints();
+    for (int i = 0; i < num_joints; i++) {
+        switch (spec.joints[i].type) {
+            JOINT_DOF_1_CASE {
+                qp[0] = 0;
+            } break;
+            case JOINT_TYPE_FLOATING: {
+                qp[0] = 0; qp[1] = 0; qp[2] = 0;
+                qp[3] = 0; qp[4] = 0; qp[5] = 0; qp[6] = 1;
+            } break;
+            case JOINT_TYPE_SPHERICAL: {
+                qp[0] = 0; qp[1] = 0; qp[2] = 0; qp[3] = 1;
+            } break;
+        }
+        qp += spec.joint_pos_dofs[i];
+    }
+    forward_kinematics();
+}
+
+void ArticulatedBody::randomize_positions() {
+    thread_local std::default_random_engine engine(0);
+
+    int num_joints = get_num_joints();
+    const real pi = glm::pi<real>();
+    real* qp = q.data();
+    for (int i = 0; i < num_joints; i++) {
+        switch (spec.joints[i].type) {
+            JOINT_DOF_1_CASE {
+                qp[0] = std::uniform_real_distribution<real>(-0.2*pi, 0.2*pi)(engine);
+            } break;
+            case JOINT_TYPE_SPHERICAL: {
+                real len = std::uniform_real_distribution<real>(-0.2*pi, 0.2*pi)(engine);
+                glm::tvec3<real> dir = glm::tvec3<real>(
+                        std::uniform_real_distribution<real>(-1, 1)(engine),
+                        std::uniform_real_distribution<real>(-1, 1)(engine),
+                        std::uniform_real_distribution<real>(-1, 1)(engine)
+                );
+                glm::tquat<real> vexp = artsim::exp(len * normalize(dir));
+                qp[0] = vexp[0]; qp[1] = vexp[1]; qp[2] = vexp[2]; qp[3] = vexp[3];
+            } break;
+            case JOINT_TYPE_FLOATING: {
+                qp[0] = std::uniform_real_distribution<real>(-0.1, 0.1)(engine);
+                qp[1] = std::uniform_real_distribution<real>(num_joints, num_joints+1)(engine);
+                qp[2] = std::uniform_real_distribution<real>(-0.1, 0.1)(engine);
+
+                real len = std::uniform_real_distribution<real>(-0.2f*pi, 0.2f*pi)(engine);
+                glm::tvec3<real> dir = glm::tvec3<real>(
+                        std::uniform_real_distribution<real>(-1, 1)(engine),
+                        std::uniform_real_distribution<real>(-1, 1)(engine),
+                        std::uniform_real_distribution<real>(-1, 1)(engine)
+                );
+                glm::tquat<real> vexp = artsim::exp(len * normalize(dir));
+                qp[3] = vexp[0]; qp[4] = vexp[1]; qp[5] = vexp[2]; qp[6] = vexp[3];
+            } break;
+        }
+        qp += spec.joint_pos_dofs[i];
+    }
+
+    forward_kinematics();
+}
+
+void ArticulatedBody::forward_kinematics() {
+    artsim::calc_transforms(spec, q.data(), T_joint_globals.data(), T_link_globals.data());
+}
+
+void ArticulatedBody::update_colliders() {
+    int num_joints = get_num_joints();
+    for (int i = 0; i < num_joints; i++) {
+        bt_collision_objects[i]->setWorldTransform(btconv(T_link_globals[i]));
+    }
+}
+
+void ArticulatedBody::forward_dynamics(const glm::rvec3& gravity, real dt) {
+    artsim::featherstone_forward_dynamics(spec, gravity, dt, f_ext.data(), q.data(), u.data(), tau.data(),
+                                          OUT udot.data());
+    artsim::integrate_implicit_euler(spec, dt, udot.data(), INOUT q.data(), INOUT u.data());
+    forward_kinematics();
+}
+
+real ArticulatedBody::get_joint_pos_1dof(int joint_idx) const {
+    assert(spec.joint_pos_dofs[joint_idx] == 1);
+    uint32_t jidx_start = spec.joint_pos_dof_starts[joint_idx];
+    return q[jidx_start];
+}
+
+glm::tquat<real> ArticulatedBody::get_joint_pos_spherical(int joint_idx) const {
+    assert(spec.joint_pos_dofs[joint_idx] == 4);
+    uint32_t jidx_start = spec.joint_pos_dof_starts[joint_idx];
+    return glm::make_quat(q.data() + jidx_start);
+}
+
+glmx::ttransform<real> ArticulatedBody::get_root_transform() const {
+    assert(spec.floating);
+    return {glm::make_vec3(q.data()), glm::mat3_cast(glm::make_quat(q.data() + 3))};
+}
+
+void ArticulatedBody::set_joint_pos_1dof(int joint_idx, real qj) {
+    assert(spec.joint_pos_dofs[joint_idx] == 1);
+    uint32_t jidx_start = spec.joint_pos_dof_starts[joint_idx];
+    q[jidx_start] = qj;
+}
+
+void ArticulatedBody::set_joint_pos_spherical(int joint_idx, const glm::tquat<real>& qj) {
+    assert(spec.joint_pos_dofs[joint_idx] == 4);
+    uint32_t jidx_start = spec.joint_pos_dof_starts[joint_idx];
+    q[jidx_start+0] = qj[0];
+    q[jidx_start+1] = qj[1];
+    q[jidx_start+2] = qj[2];
+    q[jidx_start+3] = qj[3];
+}
+
+void ArticulatedBody::set_root_transform(const ttransform<real>& rootT) {
+    assert(spec.floating);
+    glm::quat rot = glm::quat_cast(rootT.R);
+    q[0] = rootT.v[0];
+    q[1] = rootT.v[1];
+    q[2] = rootT.v[2];
+    q[3] = rot[0];
+    q[4] = rot[1];
+    q[5] = rot[2];
+    q[6] = rot[3];
+}
+
+glmx::rtransform ArticulatedBody::get_global_joint_trans(int joint_idx) const {
+    return T_joint_globals[joint_idx];
+}
+
+glmx::rtransform ArticulatedBody::get_global_link_trans(int link_idx) const {
+    return T_link_globals[link_idx];
+}
+
+void World::init(WorldConfig world_cfg) {
+    cfg = std::move(world_cfg);
+    auto bt_collision_config = new btDefaultCollisionConfiguration;
+    auto bt_dispatcher = new btCollisionDispatcher(bt_collision_config);
+    auto bt_broadphase = new btDbvtBroadphase;
+    this->bt_collision_world = new btCollisionWorld(bt_dispatcher, bt_broadphase, bt_collision_config);
+
+    if (cfg.create_plane) {
+        bt_plane_col = new btCollisionObject;
+        bt_plane_col->setCollisionShape(new btStaticPlaneShape(btVector3(0, 1, 0), 0));
+        bt_plane_col->setWorldTransform(btTransform::getIdentity());
+        bt_plane_col->setUserIndex(0);
+        bt_plane_col->setUserIndex2(0);
+        this->bt_collision_world->addCollisionObject(bt_plane_col, btBroadphaseProxy::DefaultFilter, btBroadphaseProxy::AllFilter);
+    }
+}
+
+void World::simulate(real dt) {
+    for (auto& art : articulated_bodies) {
+        art.forward_kinematics();
+        art.update_colliders();
+    }
+    bt_collision_world->performDiscreteCollisionDetection();
+    solve_contacts();
+}
+
+void World::solve_contacts() {
+    contact_points.clear();
+
+    art_ground_contacts.clear();
+    art_ground_contacts.resize(articulated_bodies.size());
+    art_ground_contact_forces.clear();
+    art_ground_contact_forces.resize(articulated_bodies.size());
+
+    auto dispatcher = bt_collision_world->getDispatcher();
+    btPersistentManifold** manifolds = dispatcher->getInternalManifoldPointer();
+    int num_manifolds = dispatcher->getNumManifolds();
+
+    for (int i = 0; i < num_manifolds; i++) {
+        btPersistentManifold* manifold = manifolds[i];
+        int num_contacts = manifold->getNumContacts();
+        if (num_contacts == 0) continue;
+
+        const btCollisionObject* body1 = manifold->getBody0();
+        const btCollisionObject* body2 = manifold->getBody1();
+        BodyId body1_id, body2_id;
+        body1_id.index = body1->getUserIndex();
+        body1_id.generation = body1->getUserIndex2();
+        body2_id.index = body2->getUserIndex();
+        body2_id.generation = body2->getUserIndex2();
+        if (body1_id.index < body2_id.index) std::swap(body1_id, body2_id);
+        for (int j = 0; j < num_contacts; j++) {
+            auto& pt = manifold->getContactPoint(j);
+            Id<ContactPoint> cp_id = contact_points.make();
+            auto cp = contact_points.get(cp_id);
+            cp->bt_manifold = manifold;
+            cp->pos = glmconv(pt.getPositionWorldOnB());
+            cp->normal = glmconv(pt.m_normalWorldOnB);
+            cp->depth = -pt.getDistance();
+            cp->area = 0;
+            cp->body1_id = body1_id;
+            cp->body2_id = body2_id;
+            if (body1_id.is_articulation() && body2_id.is_ground()) {
+                auto [art_id, link_idx] = body1_id.get_articulation_id();
+                int art_idx = articulated_bodies.get_item_idx(art_id);
+                auto& art_contacts = art_ground_contacts[art_idx];
+                art_contacts.push_back(*cp);
             }
         }
+    }
+    int art_idx = 0;
+    for (auto& art : articulated_bodies) {
+        art.forward_dynamics(cfg.gravity, cfg.dt);
+        auto& art_contacts = art_ground_contacts[art_idx];
+        auto& art_contact_forces = art_ground_contact_forces[art_idx];
+        art_contact_forces.resize(art_contacts.size());
+        artsim::euler_step_with_collision(
+                cfg.contact_solver_type, cfg.max_iters,
+                art.get_spec(), *material_db.get_material(art.get_mat_id()), cfg.gravity, cfg.dt,
+                art.get_external_force_buf(), art.get_internal_force_buf(),
+                art_contacts.data(), art_contacts.size(),
+                INOUT art.get_pos_buf(), INOUT art.get_vel_buf(), OUT art.get_acc_buf(),
+                OUT art_contact_forces.data());
+        art_idx++;
     }
 }

@@ -5,7 +5,6 @@
 #include <chrono>
 
 #include <artsim/artsim.h>
-#include <artsim/art_state.h>
 #include <artsim/utils/example_articulations.h>
 
 #include <imgui.h>
@@ -48,7 +47,6 @@ public:
 
         orig_mesh_mat = PBRMaterial::quick(0.5f * colors::Red);
         joint_mat = PBRMaterial::quick(colors::Green);
-        art_render = ArticulationStateRender(&state, orig_mesh_mat, joint_mat);
     }
 
     void processInput(SDL_Event &event) override {
@@ -76,7 +74,9 @@ public:
 
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
-            state.simulate(sim_dt, 10);
+            for (int i = 0; i < 10; i++) {
+                world.simulate(sim_dt);
+            }
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             printf("Duration: %lld microsecs\n", duration.count());
@@ -90,12 +90,14 @@ public:
         if (demo_type == DemoType::Contacts) {
             pbRenderer.queueRender({ground_mesh, ground_mat, rootTransform->getWorldTransform()});
         }
-        art_render.render(pbRenderer, imRenderer);
+        art_render.render(pbRenderer);
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
+        /*
         for (auto& contact_point : state.contact_points) {
             imRenderer.drawSphere(contact_point.pos, colors::Red, 0.01f, false);
         }
+        */
 
         pbRenderer.render();
         imRenderer.render();
@@ -105,38 +107,50 @@ public:
     }
 
     void resetPhysics() {
+        world = World();
+        WorldConfig world_cfg;
+        world_cfg.dt = sim_dt;
+        world_cfg.max_iters = 4;
+        default_mat_id = world.add_material();
+
         switch (demo_type) {
             case DemoType::Pendulum: {
+                world_cfg.create_plane = false;
+                world.init(world_cfg);
                 switch (art_type) {
-                    case 1: art = examples::create_double_pendulum_ball(false, 1.0f, 1.0f, 1.0f, 1.0f); break;
-                    case 2: art = examples::create_double_pendulum_link(false); break;
-                    case 3: art = examples::create_triple_pendulum_link(false); break;
-                    case 4: art = examples::create_furuta_pendulum(false); break;
-                    case 5: art = examples::create_13_link_tree(true); break;
+                    case 1: art_id = world.add_articulated_body(
+                            examples::create_double_pendulum_ball(false, 1.0f, 1.0f, 1.0f, 1.0f), default_mat_id); break;
+                    case 2: art_id = world.add_articulated_body(
+                            examples::create_double_pendulum_link(false), default_mat_id); break;
+                    case 3: art_id = world.add_articulated_body(
+                            examples::create_triple_pendulum_link(false), default_mat_id); break;
+                    case 4: art_id = world.add_articulated_body(
+                            examples::create_furuta_pendulum(false), default_mat_id); break;
+                    case 5: art_id = world.add_articulated_body(
+                            examples::create_13_link_tree(true), default_mat_id); break;
                 }
 
-                state = ArticulationState(&art, material, ContactSolverType::PGS);
-                state.enable_collision_with_ground = false;
-                state.randomize_positions();
-
-                art_render = ArticulationStateRender(&state, orig_mesh_mat, joint_mat);
+                auto art = world.get_articulated_body(art_id);
+                art->randomize_positions();
             } break;
             case DemoType::Contacts: {
-                art = examples::create_free_link(art_type, true);
+                world_cfg.create_plane = true;
+                world.init(world_cfg);
+                art_id = world.add_articulated_body(
+                        examples::create_free_link(art_type, true), default_mat_id);
 
-                state = ArticulationState(&art, material, ContactSolverType::PGS, 16);
-                state.enable_collision_with_ground = art.floating;
-                state.randomize_positions();
+                auto art = world.get_articulated_body(art_id);
+                art->randomize_positions();
 
-                art_render = ArticulationStateRender(&state, orig_mesh_mat, joint_mat);
             } break;
-
         }
+        art_render = ArticulationRender(world.get_articulated_body(art_id), orig_mesh_mat, joint_mat);
     }
 
 private:
-    ArticulatedBody art;
-    ArticulationState state;
+    World world;
+    Id<ArticulatedBody> art_id;
+    Id<Material> default_mat_id;
     Material material {1.0f, 0.0f, 0.01f};
     float sim_dt = 1.0f / 600.0f;
     bool run_simulation = true;
@@ -145,7 +159,7 @@ private:
     Ref<Mesh> ground_mesh;
 
     Ref<PBRMaterial> orig_mesh_mat, joint_mat;
-    ArticulationStateRender art_render;
+    ArticulationRender art_render;
 
     DemoType demo_type = DemoType::Pendulum;
     int art_type = 1;

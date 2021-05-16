@@ -5,7 +5,7 @@
 #include "doctest.h"
 
 #include <artsim/artsim.h>
-#include <artsim/dynamics.h>
+#include <artsim/art_dynamics.h>
 #include <artsim/math/common.h>
 #include <artsim/art_state.h>
 #include <artsim/utils/example_articulations.h>

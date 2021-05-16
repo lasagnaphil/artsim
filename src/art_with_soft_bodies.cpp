@@ -4,7 +4,7 @@
 
 #include "artsim/art_with_soft_bodies.h"
 
-#include "artsim/dynamics.h"
+#include "artsim/art_dynamics.h"
 #include "artsim/math/fastsvd.h"
 #include "artsim/tet_mesh.h"
 
@@ -53,7 +53,7 @@ glm::tmat3x3<real> string_to_matrix3d(const std::string& input) {
     return M;
 }
 
-bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT ArticulatedBody& art) {
+bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT ArticulatedBodySpec& art) {
     std::unordered_map<std::string, ttransform<real>> T_global_body_map;
     std::unordered_map<std::string, ttransform<real>> T_global_joint_map;
     std::unordered_map<std::string, int> idx_map;
@@ -188,7 +188,7 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
         current_idx++;
     }
 
-    art.setup(false);
+    art.build(false);
     return true;
 }
 

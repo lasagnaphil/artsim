@@ -65,418 +65,524 @@ inline glmx::ttransform<real> glmconv(const btTransform& T) {
     return {glmconv(T.getOrigin()), glmconv(T.getBasis())};
 }
 
-    enum JointType : int {
-        JOINT_TYPE_REVOLUTE_X = 0,
-        JOINT_TYPE_REVOLUTE_Y,
-        JOINT_TYPE_REVOLUTE_Z,
+enum JointType : int {
+    JOINT_TYPE_REVOLUTE_X = 0,
+    JOINT_TYPE_REVOLUTE_Y,
+    JOINT_TYPE_REVOLUTE_Z,
 
-        JOINT_TYPE_PRISMATIC_X,
-        JOINT_TYPE_PRISMATIC_Y,
-        JOINT_TYPE_PRISMATIC_Z,
+    JOINT_TYPE_PRISMATIC_X,
+    JOINT_TYPE_PRISMATIC_Y,
+    JOINT_TYPE_PRISMATIC_Z,
 
-        JOINT_TYPE_SPHERICAL,
-        JOINT_TYPE_FLOATING,
-    };
+    JOINT_TYPE_SPHERICAL,
+    JOINT_TYPE_FLOATING,
+};
 
 #define JOINT_DOF_1_CASE case JOINT_TYPE_REVOLUTE_X: case JOINT_TYPE_REVOLUTE_Y: case JOINT_TYPE_REVOLUTE_Z: \
                          case JOINT_TYPE_PRISMATIC_X: case JOINT_TYPE_PRISMATIC_Y: case JOINT_TYPE_PRISMATIC_Z:
 
-    struct Joint {
-        constexpr static real default_kp = 10.0;
-        constexpr static real default_kd = 0.1;
-        constexpr static real default_maxvel = 100.0;
+struct Joint {
+    constexpr static real default_kp = 10.0;
+    constexpr static real default_kd = 0.1;
+    constexpr static real default_maxvel = 100.0;
 
-        JointType type;
-        bool limit_enabled;
-        real limit_min;
-        real limit_max;
-        real kp, kd;
-        real max_velocity;
+    JointType type;
+    bool limit_enabled;
+    real limit_min;
+    real limit_max;
+    real kp, kd;
+    real max_velocity;
 
-        static Joint floating(real kp = 0.0, real kd = 0.0, real max_velocity = default_maxvel) {
-            return {JOINT_TYPE_FLOATING, false, 0, 0, kp, kd, max_velocity};
-        }
-        static Joint revolute_x(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
-            return {JOINT_TYPE_REVOLUTE_X, false, 0, 0, kp, kd, max_velocity};
-        }
-        static Joint revolute_y(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
-            return {JOINT_TYPE_REVOLUTE_Y, false, 0, 0, kp, kd, max_velocity};
-        }
-        static Joint revolute_z(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
-            return {JOINT_TYPE_REVOLUTE_Z, false, 0, 0, kp, kd, max_velocity};
-        }
-        static Joint prismatic_x(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
-            return {JOINT_TYPE_PRISMATIC_X, false, 0, 0, kp, kd, max_velocity};
-        }
-        static Joint prismatic_y(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
-            return {JOINT_TYPE_PRISMATIC_Y, false, 0, 0, kp, kd, max_velocity};
-        }
-        static Joint prismatic_z(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
-            return {JOINT_TYPE_PRISMATIC_Z, false, 0, 0, kp, kd, max_velocity};
-        }
-        static Joint spherical(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
-            return {JOINT_TYPE_SPHERICAL, false, 0, 0, kp, kd, max_velocity};
-        }
+    static Joint floating(real kp = 0.0, real kd = 0.0, real max_velocity = default_maxvel) {
+        return {JOINT_TYPE_FLOATING, false, 0, 0, kp, kd, max_velocity};
+    }
+    static Joint revolute_x(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+        return {JOINT_TYPE_REVOLUTE_X, false, 0, 0, kp, kd, max_velocity};
+    }
+    static Joint revolute_y(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+        return {JOINT_TYPE_REVOLUTE_Y, false, 0, 0, kp, kd, max_velocity};
+    }
+    static Joint revolute_z(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+        return {JOINT_TYPE_REVOLUTE_Z, false, 0, 0, kp, kd, max_velocity};
+    }
+    static Joint prismatic_x(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+        return {JOINT_TYPE_PRISMATIC_X, false, 0, 0, kp, kd, max_velocity};
+    }
+    static Joint prismatic_y(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+        return {JOINT_TYPE_PRISMATIC_Y, false, 0, 0, kp, kd, max_velocity};
+    }
+    static Joint prismatic_z(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+        return {JOINT_TYPE_PRISMATIC_Z, false, 0, 0, kp, kd, max_velocity};
+    }
+    static Joint spherical(real kp = default_kp, real kd = default_kd, real max_velocity = default_maxvel) {
+        return {JOINT_TYPE_SPHERICAL, false, 0, 0, kp, kd, max_velocity};
+    }
 
-        void enable_limit(real limit_min, real limit_max) {
-            limit_enabled = true;
-            this->limit_min = limit_min;
-            this->limit_max = limit_max;
-        }
+    void enable_limit(real limit_min, real limit_max) {
+        limit_enabled = true;
+        this->limit_min = limit_min;
+        this->limit_max = limit_max;
+    }
 
-        void disable_limit() {
-            limit_enabled = false;
-        }
+    void disable_limit() {
+        limit_enabled = false;
+    }
 
-        uint32_t pos_dof() {
-            switch (type) {
-                JOINT_DOF_1_CASE { return 1; }
-                case JOINT_TYPE_SPHERICAL: return 4;
-                case JOINT_TYPE_FLOATING: return 7;
-                default: return 0;
+    int pos_dof() {
+        switch (type) {
+            JOINT_DOF_1_CASE { return 1; }
+            case JOINT_TYPE_SPHERICAL: return 4;
+            case JOINT_TYPE_FLOATING: return 7;
+            default: return 0;
+        }
+    }
+    int vel_dof() {
+        switch (type) {
+            JOINT_DOF_1_CASE { return 1; }
+            case JOINT_TYPE_SPHERICAL: return 3;
+            case JOINT_TYPE_FLOATING: return 6;
+            default: return 0;
+        }
+    }
+};
+
+struct CollisionShape {
+    enum class Type {
+        Ground, Box, Sphere, Mesh
+    };
+    Type type;
+    glm::tvec3<real> scale;
+
+    union {
+        struct {
+        } ground;
+        struct {
+        } box;
+        struct {
+        } sphere;
+        struct {
+            tinyobj::attrib_t* attrib;
+            tinyobj::shape_t* shapes;
+            int num_shapes;
+        } mesh;
+    };
+    btCollisionShape* bt_shape;
+
+    static CollisionShape make_ground();
+    static CollisionShape make_box(glm::vec3 size);
+    static CollisionShape make_sphere(real radius);
+    static CollisionShape make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes, glm::rvec3 scale = glm::rvec3(1));
+
+    real mass(real density);
+    glmx::tsmat3x3<real> inertia(real density);
+};
+
+struct RenderShape {
+    enum class Type {
+        Box, Sphere, Mesh
+    };
+    Type type;
+    glm::vec3 scale;
+
+    union {
+        struct {
+        } box;
+        struct {
+        } sphere;
+        struct {
+            tinyobj::attrib_t* attrib;
+            tinyobj::shape_t* shapes;
+            int num_shapes;
+        } mesh;
+    };
+
+    static RenderShape make_from_collision_shape(const CollisionShape& col);
+    static RenderShape make_box(glm::vec3 size);
+    static RenderShape make_sphere(float radius);
+    static RenderShape make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes, glm::vec3 scale = glm::vec3(1));
+};
+
+struct Material {
+    real friction = 1.0f;
+    real restitution = 0.0f;
+    real restitution_threshold = 0.01f;
+};
+
+struct RigidBodySpec {
+    glmx::tsmat3x3<real> inertia;
+    real mass;
+    CollisionShape col_shape;
+    RenderShape render_shape;
+    glmx::ttransform<real> global_trans;
+};
+
+struct RigidBody {
+    RigidBodySpec spec;
+    glm::rvec3 pos;
+    glm::rvec3 vel;
+    glm::rquat rot;
+    glm::rvec3 angvel;
+
+    void init(RigidBodySpec rb_spec) {
+        this->spec = std::move(rb_spec);
+        pos = glm::rvec3(0);
+        vel = glm::rvec3(0);
+        rot = glm::identity<glm::rquat>();
+        angvel = glm::rvec3(0);
+    }
+};
+
+struct Link {
+    glmx::tsmat3x3<real> inertia; // inertia from link frame
+    glmx::tspmat<real> I_j; // Spatial mass matrix from joint frame
+    real mass;
+    CollisionShape col_shape;
+    RenderShape render_shape;
+    glmx::ttransform<real> local_joint_pose;
+    glmx::ttransform<real> local_link_pose;
+    int parent_idx;
+    Id<Material> mat_id;
+
+    static Link create(const glmx::tsmat3x3<real>& inertia, real mass,
+                       CollisionShape col_shape,
+                       glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
+                       int parent_idx, Id<Material> mat_id);
+
+    static Link create(const glmx::tsmat3x3<real>& inertia, real mass,
+                       CollisionShape col_shape, RenderShape render_shape,
+                       glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
+                       int parent_idx, Id<Material> mat_id);
+
+};
+
+struct ArticulatedBodySpec {
+    std::vector<std::string> names;
+    std::vector<Link> links;
+    std::vector<Joint> joints;
+
+    bool floating = false;
+
+    std::vector<int> joint_pos_dofs;
+    std::vector<int> joint_pos_dof_starts;
+    std::vector<int> joint_vel_dofs;
+    std::vector<int> joint_vel_dof_starts;
+    int num_pos_dofs = 0;
+    int num_vel_dofs = 0;
+
+    std::vector<int> parents;
+    std::vector<int> children_buffer;
+    std::vector<int> children_buffer_starts;
+    std::vector<int> bfs_iteration_order;
+
+    bool build_finished = false;
+
+    ArticulatedBodySpec(bool floating = false) : floating(floating) {}
+
+    void add_link_and_joint(Link link, Joint joint, const std::string& name = "") {
+        if (joint.type == JOINT_TYPE_FLOATING) {
+            if (!links.empty() || !joints.empty()) {
+                fprintf(stderr, "Error in ArticulatedBody::add_link_and_joint: "
+                                "Free joint can only be added at the root!\n");
+                return;
             }
+            floating = true;
         }
-        uint32_t vel_dof() {
-            switch (type) {
-                JOINT_DOF_1_CASE { return 1; }
-                case JOINT_TYPE_SPHERICAL: return 3;
-                case JOINT_TYPE_FLOATING: return 6;
-                default: return 0;
-            }
-        }
+        links.push_back(link);
+        joints.push_back(joint);
+        names.push_back(name);
+    }
+
+    void build(bool use_bullet = true, btCollisionWorld* bt_collision_world = nullptr);
+
+    int get_num_joints() const {
+        return joints.size();
+    }
+
+    int get_num_links() const {
+        return links.size();
+    }
+
+    int get_num_pos_dofs() const {
+        return num_pos_dofs;
     };
 
-    struct CollisionShape {
-        enum class Type {
-            Ground, Box, Sphere, Mesh
+    int get_num_vel_dofs() const {
+        return num_vel_dofs;
+    };
+
+    int get_num_children(int joint_idx) const {
+        return children_buffer_starts[joint_idx+1] - children_buffer_starts[joint_idx];
+    }
+
+    const int * get_children(int joint_idx) const {
+        return &children_buffer[children_buffer_starts[joint_idx]];
+    }
+
+    int get_index(const char* name) const {
+        int i;
+        for (i = 0; i < names.size(); i++) {
+            if (names[i] == name) break;
+        }
+        if (i == names.size()) return -1;
+        else return i;
+    }
+};
+
+class ArticulatedBody {
+private:
+    artsim::ArticulatedBodySpec spec;
+    Id<Material> mat_id;
+
+    std::vector<real> q;
+    std::vector<real> u;
+    std::vector<real> udot;
+    std::vector<real> tau;
+    std::vector<glmx::tscrew<real>> f_ext;
+    std::vector<glmx::ttransform<real>> T_link_globals;
+    std::vector<glmx::ttransform<real>> T_joint_globals;
+
+    std::vector<btCollisionObject*> bt_collision_objects;
+
+public:
+    void init(artsim::ArticulatedBodySpec art_spec, Id<Material> mat_id, btCollisionWorld* bt_collision_world);
+
+    void reset_positions();
+    void randomize_positions();
+
+    const ArticulatedBodySpec& get_spec() const { return spec; }
+
+    int get_num_pos_dofs() const { return spec.get_num_pos_dofs(); }
+    int get_num_vel_dofs() const { return spec.get_num_vel_dofs(); }
+    int get_num_joints() const { return spec.get_num_joints(); }
+    int get_num_links() const { return spec.get_num_links(); }
+
+    real* get_pos_buf() { return q.data(); }
+    real* get_vel_buf() { return u.data(); }
+    real* get_acc_buf() { return udot.data(); }
+    real* get_internal_force_buf() { return tau.data(); }
+    glmx::rscrew* get_external_force_buf() { return f_ext.data(); }
+
+    Id<Material> get_mat_id() { return mat_id; }
+    void set_mat_id(Id<Material> new_mat_id) { mat_id = new_mat_id; }
+
+    real get_joint_pos_1dof(int joint_idx) const;
+    glm::tquat<real> get_joint_pos_spherical(int joint_idx) const;
+    glmx::ttransform<real> get_root_transform() const;
+
+    void set_joint_pos_1dof(int joint_idx, real qj);
+    void set_joint_pos_spherical(int joint_idx, const glm::tquat<real>& qj);
+    void set_root_transform(const glmx::ttransform<real>& rootT);
+
+    void forward_kinematics();
+
+    void update_colliders();
+
+    void forward_dynamics(const glm::rvec3& gravity, real dt);
+
+    glmx::rtransform get_global_joint_trans(int joint_idx) const;
+    glmx::rtransform get_global_link_trans(int link_idx) const;
+};
+
+struct pair_hash {
+    template <class T1, class T2>
+    std::size_t operator () (std::pair<T1, T2> const &v) const
+    {
+        using std::hash;
+        return hash<T1>()(v.first) ^ (hash<T2>()(v.second) << 1);
+    }
+};
+
+struct BodyId {
+    /*
+     * Memory layout:
+     *
+    bool is_art: 1;
+    union {
+        uint32_t rigid_body_idx: 31;
+        struct {
+            uint16_t art_idx: 15;
+            uint16_t art_body_idx: 16;
         };
-        Type type;
-        glm::tvec3<real> scale;
-
-        union {
-            struct {
-            } ground;
-            struct {
-            } box;
-            struct {
-            } sphere;
-            struct {
-                tinyobj::attrib_t* attrib;
-                tinyobj::shape_t* shapes;
-                uint32_t num_shapes;
-            } mesh;
-        };
-        btCollisionShape* bt_shape;
-
-        static CollisionShape make_ground();
-        static CollisionShape make_box(glm::vec3 size);
-        static CollisionShape make_sphere(real radius);
-        static CollisionShape make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes, glm::rvec3 scale = glm::rvec3(1));
-
-        real mass(real density);
-        glmx::tsmat3x3<real> inertia(real density);
     };
+     */
+    uint32_t index;
+    uint32_t generation;
 
-    struct RenderShape {
-        enum class Type {
-            Box, Sphere, Mesh
-        };
-        Type type;
-        glm::vec3 scale;
+    friend bool operator==(BodyId id1, BodyId id2);
+    friend bool operator!=(BodyId id1, BodyId id2);
 
-        union {
-            struct {
-            } box;
-            struct {
-            } sphere;
-            struct {
-                tinyobj::attrib_t* attrib;
-                tinyobj::shape_t* shapes;
-                uint32_t num_shapes;
-            } mesh;
-        };
+    static BodyId from_articulation_link(Id<ArticulatedBodySpec> id, uint16_t link_idx) {
+        BodyId body_id;
+        body_id.index = 0x80000000 | ((id.index & 0x0000ffff) << 16) | link_idx;
+        body_id.generation = id.generation;
+        return body_id;
+    }
+    static BodyId from_rigid_body(Id<RigidBody> id) {
+        BodyId body_id;
+        body_id.index = id.index;
+        body_id.generation = id.generation;
+        return body_id;
+    }
+    static BodyId from_ground() {
+        return {0, 0};
+    }
+    std::pair<Id<ArticulatedBody>, uint32_t> get_articulation_id() const {
+        if (!is_articulation()) return {Id<ArticulatedBody>::null(), 0};
+        uint32_t art_index = (index & 0x7fff0000) >> 16;
+        uint32_t art_body_index = index & 0x0000ffff;
+        return {Id<ArticulatedBody>{art_index, generation}, art_body_index};
+    }
+    Id<RigidBody> get_rigid_body_id() const {
+        if (is_articulation()) return Id<RigidBody>::null();
+        return Id<RigidBody>{index, generation};
+    }
 
-        static RenderShape make_from_collision_shape(const CollisionShape& col);
-        static RenderShape make_box(glm::vec3 size);
-        static RenderShape make_sphere(float radius);
-        static RenderShape make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes, glm::vec3 scale = glm::vec3(1));
-    };
+    bool is_rigid_body() const {
+        return (index & 0x80000000) == 0;
+    }
+    bool is_articulation() const {
+        return (index & 0x80000000) != 0;
+    }
+    bool is_ground() const {
+        return index == 0 && generation == 0;
+    }
+};
 
-    struct Material {
-        real friction = 1.0f;
-        real restitution = 0.0f;
-        real restitution_threshold = 0.01f;
-    };
+inline bool operator==(BodyId id1, BodyId id2) {
+    return id1.index == id2.index && id1.generation == id2.generation;
+}
+inline bool operator!=(BodyId id1, BodyId id2) {
+    return id1.index != id2.index || id1.generation != id2.generation;
+}
 
-    struct RigidBody {
-        glmx::tsmat3x3<real> inertia;
-        real mass;
-        CollisionShape col_shape;
-        RenderShape render_shape;
-        glmx::ttransform<real> global_trans;
-    };
+struct ContactPoint {
+    btPersistentManifold* bt_manifold;
+    glm::tvec3<real> pos;
+    glm::tvec3<real> normal;
+    real depth;
+    real area;
+    BodyId body1_id;
+    BodyId body2_id;
+};
 
-    struct Link {
-        glmx::tsmat3x3<real> inertia; // inertia from link frame
-        glmx::tspmat<real> I_j; // Spatial mass matrix from joint frame
-        real mass;
-        CollisionShape col_shape;
-        RenderShape render_shape;
-        glmx::ttransform<real> local_joint_pose;
-        glmx::ttransform<real> local_link_pose;
-        uint32_t parent_idx;
-        Id<Material> mat_id;
-        btCollisionObject* bt_collision_object;
+struct Frame {
+    BodyId body;
+    glmx::transform T_local;
 
-        static Link create(const glmx::tsmat3x3<real>& inertia, real mass,
-                           CollisionShape col_shape,
-                           glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
-                           int parent_idx, Id<Material> mat_id);
-
-        static Link create(const glmx::tsmat3x3<real>& inertia, real mass,
-                           CollisionShape col_shape, RenderShape render_shape,
-                           glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
-                           int parent_idx, Id<Material> mat_id);
-
-    };
-
-    struct ArticulatedBody {
-        std::vector<std::string> names;
-        std::vector<Link> links;
-        std::vector<Joint> joints;
-
-        bool floating = false;
-
-        std::vector<uint32_t> joint_pos_dofs;
-        std::vector<uint32_t> joint_pos_dof_starts;
-        std::vector<uint32_t> joint_vel_dofs;
-        std::vector<uint32_t> joint_vel_dof_starts;
-        uint32_t num_pos_dofs = 0;
-        uint32_t num_vel_dofs = 0;
-
-        std::vector<int> parents;
-        std::vector<uint32_t> children_buffer;
-        std::vector<uint32_t> children_buffer_starts;
-        std::vector<uint32_t> bfs_iteration_order;
-
-        bool build_finished = false;
-
-        btCollisionWorld* bt_collision_world = nullptr;
-
-        ArticulatedBody(bool floating = false) : floating(floating) {}
-
-        void add_link_and_joint(Link link, Joint joint, const std::string& name = "") {
-            if (joint.type == JOINT_TYPE_FLOATING) {
-                if (!links.empty() || !joints.empty()) {
-                    fprintf(stderr, "Error in ArticulatedBody::add_link_and_joint: "
-                                    "Free joint can only be added at the root!\n");
-                    return;
-                }
-                floating = true;
-            }
-            links.push_back(link);
-            joints.push_back(joint);
-            names.push_back(name);
-        }
-
-        void setup(bool use_bullet = true, btCollisionWorld* bt_collision_world = nullptr);
-
-        uint32_t get_num_joints() const {
-            return joints.size();
-        }
-
-        uint32_t get_num_links() const {
-            return links.size();
-        }
-
-        uint32_t get_num_pos_dofs() const {
-            return num_pos_dofs;
-        };
-
-        uint32_t get_num_vel_dofs() const {
-            return num_vel_dofs;
-        };
-
-        uint32_t get_num_children(uint32_t joint_idx) const {
-            return children_buffer_starts[joint_idx+1] - children_buffer_starts[joint_idx];
-        }
-
-        const uint32_t* get_children(uint32_t joint_idx) const {
-            return &children_buffer[children_buffer_starts[joint_idx]];
-        }
-
-        int get_index(const char* name) const {
-            int i;
-            for (i = 0; i < names.size(); i++) {
-                if (names[i] == name) break;
-            }
-            if (i == names.size()) return -1;
-            else return i;
-        }
-    };
-
-    struct pair_hash {
-        template <class T1, class T2>
-        std::size_t operator () (std::pair<T1, T2> const &v) const
-        {
-            using std::hash;
-            return hash<T1>()(v.first) ^ (hash<T2>()(v.second) << 1);
-        }
-    };
+    static Frame from_articulation(Id<ArticulatedBodySpec> id, int link_idx,
+                                   const glmx::transform& T_local) {
+        return {BodyId::from_articulation_link(id, link_idx), T_local};
+    }
+};
 
 #define METHOD_GET_ID(TYPE, NAME, MEMBER) TYPE* get_##NAME(Id<TYPE> id) { return MEMBER.get(id); }
 #define METHOD_REMOVE_ID(TYPE, NAME, MEMBER) void remove_##NAME(Id<TYPE> id) { MEMBER.release(id); }
 
-    struct MaterialDB {
-        Arena<Material> materials;
-        std::unordered_map<std::pair<Id<Material>, Id<Material>>, Material, pair_hash> material_pairs;
+struct MaterialDB {
+    Arena<Material> materials;
+    std::unordered_map<std::pair<Id<Material>, Id<Material>>, Material, pair_hash> material_pairs;
 
-        Id<Material> add_material(real default_friction = 1.0f,
-                                  real default_restitution = 0.0f,
-                                  real default_restitution_threshold = 0.01f) {
-            auto id = materials.make();
-            auto ptr = materials.get(id);
-            ptr->friction = default_friction;
-            ptr->restitution = default_restitution;
-            ptr->restitution_threshold = default_restitution_threshold;
-            return id;
-        }
-        METHOD_GET_ID(Material, material, materials)
-        METHOD_REMOVE_ID(Material, material, materials)
+    Id<Material> add_material(real default_friction = 1.0f,
+                              real default_restitution = 0.0f,
+                              real default_restitution_threshold = 0.01f) {
+        auto id = materials.make();
+        auto ptr = materials.get(id);
+        ptr->friction = default_friction;
+        ptr->restitution = default_restitution;
+        ptr->restitution_threshold = default_restitution_threshold;
+        return id;
+    }
+    METHOD_GET_ID(Material, material, materials)
+    METHOD_REMOVE_ID(Material, material, materials)
 
-        void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
-                               real friction, real restitution, real restitution_threshold) {
-            material_pairs[std::make_pair(mat1_id, mat2_id)] = Material{friction, restitution, restitution_threshold};
-        }
-    };
+    void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
+                           real friction, real restitution, real restitution_threshold) {
+        material_pairs[std::make_pair(mat1_id, mat2_id)] = Material{friction, restitution, restitution_threshold};
+    }
+};
 
-    struct World {
-        Arena<RigidBody> rigid_bodies;
-        Arena<ArticulatedBody> articulated_bodies;
-        MaterialDB material_db;
+enum class ContactSolverType {
+    PGS, Bisection, NCP
+};
 
-        World() = default;
+struct WorldConfig {
+    glm::rvec3 gravity = {0.0, -9.8, 0.0};
+    real dt = 1.0 / 240.0;
+    ContactSolverType contact_solver_type = ContactSolverType::PGS;
+    int max_iters = 4;
+    bool create_plane = false;
+};
 
-        Id<ArticulatedBody> add_articulated_body(bool floating = false) {
-            auto id = articulated_bodies.make();
-            auto ptr = articulated_bodies.get(id);
-            ptr->floating = floating;
-            return id;
-        }
+class World {
+private:
+    Arena<RigidBody> rigid_bodies;
+    Arena<ArticulatedBody> articulated_bodies;
+    MaterialDB material_db;
 
-        METHOD_GET_ID(ArticulatedBody, articulated_body, articulated_bodies)
-        METHOD_REMOVE_ID(ArticulatedBody, articulated_body, articulated_bodies)
+    Arena<ContactPoint> contact_points;
+    btCollisionWorld* bt_collision_world = nullptr;
+    btCollisionObject* bt_plane_col = nullptr;
 
-        void add_link_and_joint_to_articulation(Id<ArticulatedBody> art_id, Link link, Joint joint) {
-            auto art = articulated_bodies.get(art_id);
-            art->links.push_back(link);
-            art->joints.push_back(joint);
-        }
+    // TODO: temp
+    std::vector<std::vector<ContactPoint>> art_ground_contacts;
+    std::vector<std::vector<glm::rvec3>> art_ground_contact_forces;
 
-        void build_articulation(Id<ArticulatedBody> art_id) {
-            auto art = articulated_bodies.get(art_id);
-            art->setup();
-        }
+    WorldConfig cfg;
 
-        Id<Material> add_material(real default_friction = 1.0f,
-                                  real default_restitution = 0.0f,
-                                  real default_restitution_threshold = 0.01f) {
-            return material_db.add_material(default_friction, default_restitution, default_restitution_threshold);
-        }
+public:
+    void init(WorldConfig world_cfg);
 
-        Material* get_material(Id<Material> id) {
-            return material_db.get_material(id);
-        }
+    glm::rvec3 get_gravity() const { return cfg.gravity; }
+    void set_gravity(const glm::rvec3& gravity) { cfg.gravity = gravity; }
 
-        void remove_material(Id<Material> id) {
-            return material_db.remove_material(id);
-        }
+    real get_timestep() const { return cfg.dt; }
+    void set_timestep(real dt) { cfg.dt = dt; }
 
-        void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
-                               real friction, real restitution, real restitution_threshold) {
-            material_db.set_material_pair(mat1_id, mat2_id, friction, restitution, restitution_threshold);
-        }
-    };
+    Id<RigidBody> add_rigid_body(const RigidBodySpec& spec) {
+        auto id = rigid_bodies.make();
+        auto ptr = rigid_bodies.get(id);
+        ptr->init(spec);
+        return id;
+    }
+
+    Id<ArticulatedBody> add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id) {
+        auto id = articulated_bodies.make();
+        auto ptr = articulated_bodies.get(id);
+        ptr->init(spec, mat_id, bt_collision_world);
+        return id;
+    }
+
+    METHOD_GET_ID(ArticulatedBody, articulated_body, articulated_bodies)
+    METHOD_REMOVE_ID(ArticulatedBody, articulated_body, articulated_bodies)
+
+    Id<Material> add_material(real default_friction = 1.0f,
+                              real default_restitution = 0.0f,
+                              real default_restitution_threshold = 0.01f) {
+        return material_db.add_material(default_friction, default_restitution, default_restitution_threshold);
+    }
+
+    Material* get_material(Id<Material> id) {
+        return material_db.get_material(id);
+    }
+
+    void remove_material(Id<Material> id) {
+        return material_db.remove_material(id);
+    }
+
+    void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
+                           real friction, real restitution, real restitution_threshold) {
+        material_db.set_material_pair(mat1_id, mat2_id, friction, restitution, restitution_threshold);
+    }
+
+    void simulate(real dt);
+
+private:
+    void solve_contacts();
+};
 
 #undef METHOD_GET_ID
 #undef METHOD_DELETE_ID
 
-struct BodyId {
-        /*
-         * Memory layout:
-         *
-        bool is_art: 1;
-        union {
-            uint32_t rigid_body_idx: 31;
-            struct {
-                uint16_t art_idx: 15;
-                uint16_t art_body_idx: 16;
-            };
-        };
-         */
-        uint32_t index;
-        uint32_t generation;
-
-        friend bool operator==(BodyId id1, BodyId id2);
-        friend bool operator!=(BodyId id1, BodyId id2);
-
-        static BodyId from_articulation_link(Id<ArticulatedBody> id, uint16_t link_idx) {
-            BodyId body_id;
-            body_id.index = 0x80000000 | ((id.index & 0x0000ffff) << 16) | link_idx;
-            body_id.generation = id.generation;
-            return body_id;
-        }
-        static BodyId from_rigid_body(Id<RigidBody> id) {
-            BodyId body_id;
-            body_id.index = id.index;
-            body_id.generation = id.generation;
-            return body_id;
-        }
-        static BodyId from_ground() {
-            return {0, 0};
-        }
-        std::pair<Id<ArticulatedBody>, uint32_t> get_articulation_id() const {
-            if (!is_articulation()) return {Id<ArticulatedBody>::null(), 0};
-            uint32_t art_index = (index & 0x7fff0000) >> 16;
-            uint32_t art_body_index = index & 0x0000ffff;
-            return {Id<ArticulatedBody>{art_index, generation}, art_body_index};
-        }
-        Id<RigidBody> get_rigid_body_id() const {
-            if (is_articulation()) return Id<RigidBody>::null();
-            return Id<RigidBody>{index, generation};
-        }
-        bool is_articulation() const {
-            return (index & 0x80000000) != 0;
-        }
-    };
-
-    inline bool operator==(BodyId id1, BodyId id2) {
-        return id1.index == id2.index && id1.generation == id2.generation;
-    }
-    inline bool operator!=(BodyId id1, BodyId id2) {
-        return id1.index != id2.index || id1.generation != id2.generation;
-    }
-
-
-    struct ContactPoint {
-        btPersistentManifold* bt_manifold;
-        glm::tvec3<real> pos;
-        glm::tvec3<real> normal;
-        real depth;
-        real area;
-        BodyId body1_id;
-        BodyId body2_id;
-    };
-
-    struct Frame {
-        BodyId body;
-        glmx::transform T_local;
-
-        static Frame from_articulation(Id<ArticulatedBody> id, uint32_t link_idx,
-                                       const glmx::transform& T_local) {
-            return {BodyId::from_articulation_link(id, link_idx), T_local};
-        }
-    };
 }
 
 #endif //ARTSIM_ARTSIM_H

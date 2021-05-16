@@ -9,7 +9,7 @@
 
 namespace artsim {
 
-ArticulatedBody load_from_xml(const char* filename, std::vector<uint32_t>& contact_indices);
+ArticulatedBodySpec load_from_xml(const char* filename, std::vector<uint32_t>& contact_indices);
 
 }
 

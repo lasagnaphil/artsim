@@ -30,8 +30,8 @@ add_subdirectory(libs)
 
 add_library(artsim
         src/artsim.cpp
-        src/dynamics.cpp
-        src/contacts.cpp
+        src/art_dynamics.cpp
+        src/art_contacts.cpp
         src/ik.cpp
         src/soft_body.cpp
         src/art_with_soft_bodies.cpp

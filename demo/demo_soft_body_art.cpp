@@ -7,7 +7,6 @@
 
 #include <artsim/artsim.h>
 #include <artsim/art_with_soft_bodies.h>
-#include <artsim/art_state.h>
 
 #include <imgui.h>
 #include <implot.h>
@@ -77,7 +76,7 @@ public:
 
         link_mat = PBRMaterial::quick(colors::LightGray);
         joint_mat = PBRMaterial::quick(colors::Blue);
-        art_render = ArticulationRender(&system.get_articulation(), link_mat, joint_mat);
+        art_render = ArticulationRenderLegacy(&system.get_articulation(), link_mat, joint_mat);
 
         resetPhysics();
 
@@ -247,7 +246,7 @@ private:
     ArtWithSoftBodies system;
 
     std::vector<SoftBodyRender> soft_body_renderers;
-    ArticulationRender art_render;
+    ArticulationRenderLegacy art_render;
     std::vector<unsigned char> soft_body_selection_mask;
 
     Ref<PBRMaterial> ground_mat;

@@ -2,9 +2,9 @@
 // Created by lasagnaphil on 1/26/21.
 //
 
-#include "artsim/contacts.h"
+#include "artsim/art_contacts.h"
 
-#include "artsim/dynamics.h"
+#include "artsim/art_dynamics.h"
 
 #include <Eigen/Dense>
 
@@ -167,7 +167,7 @@ static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> l
 
 // TODO: handle coefficient of restitution and restitution threshold...
 void solve_collision(ContactSolverType type, uint32_t max_iters,
-                     const ArticulatedBody& art, const Material& mat, glm::tvec3<real> gravity, real dt,
+                     const ArticulatedBodySpec& art, const Material& mat, glm::tvec3<real> gravity, real dt,
                      const real* q, const real* u, const real* udot_orig, const tscrew<real>* f_ext, const real* tau,
                      const ContactPoint* contact_points, uint32_t num_contact_points,
                      glm::tvec3<real>* out_lambda, real* out_contact_forces) {
@@ -356,7 +356,7 @@ void iterative_contact_solver(
 
 void
 euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
-                          const ArticulatedBody& art, const Material& mat, glm::tvec3<real> gravity, real dt,
+                          const ArticulatedBodySpec& art, const Material& mat, glm::tvec3<real> gravity, real dt,
                           const tscrew<real>* f_ext, const real* tau, const ContactPoint* contact_points,
                           uint32_t num_contact_points, real* q, real* u, real* udot, glm::tvec3<real>* lambda) {
     int num_vel_dofs = art.get_num_vel_dofs();
@@ -471,7 +471,7 @@ std::vector<ContactPoint> get_contact_points_bullet(btCollisionWorld* bt_world) 
 }
 
 std::vector<ContactPoint>
-contact_points_between_art_links_and_ground(const ArticulatedBody& art, const Id<ArticulatedBody> art_id,
+contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, const Id<ArticulatedBodySpec> art_id,
                                             const uint32_t* link_indices, uint32_t link_indices_count,
                                             const ttransform<real>* link_global_trans) {
 

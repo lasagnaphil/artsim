@@ -70,7 +70,7 @@ public:
             Ray ray = camera->screenPointToRay(mPos);
             uint32_t leftHandIdx = 22;
             if (ray.intersectWithPlane(ikTargetPlane, ikTarget)) {
-                inverse_kinematics(art, leftHandIdx, glmx::ttransform<real>(glmx::IDENTITY), ikTarget, state.q.data());
+                inverse_kinematics(art_id, leftHandIdx, glmx::ttransform<real>(glmx::IDENTITY), ikTarget, state.q.data());
                 state.update_transforms();
             }
         }
@@ -99,9 +99,9 @@ public:
     }
 
     void reset() {
-        art = load_from_xml("demo/resources/human.xml", contact_indices);
+        art_id = load_from_xml("demo/resources/human.xml", contact_indices);
 
-        state = ArticulationState(&art, material, ContactSolverType::PGS, 16);
+        state = ArticulationState(&art_id, material, ContactSolverType::PGS, 16);
         state.enable_collision_with_ground = false;
         state.ground_col_enabled_links = contact_indices;
         state.set_root_transform(glmx::ttransform<real>(tvec3<real>(0.0f, 1.3f, 0.0f)));
@@ -111,7 +111,7 @@ public:
     }
 
 private:
-    ArticulatedBody art;
+    ArticulatedBody art_id;
     Material material {1.0f, 0.0f, 0.01f};
     ArticulationState state;
     float sim_dt = 1.0f / 600.0f;

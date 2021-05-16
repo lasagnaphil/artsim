@@ -2,7 +2,7 @@
 // Created by Phillip Chang on 2020/09/12.
 //
 
-#include "artsim/dynamics.h"
+#include "artsim/art_dynamics.h"
 
 #include <Eigen/Dense>
 
@@ -11,7 +11,7 @@ using namespace glmx;
 
 namespace artsim {
 
-void set_zero_pose(const ArticulatedBody& art, OUT real* q) {
+void set_zero_pose(const ArticulatedBodySpec& art, OUT real* q) {
     for (int i = 0; i < art.get_num_joints(); i++) {
         const Joint& joint = art.joints[i];
         const Link& link = art.links[i];
@@ -31,7 +31,7 @@ void set_zero_pose(const ArticulatedBody& art, OUT real* q) {
     }
 }
 
-void calc_S(const ArticulatedBody &art, const real *q, tscrew<real> *S) {
+void calc_S(const ArticulatedBodySpec &art, const real *q, tscrew<real> *S) {
     for (int i = 0; i < art.get_num_joints(); i++) {
         const Joint& joint = art.joints[i];
         const Link& link = art.links[i];
@@ -93,7 +93,7 @@ tscrew<real> calc_v0(const Joint& joint, const real* u) {
     }
 }
 
-void calc_body_jacobian(const ArticulatedBody& art, uint32_t joint_idx, ttransform<real> offset,
+void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, ttransform<real> offset,
                         const tscrew<real>* S,
                         const ttransform<real>* T_joint_global,
                         tscrew<real>* J_b) {
@@ -169,7 +169,7 @@ struct RecursiveNewtonEulerData {
     }
 };
 
-void rne_inverse_dynamics(const ArticulatedBody& art, glm::tvec3<real> gravity, real dt,
+void rne_inverse_dynamics(const ArticulatedBodySpec& art, glm::tvec3<real> gravity, real dt,
                           const real* q, const real* u, const real* udot, const tscrew<real>* f_ext,
                           real* tau) {
 
@@ -416,7 +416,7 @@ struct FeatherstoneData {
     }
 };
 
-void featherstone_forward_dynamics(const ArticulatedBody& art,
+void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                                    glm::tvec3<real> gravity, real dt,
                                    const tscrew<real>* f_ext, const real* q, const real* u, const real* tau,
                                    real* udot) {
@@ -516,7 +516,7 @@ void featherstone_forward_dynamics(const ArticulatedBody& art,
 
 // Solves M^{-1} X, using Featherstone's algorithm, where M is the mass matrix.
 
-void multiply_inverse_mass_matrix(const ArticulatedBody& art, real dt,
+void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
                                   const real* q, dynmat_view<real> X,
                                   OUT dynmat_view<real> Minv_X) {
 
@@ -608,7 +608,7 @@ void multiply_inverse_mass_matrix(const ArticulatedBody& art, real dt,
     delete [] data;
 }
 
-void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real* q, dynmat<real>& M) {
+void mass_matrix_using_rnea(const ArticulatedBodySpec& art, real dt, const real* q, dynmat<real>& M) {
     assert(M.rows == art.num_vel_dofs);
     assert(M.cols == art.num_vel_dofs);
 
@@ -627,14 +627,14 @@ void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real* q, 
     }
 }
 
-void all_forces(const ArticulatedBody& art, glm::tvec3<real> gravity, real dt, const tscrew<real>* f_ext, const real* q,
+void all_forces(const ArticulatedBodySpec& art, glm::tvec3<real> gravity, real dt, const tscrew<real>* f_ext, const real* q,
                 const real* u, real* tau) {
     int dof = art.get_num_vel_dofs();
     std::vector<real> udot(dof, 0);
     rne_inverse_dynamics(art, gravity, dt, q, u, udot.data(), f_ext, tau);
 }
 
-void forward_dynamics_using_rnea(const ArticulatedBody& art, glm::tvec3<real> gravity, real dt, const tscrew<real>* f_ext,
+void forward_dynamics_using_rnea(const ArticulatedBodySpec& art, glm::tvec3<real> gravity, real dt, const tscrew<real>* f_ext,
                                  const real* q, const real* u, const real* tau, real* udot) {
     using Matrix = Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>;
     using Vector = Eigen::Matrix<real, Eigen::Dynamic, 1>;
@@ -652,7 +652,7 @@ void forward_dynamics_using_rnea(const ArticulatedBody& art, glm::tvec3<real> gr
     x.noalias() = M_eigen.llt().solve(b);
 }
 
-void integrate_implicit_euler(const ArticulatedBody& art, real dt, const real* udot, real* q, real* u) {
+void integrate_implicit_euler(const ArticulatedBodySpec& art, real dt, const real* udot, real* q, real* u) {
     if (udot) {
         for (int d = 0; d < art.get_num_vel_dofs(); d++) {
             u[d] += udot[d] * dt;
@@ -691,7 +691,7 @@ void integrate_implicit_euler(const ArticulatedBody& art, real dt, const real* u
     }
 }
 
-void calc_transforms(const ArticulatedBody& art, const real* q, glmx::ttransform<real>* T_joint_globals,
+void calc_transforms(const ArticulatedBodySpec& art, const real* q, glmx::ttransform<real>* T_joint_globals,
                      glmx::ttransform<real>* T_link_globals) {
 
     for (uint32_t i : art.bfs_iteration_order) {
@@ -778,7 +778,7 @@ void glm_to_dynmat(const tsmat6x6<real>& I, OUT dynmat_view<real> M) {
     glm_to_dynmat(I.M, M.slice(3, 3, 3, 3));
 }
 
-void mass_matrix(const ArticulatedBody& art, real dt, const real* q, dynmat_view<real> M) {
+void mass_matrix(const ArticulatedBodySpec& art, real dt, const real* q, dynmat_view<real> M) {
     assert(M.rows == art.num_vel_dofs);
     assert(M.cols == art.num_vel_dofs);
 
@@ -901,7 +901,7 @@ void mass_matrix(const ArticulatedBody& art, real dt, const real* q, dynmat_view
 }
 
 void calc_reduced_to_maximal_jacobian(
-        const ArticulatedBody& art,
+        const ArticulatedBodySpec& art,
         const tscrew<real>* J,
         OUT dynmat_view<real> J_mr, OUT dynmat_view<real> J_mr_dot) {
 }

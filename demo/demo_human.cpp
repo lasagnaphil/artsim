@@ -12,7 +12,6 @@
 #include <implot.h>
 
 #include <artsim/artsim.h>
-#include <artsim/art_state.h>
 #include <artsim/utils/urdf.h>
 #include <artsim/utils/xml.h>
 
@@ -53,7 +52,6 @@ public:
 
         orig_mesh_mat = PBRMaterial::quick(0.5f * colors::Red);
         joint_mat = PBRMaterial::quick(colors::Green);
-        art_render = ArticulationStateRender(&state, orig_mesh_mat, joint_mat);
     }
 
     void processInput(SDL_Event &event) override {
@@ -71,7 +69,9 @@ public:
 
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
-            state.simulate(sim_dt, 10);
+            for (int i = 0; i < 10; i++) {
+                world.simulate(sim_dt);
+            }
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             float sim_time = 0.001f * duration.count() / 10;
@@ -93,12 +93,14 @@ public:
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         pbRenderer.queueRender({ground_mesh, ground_mat, rootTransform->getWorldTransform()});
-        art_render.render(pbRenderer, imRenderer);
+        art_render.render(pbRenderer);
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
+        /*
         for (auto& contact_point : state.contact_points) {
             imRenderer.drawSphere(contact_point.pos, colors::Red, 0.01f, false);
         }
+        */
 
         pbRenderer.render();
         imRenderer.render();
@@ -108,22 +110,28 @@ public:
     }
 
     void reset() {
-        art = load_from_xml("demo/resources/human.xml", contact_indices);
-        // export_to_urdf(art, "human", "demo/resources/human.urdf");
-        // art = load_from_xml("demo/resources/soft_body_with_art/two_link_art.xml", contact_indices);
+        world = World();
+        WorldConfig world_cfg;
+        world_cfg.dt = sim_dt;
+        world_cfg.create_plane = true;
+        world.init(world_cfg);
+        default_mat_id = world.add_material();
 
-        state = ArticulationState(&art, material, ContactSolverType::PGS, 16);
-        state.enable_collision_with_ground = true;
-        state.ground_col_enabled_links = contact_indices;
-        state.set_root_transform(glmx::ttransform<real>(tvec3<real>(0.0f, 1.3f, 0.0f)));
-        state.update_transforms();
+        art_id = world.add_articulated_body(
+                load_from_xml("demo/resources/human.xml", contact_indices), default_mat_id);
 
-        art_render = ArticulationStateRender(&state, orig_mesh_mat, joint_mat);
+        auto art = world.get_articulated_body(art_id);
+
+        art->set_root_transform(glmx::ttransform<real>(tvec3<real>(0.0f, 1.3f, 0.0f)));
+        art->forward_kinematics();
+
+        art_render = ArticulationRender(art, orig_mesh_mat, joint_mat);
     }
 
 private:
-    ArticulatedBody art;
-    ArticulationState state;
+    World world;
+    Id<ArticulatedBody> art_id;
+    Id<Material> default_mat_id;
     Material material {1.0f, 0.0f, 0.01f};
     float sim_dt = 1.0f / 600.0f;
     bool run_simulation = true;
@@ -136,7 +144,7 @@ private:
     Ref<Mesh> ground_mesh;
 
     Ref<PBRMaterial> orig_mesh_mat, joint_mat;
-    ArticulationStateRender art_render;
+    ArticulationRender art_render;
 };
 
 int main(int argc, char** argv) {

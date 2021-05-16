@@ -246,6 +246,14 @@ public:
         }
     }
 
+    int get_item_idx(Id<T> id) const {
+        assert(id.index < free_list.size());
+        auto node = free_list[id.index];
+        assert(node.generation != 0);
+        assert(node.generation == id.generation);
+        assert(node.index < size());
+        return node.index;
+    }
 };
 
 }

@@ -44,8 +44,8 @@ glm::tmat3x3<real> string_to_matrix3d(const std::string& input) {
     return M;
 }
 
-ArticulatedBody artsim::load_from_xml(const char* filename, std::vector<uint32_t>& contact_indices) {
-    artsim::ArticulatedBody art;
+ArticulatedBodySpec artsim::load_from_xml(const char* filename, std::vector<uint32_t>& contact_indices) {
+    artsim::ArticulatedBodySpec art;
 
     std::unordered_map<std::string, ttransform<real>> T_global_body_map;
     std::unordered_map<std::string, ttransform<real>> T_global_joint_map;
@@ -165,6 +165,6 @@ ArticulatedBody artsim::load_from_xml(const char* filename, std::vector<uint32_t
         current_idx++;
     }
 
-    art.setup();
+    art.build();
     return art;
 }

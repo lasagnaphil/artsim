@@ -29,57 +29,57 @@ namespace artsim {
         return V;
     }
 
-    void set_zero_pose(const ArticulatedBody& art, OUT real* q);
+    void set_zero_pose(const ArticulatedBodySpec& art, OUT real* q);
 
-    void calc_S(const ArticulatedBody& art, const real*__restrict q, OUT glmx::tscrew<real>* S);
+    void calc_S(const ArticulatedBodySpec& art, const real*__restrict q, OUT glmx::tscrew<real>* S);
 
     glmx::ttransform<real> calc_Tinv(const Joint& joint, const Link& link, const real*__restrict q);
 
     glmx::tscrew<real> calc_v0(const Joint& joint, const real*__restrict u);
 
-    void calc_body_jacobian(const ArticulatedBody& art, uint32_t joint_idx, glmx::ttransform<real> offset,
-                             const glmx::tscrew<real>* S,
-                             const glmx::ttransform<real>* T_joint_global,
-                             OUT glmx::tscrew<real>* J_s);
+    void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, glmx::ttransform<real> offset,
+                            const glmx::tscrew<real>* S,
+                            const glmx::ttransform<real>* T_joint_global,
+                            OUT glmx::tscrew<real>* J_s);
 
-    void rne_inverse_dynamics(const ArticulatedBody& art,
+    void rne_inverse_dynamics(const ArticulatedBodySpec& art,
                               glm::tvec3<real> gravity, real dt,
                               const real*__restrict q, const real*__restrict u, const real*__restrict udot,
                               const glmx::tscrew<real>*__restrict f_ext,
                               OUT real*__restrict tau);
 
-    void featherstone_forward_dynamics(const ArticulatedBody& art,
+    void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                                        glm::tvec3<real> gravity, real dt,
                                        const glmx::tscrew<real>*__restrict f_ext,
                                        const real*__restrict q, const real*__restrict u, const real*__restrict tau,
                                        OUT real*__restrict udot);
-    void multiply_inverse_mass_matrix(const ArticulatedBody& art, real dt,
+    void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
                                       const real* q, glmx::dynmat_view<real> X,
                                       OUT glmx::dynmat_view<real> Minv_X);
 
-    void mass_matrix_using_rnea(const ArticulatedBody& art, real dt, const real*__restrict q, OUT glmx::dynmat<real>& M);
+    void mass_matrix_using_rnea(const ArticulatedBodySpec& art, real dt, const real*__restrict q, OUT glmx::dynmat<real>& M);
 
-    void all_forces(const ArticulatedBody& art,
+    void all_forces(const ArticulatedBodySpec& art,
                     glm::tvec3<real> gravity, real dt,
                     const glmx::tscrew<real>*__restrict f_ext,
                     const real*__restrict q, const real*__restrict u,
                     OUT real* tau);
 
-    void forward_dynamics_using_rnea(const ArticulatedBody& art,
+    void forward_dynamics_using_rnea(const ArticulatedBodySpec& art,
                                      glm::tvec3<real> gravity, real dt,
                                      const glmx::tscrew<real>*__restrict f_ext,
                                      const real*__restrict q, const real*__restrict u, const real*__restrict tau,
                                      OUT real*__restrict udot);
 
-    void integrate_implicit_euler(const ArticulatedBody& art,
+    void integrate_implicit_euler(const ArticulatedBodySpec& art,
                                   real dt, const real*__restrict udot,
                                   OUT real*__restrict q, OUT real*__restrict u);
 
-    void calc_transforms(const ArticulatedBody& art, const real* q, glmx::ttransform<real>* T_joint_globals,
+    void calc_transforms(const ArticulatedBodySpec& art, const real* q, glmx::ttransform<real>* T_joint_globals,
                          glmx::ttransform<real>* T_link_globals);
 
     // Mass matrix calculation using the composite-rigid-body algorithm.
-    void mass_matrix(const ArticulatedBody& art, real dt, const real*__restrict q, OUT glmx::dynmat_view<real> M);
+    void mass_matrix(const ArticulatedBodySpec& art, real dt, const real*__restrict q, OUT glmx::dynmat_view<real> M);
 }
 
 #endif //ARTSIM_DYNAMICS_H

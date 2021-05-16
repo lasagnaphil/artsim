@@ -9,8 +9,8 @@ using namespace artsim;
 using namespace glmx;
 
 void artsim::inverse_kinematics(
-        const ArticulatedBody& art, uint32_t ee_idx, const ttransform<real>& ee_offset,
-        glm::tvec3<real> ee_global_pos, INOUT artsim::real* q) {
+        const ArticulatedBodySpec& art, uint32_t ee_idx, const ttransform<real>& ee_offset,
+        glm::tvec3<real> ee_global_pos, int num_iters, INOUT artsim::real* q) {
     using namespace Eigen;
     using real = artsim::real;
     using MatrixXr = Matrix<real, Dynamic, Dynamic>;
@@ -32,7 +32,7 @@ void artsim::inverse_kinematics(
     glm::tvec3<real> pos_diff;
     const real epsilon = real(1e-6);
     int iter;
-    for (iter = 0; iter < 100; iter++) {
+    for (iter = 0; iter < num_iters; iter++) {
         calc_transforms(art, q, T_joint_global.data(), nullptr);
         calc_body_jacobian(art, ee_idx, ttransform<real>(IDENTITY), S.data(), T_joint_global.data(), S_ee.data());
         auto T_global = T_joint_global[ee_idx] * ee_offset;

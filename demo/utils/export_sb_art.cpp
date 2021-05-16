@@ -3,7 +3,7 @@
 //
 
 #include <artsim/artsim.h>
-#include <artsim/dynamics.h>
+#include <artsim/art_dynamics.h>
 #include <artsim/utils/xml.h>
 #include <artsim/utils/pymesh/MshLoader.h>
 #include <artsim/math/dist.h>

@@ -2,8 +2,8 @@
 // Created by lasagnaphil on 1/26/21.
 //
 
-#ifndef ARTSIM_CONTACTS_H
-#define ARTSIM_CONTACTS_H
+#ifndef ARTSIM_ART_CONTACTS_H
+#define ARTSIM_ART_CONTACTS_H
 
 #include "artsim/artsim.h"
 #include "artsim/math/dynmat.h"
@@ -12,13 +12,9 @@
 
 namespace artsim {
 
-enum class ContactSolverType {
-    PGS, Bisection, NCP
-};
-
 void solve_collision(
         ContactSolverType type, uint32_t max_iters,
-        const ArticulatedBody& art,
+        const ArticulatedBodySpec& art,
         const Material& mat,
         glm::tvec3 <real> gravity, real dt,
         const real* __restrict q, const real* __restrict u, const real* __restrict udot_orig,
@@ -35,7 +31,7 @@ void iterative_contact_solver(
 
 void euler_step_with_collision(
         ContactSolverType type, uint32_t max_iters,
-        const ArticulatedBody& art,
+        const ArticulatedBodySpec& art,
         const Material& mat,
         glm::tvec3<real> gravity, real dt,
         const glmx::tscrew<real>*__restrict f_ext,
@@ -47,11 +43,11 @@ void euler_step_with_collision(
 std::vector<ContactPoint> get_contact_points_bullet(btCollisionWorld* bt_world);
 
 std::vector<ContactPoint> contact_points_between_art_links_and_ground(
-        const ArticulatedBody &art,
-        const Id<ArticulatedBody> art_id,
+        const ArticulatedBodySpec &art,
+        const Id<ArticulatedBodySpec> art_id,
         const uint32_t* link_indices, uint32_t link_indices_count,
         const glmx::ttransform<real>* link_global_trans);
 
 }
 
-#endif //ARTSIM_CONTACTS_H
+#endif //ARTSIM_ART_CONTACTS_H

@@ -18,7 +18,7 @@ struct ArtWithSoftBodies {
 protected:
     std::shared_ptr<tinyxml2::XMLDocument> doc;
 
-    ArticulatedBody art;
+    ArticulatedBodySpec art;
     std::vector<SoftBodyData> soft_bodies;
     std::vector<SoftBodyPrecalcData> soft_bodies_precalc;
     std::vector<ADMMConstraints> sb_constraints;
@@ -114,7 +114,7 @@ public:
         return sb_names[sb_idx].c_str();
     }
 
-    const ArticulatedBody& get_articulation() {
+    const ArticulatedBodySpec& get_articulation() {
         return art;
     }
     int get_art_pos_dof() {
