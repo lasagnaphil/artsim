@@ -241,7 +241,8 @@ void ArticulatedBodySpec::build(bool use_bullet, btCollisionWorld* bt_col_world)
     build_finished = true;
 }
 
-void ArticulatedBody::init(ArticulatedBodySpec art_spec, Id<Material> mat_id, btCollisionWorld* bt_collision_world)
+void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_spec, Id<Material> mat_id,
+                           btCollisionWorld* bt_collision_world)
 {
     this->spec = std::move(art_spec);
     this->mat_id = mat_id;
@@ -253,25 +254,26 @@ void ArticulatedBody::init(ArticulatedBodySpec art_spec, Id<Material> mat_id, bt
 
     int num_pos_dofs = get_num_pos_dofs();
     int num_vel_dofs = get_num_vel_dofs();
+    int num_links = get_num_links();
     int num_joints = get_num_joints();
     q.resize(num_pos_dofs, 0);
     u.resize(num_vel_dofs, 0);
     udot.resize(num_vel_dofs, 0);
     tau.resize(num_vel_dofs, 0);
-    f_ext.resize(num_joints, glmx::tscrew<real>(glmx::IDENTITY));
-    T_link_globals.resize(num_joints, glmx::ttransform<real>(glmx::IDENTITY));
+    f_ext.resize(num_links, glmx::tscrew<real>(glmx::IDENTITY));
+    T_link_globals.resize(num_links, glmx::ttransform<real>(glmx::IDENTITY));
     T_joint_globals.resize(num_joints, glmx::ttransform<real>(glmx::IDENTITY));
 
     reset_positions();
 
-    bt_collision_objects.resize(num_joints);
+    bt_collision_objects.resize(num_links);
 
-    for (int i = 0; i < spec.links.size(); i++) {
+    for (int i = 0; i < num_links; i++) {
         // TODO: Allocate these from a separate array!
         // TODO: Set body_id with current articulation id
         auto col_shape = spec.links[i].col_shape;
         if (col_shape.type != CollisionShape::Type::Mesh) {
-            BodyId body_id = BodyId::from_articulation_link({}, i);
+            BodyId body_id = BodyId::from_articulation_link(art_id, i);
             btCollisionObject* col_obj = new btCollisionObject;
             col_obj->setCollisionShape(spec.links[i].col_shape.bt_shape);
             col_obj->setUserIndex(body_id.index);

@@ -45,13 +45,13 @@ struct Id {
         ptr[1] = id2;
         return id;
     }
-    std::pair<int32_t, int32_t> to_int32s() {
+    std::pair<uint32_t, uint32_t> to_int32s() {
         uint32_t* ptr = reinterpret_cast<uint32_t*>(this);
         return {ptr[0], ptr[1]};
     }
 
     static Id null() {
-        return Id {0, TypeID<T>()(), 1};
+        return Id {0, TypeID<T>()(), 0};
     }
 
     bool is_null() const {

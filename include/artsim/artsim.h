@@ -344,7 +344,8 @@ private:
     std::vector<btCollisionObject*> bt_collision_objects;
 
 public:
-    void init(artsim::ArticulatedBodySpec art_spec, Id<Material> mat_id, btCollisionWorld* bt_collision_world);
+    void init(Id<ArticulatedBody> art_id, artsim::ArticulatedBodySpec art_spec, Id<Material> mat_id,
+              btCollisionWorld* bt_collision_world);
 
     void reset_positions();
     void randomize_positions();
@@ -411,16 +412,18 @@ struct BodyId {
     friend bool operator==(BodyId id1, BodyId id2);
     friend bool operator!=(BodyId id1, BodyId id2);
 
-    static BodyId from_articulation_link(Id<ArticulatedBodySpec> id, uint16_t link_idx) {
+    static BodyId from_articulation_link(Id<ArticulatedBody> id, uint16_t link_idx) {
+        auto [index, generation] = id.to_int32s();
         BodyId body_id;
-        body_id.index = 0x80000000 | ((id.index & 0x0000ffff) << 16) | link_idx;
-        body_id.generation = id.generation;
+        body_id.index = 0x80000000 | ((index & 0x0000ffff) << 16) | link_idx;
+        body_id.generation = generation;
         return body_id;
     }
     static BodyId from_rigid_body(Id<RigidBody> id) {
+        auto [index, generation] = id.to_int32s();
         BodyId body_id;
-        body_id.index = id.index;
-        body_id.generation = id.generation;
+        body_id.index = index;
+        body_id.generation = generation;
         return body_id;
     }
     static BodyId from_ground() {
@@ -430,11 +433,11 @@ struct BodyId {
         if (!is_articulation()) return {Id<ArticulatedBody>::null(), 0};
         uint32_t art_index = (index & 0x7fff0000) >> 16;
         uint32_t art_body_index = index & 0x0000ffff;
-        return {Id<ArticulatedBody>{art_index, generation}, art_body_index};
+        return {Id<ArticulatedBody>::from_int32s(art_index, generation), art_body_index};
     }
     Id<RigidBody> get_rigid_body_id() const {
         if (is_articulation()) return Id<RigidBody>::null();
-        return Id<RigidBody>{index, generation};
+        return Id<RigidBody>::from_int32s(index, generation);
     }
 
     bool is_rigid_body() const {
@@ -469,7 +472,7 @@ struct Frame {
     BodyId body;
     glmx::transform T_local;
 
-    static Frame from_articulation(Id<ArticulatedBodySpec> id, int link_idx,
+    static Frame from_articulation(Id<ArticulatedBody> id, int link_idx,
                                    const glmx::transform& T_local) {
         return {BodyId::from_articulation_link(id, link_idx), T_local};
     }
@@ -548,7 +551,7 @@ public:
     Id<ArticulatedBody> add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id) {
         auto id = articulated_bodies.make();
         auto ptr = articulated_bodies.get(id);
-        ptr->init(spec, mat_id, bt_collision_world);
+        ptr->init(id, spec, mat_id, bt_collision_world);
         return id;
     }
 
