@@ -276,7 +276,7 @@ struct ArticulatedBodySpec {
 
     bool build_finished = false;
 
-    ArticulatedBodySpec(bool floating = false) : floating(floating) {}
+    ArticulatedBodySpec() = default;
 
     void add_link_and_joint(Link link, Joint joint, const std::string& name = "") {
         if (joint.type == JOINT_TYPE_FLOATING) {
@@ -344,8 +344,10 @@ private:
     std::vector<btCollisionObject*> bt_collision_objects;
 
 public:
+    void init(artsim::ArticulatedBodySpec art_spec);
     void init(Id<ArticulatedBody> art_id, artsim::ArticulatedBodySpec art_spec, Id<Material> mat_id,
               btCollisionWorld* bt_collision_world);
+    void release();
 
     void reset_positions();
     void randomize_positions();
@@ -367,12 +369,18 @@ public:
     void set_mat_id(Id<Material> new_mat_id) { mat_id = new_mat_id; }
 
     real get_joint_pos_1dof(int joint_idx) const;
-    glm::tquat<real> get_joint_pos_spherical(int joint_idx) const;
-    glmx::ttransform<real> get_root_transform() const;
+    glm::rquat get_joint_pos_spherical(int joint_idx) const;
+    glmx::rtransform get_root_transform() const;
+    real get_joint_vel_1dof(int joint_idx) const;
+    glm::rvec3 get_joint_vel_spherical(int joint_idx) const;
+    glmx::rscrew get_root_vel() const;
 
     void set_joint_pos_1dof(int joint_idx, real qj);
-    void set_joint_pos_spherical(int joint_idx, const glm::tquat<real>& qj);
-    void set_root_transform(const glmx::ttransform<real>& rootT);
+    void set_joint_pos_spherical(int joint_idx, const glm::rquat& qj);
+    void set_root_transform(const glmx::rtransform& rootT);
+    void set_joint_vel_1dof(int joint_idx, real qj);
+    void set_joint_vel_spherical(int joint_idx, const glm::rvec3& qj);
+    void set_root_vel(const glmx::rscrew& V);
 
     void forward_kinematics();
 
@@ -555,8 +563,14 @@ public:
         return id;
     }
 
-    METHOD_GET_ID(ArticulatedBody, articulated_body, articulated_bodies)
-    METHOD_REMOVE_ID(ArticulatedBody, articulated_body, articulated_bodies)
+    ArticulatedBody* get_articulated_body(Id<ArticulatedBody> id) { return articulated_bodies.get(id); }
+    bool remove_articulated_body(Id<ArticulatedBody> id) {
+        auto ptr = articulated_bodies.try_get(id);
+        if (!ptr) return false;
+        ptr->release();
+        articulated_bodies.release(id);
+        return true;
+    }
 
     Id<Material> add_material(real default_friction = 1.0f,
                               real default_restitution = 0.0f,
