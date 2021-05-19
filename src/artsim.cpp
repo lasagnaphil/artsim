@@ -540,7 +540,6 @@ void World::solve_contacts() {
     }
     int art_idx = 0;
     for (auto& art : articulated_bodies) {
-        art.forward_dynamics(cfg.gravity, cfg.dt);
         auto& art_contacts = art_ground_contacts[art_idx];
         auto& art_contact_forces = art_ground_contact_forces[art_idx];
         art_contact_forces.resize(art_contacts.size());
