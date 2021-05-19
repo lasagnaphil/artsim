@@ -20,23 +20,23 @@ namespace artsim {
  *      - Still seems to be unstable. Investigate why.
  */
 
-inline real compute_r(real theta, glm::tvec3<real> Minv_r3, real c_z, real mu) {
+inline real compute_r(real theta, const rvec3& Minv_r3, real c_z, real mu) {
     return -c_z / (Minv_r3.z / mu + Minv_r3.x * cos(theta) + Minv_r3.y * sin(theta));
 }
 
-inline real bisection_gradient(const tmat3x3<real>& Minv, tvec3<real> c, tvec3<real> lambda, real mu) {
-    glm::tvec3<real> Minv_r3 = tvec3<real>(Minv[0][2], Minv[1][2], Minv[2][2]);
+inline real bisection_gradient(const rsmat3x3& Minv, const rvec3& c, rvec3 lambda, real mu) {
+    glm::tvec3<real> Minv_r3 = tvec3<real>(Minv.zx, Minv.yz, Minv.zz);
     glm::tvec3<real> eta = glm::cross(Minv_r3, glm::tvec3<real>(lambda.x, lambda.y, -mu*mu*lambda.z));
-    return glm::dot(Minv * lambda + c, eta);
+    return glm::dot(Minv * lambda + real(0.5)*c, eta);
 }
 
-static glm::tvec3<real> contact_bisection_solver(tvec3<real> lambda_v0, const tmat3x3<real>& Minv, tvec3<real> c, real mu) {
+static glm::rvec3 contact_bisection_solver(
+        const rvec3& lambda_v0, const rsmat3x3& Minv, const rvec3& c, real mu) {
     const real gamma = 1e-4;
     real theta = glm::atan(lambda_v0.y, lambda_v0.x);
-    glm::tvec3<real> Minv_r3 = tvec3<real>(Minv[0][2], Minv[1][2], Minv[2][2]);
+    rvec3 Minv_r3 = tvec3<real>(Minv.zx, Minv.yz, Minv.zz);
     real r = compute_r(theta, Minv_r3, c.z, mu);
-    real lambda_z = r / mu;
-    tvec3<real> lambda = tvec3<real>(r*cos(theta), r*sin(theta), lambda_z);
+    tvec3<real> lambda = tvec3<real>(r*cos(theta), r*sin(theta), r/mu);
     real D0 = bisection_gradient(Minv, c, lambda, mu);
 
     real theta_p_delta = glm::asin(mu*lambda_v0.z / glm::sqrt(lambda_v0.x*lambda_v0.x + lambda_v0.y*lambda_v0.y));
@@ -49,14 +49,13 @@ static glm::tvec3<real> contact_bisection_solver(tvec3<real> lambda_v0, const tm
     }
 
     int iter = 0;
-    tvec3<real> lambda_b;
+    rvec3 lambda_b;
     real theta_orig = theta;
     real theta_p_orig = theta_p;
     do {
         real theta_b = 0.5 * (theta + theta_p);
         real r_b = compute_r(theta_b, Minv_r3, c.z, mu);
-        real lambda_z_b = r_b / mu;
-        lambda_b = vec3(r_b*cos(theta_b), r_b*sin(theta_b), lambda_z_b);
+        lambda_b = vec3(r_b*cos(theta_b), r_b*sin(theta_b), r_b/mu);
         real grad = bisection_gradient(Minv, c, lambda_b, mu);
         if (grad * D0 > 0) { theta_p = theta_b; }
         else { theta = theta_b; }
@@ -72,10 +71,10 @@ static glm::tvec3<real> contact_bisection_solver(tvec3<real> lambda_v0, const tm
     return lambda_b;
 }
 
-static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tmat3x3<real>& Minv, tvec3<real> c, real mu) {
+static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tsmat3x3<real>& Minv, tvec3<real> c, real mu) {
     const real alpha = 1.0f;
-    real r_z = alpha / Minv[2][2];
-    real r_t = alpha / max(Minv[0][0], Minv[1][1]);
+    real r_z = alpha / Minv.zz;
+    real r_t = alpha / max(Minv.xx, Minv.yy);
     tvec3<real> v = c + Minv*lambda;
     real lambda_z = max(real(0), lambda.z - r_z*v.z);
     // TODO: Do real euclidean projection on conic disk
@@ -88,46 +87,44 @@ static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tmat3x3<r
 }
 
 static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> lambda_v0,
-                                                                   const tmat3x3<real>& Minv, tvec3<real> c, real mu, real r) {
+                                                                   const tsmat3x3<real>& Minv, tvec3<real> c, real mu, real r) {
     // Initial value for lambda
     tvec3<real> lambda = lambda_v0;
     tvec3<real> lambda_prev = lambda;
 
     // Damping parameter for Newton method
-    const real alpha = real(0.75);
+    const real alpha = real(1.0);
 
     // Newton-Raphson method with NCP formulation
     real ncp_error_sq;
     real ncp_error_sq_prev = 1e8;
-    real w;
 
     bool success = true;
 
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i <= 4; i++) {
         tvec3<real> v = c + Minv*lambda;
+        real w;
 
         // Calculate Jacobian of the current system
-        tmat3x3<real> J;
+        tsmat3x3<real> J;
         {
             real a = glm::sqrt(v.x*v.x + v.y*v.y);
             real b = r*(mu*lambda.z - glm::sqrt(lambda.x*lambda.x + lambda.y*lambda.y));
             real d = glm::sqrt(a*a + b*b);
-            w = (d - b) / (a + r*mu*lambda.z - d);
+            w = r*(d - b) / (a + r*mu*lambda.z - d);
 
-            J[0][0] = Minv[0][0] + w;
-            J[0][1] = Minv[0][1];
-            J[1][0] = Minv[1][0];
-            J[1][1] = Minv[1][1] + w;
+            J.xx = Minv.xx + w;
+            J.xy = Minv.xy;
+            J.yy = Minv.yy + w;
         }
         {
             real d = glm::sqrt(v.z*v.z + r*r*lambda.z*lambda.z);
-            real dphi_dvn = real(1) - v.z/d;
+            real a = real(1) - r*lambda.z/d;
+            real b = real(1) - v.z/d;
 
-            J[0][2] = dphi_dvn * Minv[0][2];
-            J[1][2] = dphi_dvn * Minv[1][2];
-            J[2][0] = dphi_dvn * Minv[2][0];
-            J[2][1] = dphi_dvn * Minv[2][1];
-            J[2][2] = r*(real(1) - r*lambda.z/d) + dphi_dvn * Minv[2][2];
+            J.zx = a * Minv.zx;
+            J.yz = a * Minv.yz;
+            J.zz = a * Minv.zz + b * r;
         }
 
         // NCP functions
@@ -136,30 +133,34 @@ static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> l
         phi.y = v.y + w * lambda.y;
         phi.z = glm::sqrt(v.z*v.z + lambda.z*lambda.z) - v.z - lambda.z;
 
+        ncp_error_sq = glm::length2(phi);
+        if (i > 0) {
+            if (ncp_error_sq < ncp_error_sq_prev) {
+                // Newton iteration success
+                output_log("Iter %d: ncp_error=%f (success)\n", i, sqrt(ncp_error_sq));
+                ncp_error_sq_prev = ncp_error_sq;
+                lambda_prev = lambda;
+                if (ncp_error_sq <= real(1e-8)) {
+                    // Newton method finished
+                    break;
+                }
+            }
+            else {
+                // Newton iteration fail
+                output_log("Iter %d: ncp_error=%f (fail)\n", i, sqrt(ncp_error_sq));
+                lambda = lambda_prev;
+                ncp_error_sq = ncp_error_sq_prev;
+                success = false;
+                break;
+            }
+        }
+        else {
+            output_log("Iter %d: ncp_error=%f\n", i, sqrt(ncp_error_sq));
+            ncp_error_sq_prev = ncp_error_sq;
+        }
+
         // Newton step
         lambda -= alpha * (inverse(J) * phi);
-
-        phi.x = v.x + w * lambda.x;
-        phi.y = v.y + w * lambda.y;
-        phi.z = glm::sqrt(v.z*v.z + lambda.z*lambda.z) - v.z - lambda.z;
-
-        ncp_error_sq = glm::length2(phi);
-        output_log("NCP error: %f\n", ncp_error_sq);
-        if (ncp_error_sq > ncp_error_sq_prev) {
-            // Newton method failed
-            lambda = lambda_prev;
-            ncp_error_sq = ncp_error_sq_prev;
-            success = false;
-            break;
-        }
-
-        ncp_error_sq_prev = ncp_error_sq;
-        lambda_prev = lambda;
-
-        if (ncp_error_sq <= real(1e-8)) {
-            // Newton method finished
-            break;
-        }
     }
 
     return {lambda, ncp_error_sq, success};
@@ -266,7 +267,7 @@ void iterative_contact_solver(
         const dynmat<tmat3x3<real>>& M_contact_inv,
         INOUT tvec3<real>* c, INOUT tvec3<real>* lambda) {
 
-    real alpha_min, gamma, lambda_sq_tol, ncp_error_sq_tol;
+    real alpha_min, gamma, lambda_err_tol, ncp_error_sq_tol;
     real alpha, total_ncp_error_sq;
 
     const real mu = mat.friction;
@@ -276,25 +277,25 @@ void iterative_contact_solver(
             alpha = 0.75;
             alpha_min = 0.75;
             gamma = 1.0;
-            lambda_sq_tol = 1e-6;
+            lambda_err_tol = 1e-4;
             break;
         case ContactSolverType::Bisection:
             alpha = 1.0;
             alpha_min = 0.7;
             gamma = 0.99;
-            lambda_sq_tol = 1e-6;
+            lambda_err_tol = 1e-4;
             break;
         case ContactSolverType::NCP:
             alpha = 1.0;
             alpha_min = 1.0;
             gamma = 1.0;
-            lambda_sq_tol = 1e-6;
+            lambda_err_tol = 1e-4;
             ncp_error_sq_tol = 1e-6;
             total_ncp_error_sq = 0;
             break;
     }
 
-    real lambda_norm2;
+    real lambda_err_sq;
     std::vector<tvec3<real>> lambda_old(num_contact_points);
     int iter;
     for (iter = 0; iter < max_iters; iter++) {
@@ -305,7 +306,7 @@ void iterative_contact_solver(
                 lambda[i] = (1 - alpha)*lambda[i];
             }
             else {
-                tmat3x3<real> M_inv_ii = M_contact_inv(i, i);
+                tsmat3x3<real> M_inv_ii = glmx::smat3_cast(M_contact_inv(i, i));
                 tvec3<real> lambda_v0 = -(inverse(M_inv_ii) * c[i]);
                 if (mu*mu * lambda_v0.z*lambda_v0.z >= lambda_v0.x*lambda_v0.x + lambda_v0.y*lambda_v0.y) {
                     lambda[i] = alpha * lambda_v0 + (1 - alpha) * lambda[i];
@@ -320,9 +321,13 @@ void iterative_contact_solver(
                             lambda_star = contact_bisection_solver(lambda_v0, M_inv_ii, c[i], mu);
                         } break;
                         case ContactSolverType::NCP: {
-                            real ncp_error_sq, success;
+                            real ncp_error_sq;
+                            bool success;
                             std::tie(lambda_star, ncp_error_sq, success) = contact_ncp_solver(lambda_v0, M_inv_ii, c[i], mu, dt);
                         } break;
+                    };
+                    if (glm::isnan(lambda_star[0]) || glm::isnan(lambda_star[1]) || glm::isnan(lambda_star[2])) {
+                        output_log("NaN error!\n");
                     }
                     lambda[i] = alpha * lambda_star + (1 - alpha) * lambda[i];
                 }
@@ -336,19 +341,26 @@ void iterative_contact_solver(
         }
         alpha = alpha_min + gamma * (alpha - alpha_min);
 
-        lambda_norm2 = 0.0;
+        real lambda_diff_norm2 = 0.0;
         for (int i = 0; i < num_contact_points; i++) {
-            lambda_norm2 += length2(lambda[i] - lambda_old[i]);
+            lambda_diff_norm2 += length2(lambda[i] - lambda_old[i]);
         }
-        if (lambda_norm2 < lambda_sq_tol) {
+
+        real lambda_norm2 = 0.0;
+        for (int i = 0; i < num_contact_points; i++) {
+            lambda_norm2 += length2(lambda[i]);
+        }
+
+        lambda_err_sq = lambda_diff_norm2 / lambda_norm2;
+        if (lambda_err_sq < lambda_err_tol * lambda_err_tol) {
             iter++; break;
         }
     }
     if (iter == max_iters) {
-        output_log("Contact solver did not converge! (error = %f)\n", sqrt(lambda_norm2));
+        output_log("Contact solver did not converge! (error = %f)\n", sqrt(lambda_err_sq));
     }
     else {
-        output_log("Contact solver converged in %d iters\n", iter);
+        output_log("Contact solver converged in %d iters (error = %f)\n", iter, sqrt(lambda_err_sq));
     }
 
 }

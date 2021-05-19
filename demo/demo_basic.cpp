@@ -110,7 +110,8 @@ public:
         world = World();
         WorldConfig world_cfg;
         world_cfg.dt = sim_dt;
-        world_cfg.max_iters = 4;
+        world_cfg.max_iters = 8;
+        world_cfg.contact_solver_type = ContactSolverType::PGS;
         default_mat_id = world.add_material();
 
         switch (demo_type) {
