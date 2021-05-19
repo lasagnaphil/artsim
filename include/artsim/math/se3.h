@@ -431,6 +431,11 @@ namespace glmx {
         return determinant;
     }
 
+    template <class T>
+    T frobenius_norm(const tsmat3x3<T>& m) {
+        return sqrt(m.xx*m.xx + m.yy*m.yy + m.zz*m.zz + m.yz*m.yz + m.zx*m.zx + m.xy*m.xy);
+    }
+
     // TODO: optimize rotate and inv_rotate (see Featherstone2008 A.5)
     template <class T>
     inline tsmat3x3<T> rotate(const tsmat3x3<T>& I, const glm::tmat3x3<T>& R) {

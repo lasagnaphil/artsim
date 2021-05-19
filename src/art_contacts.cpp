@@ -86,22 +86,28 @@ static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tsmat3x3<
     return tvec3<real>(lambda_t.x, lambda_t.y, lambda_z);
 }
 
-static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> lambda_v0,
-                                                                   const tsmat3x3<real>& Minv, tvec3<real> c, real mu, real r) {
+static void calc_phi_and_jacobian(tvec3<real> lambda, const tsmat3x3<real>& Minv, tvec3<real> c, real mu,
+                                  OUT rvec3& phi, OUT tsmat3x3<real>& J) {
+
+}
+
+static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(const tvec3<real>& lambda_v0,
+                                                                   const tsmat3x3<real>& Minv,
+                                                                   const tvec3<real>& c, real mu, real r) {
     // Initial value for lambda
     tvec3<real> lambda = lambda_v0;
     tvec3<real> lambda_prev = lambda;
 
     // Damping parameter for Newton method
-    const real alpha = real(1.0);
+    const real alpha = real(0.75);
 
     // Newton-Raphson method with NCP formulation
     real ncp_error_sq;
-    real ncp_error_sq_prev = 1e8;
+    real ncp_error_sq_prev = std::numeric_limits<real>::max();
 
     bool success = true;
 
-    for (int i = 0; i <= 4; i++) {
+    for (int i = 0; i < 4; i++) {
         tvec3<real> v = c + Minv*lambda;
         real w;
 
@@ -117,6 +123,7 @@ static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> l
             J.xy = Minv.xy;
             J.yy = Minv.yy + w;
         }
+
         {
             real d = glm::sqrt(v.z*v.z + r*r*lambda.z*lambda.z);
             real a = real(1) - r*lambda.z/d;
@@ -134,33 +141,25 @@ static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(tvec3<real> l
         phi.z = glm::sqrt(v.z*v.z + lambda.z*lambda.z) - v.z - lambda.z;
 
         ncp_error_sq = glm::length2(phi);
-        if (i > 0) {
-            if (ncp_error_sq < ncp_error_sq_prev) {
-                // Newton iteration success
-                output_log("Iter %d: ncp_error=%f (success)\n", i, sqrt(ncp_error_sq));
-                ncp_error_sq_prev = ncp_error_sq;
-                lambda_prev = lambda;
-                if (ncp_error_sq <= real(1e-8)) {
-                    // Newton method finished
-                    break;
-                }
-            }
-            else {
-                // Newton iteration fail
-                output_log("Iter %d: ncp_error=%f (fail)\n", i, sqrt(ncp_error_sq));
-                lambda = lambda_prev;
-                ncp_error_sq = ncp_error_sq_prev;
-                success = false;
-                break;
-            }
+        if (ncp_error_sq > ncp_error_sq_prev) {
+            // Newton iteration fail: abort
+            output_log("Iter %d: ncp_error=%f (fail)\n", i, sqrt(ncp_error_sq));
+            lambda = lambda_prev;
+            ncp_error_sq = ncp_error_sq_prev;
+            success = false;
+            break;
         }
-        else {
-            output_log("Iter %d: ncp_error=%f\n", i, sqrt(ncp_error_sq));
-            ncp_error_sq_prev = ncp_error_sq;
+        else if (ncp_error_sq <= real(1e-8)) {
+            // Newton method finished
+            break;
         }
+        output_log("Iter %d: ncp_error=%f (success)\n", i, sqrt(ncp_error_sq));
 
         // Newton step
         lambda -= alpha * (inverse(J) * phi);
+
+        ncp_error_sq_prev = ncp_error_sq;
+        lambda_prev = lambda;
     }
 
     return {lambda, ncp_error_sq, success};
@@ -274,8 +273,8 @@ void iterative_contact_solver(
 
     switch (type) {
         case ContactSolverType::PGS:
-            alpha = 0.75;
-            alpha_min = 0.75;
+            alpha = 1.0;
+            alpha_min = 1.0;
             gamma = 1.0;
             lambda_err_tol = 1e-4;
             break;
@@ -321,9 +320,10 @@ void iterative_contact_solver(
                             lambda_star = contact_bisection_solver(lambda_v0, M_inv_ii, c[i], mu);
                         } break;
                         case ContactSolverType::NCP: {
+                            const real r = glmx::frobenius_norm(M_inv_ii);
                             real ncp_error_sq;
                             bool success;
-                            std::tie(lambda_star, ncp_error_sq, success) = contact_ncp_solver(lambda_v0, M_inv_ii, c[i], mu, dt);
+                            std::tie(lambda_star, ncp_error_sq, success) = contact_ncp_solver(lambda_v0, M_inv_ii, c[i], mu, r);
                         } break;
                     };
                     if (glm::isnan(lambda_star[0]) || glm::isnan(lambda_star[1]) || glm::isnan(lambda_star[2])) {
@@ -345,12 +345,10 @@ void iterative_contact_solver(
         for (int i = 0; i < num_contact_points; i++) {
             lambda_diff_norm2 += length2(lambda[i] - lambda_old[i]);
         }
-
         real lambda_norm2 = 0.0;
         for (int i = 0; i < num_contact_points; i++) {
             lambda_norm2 += length2(lambda[i]);
         }
-
         lambda_err_sq = lambda_diff_norm2 / lambda_norm2;
         if (lambda_err_sq < lambda_err_tol * lambda_err_tol) {
             iter++; break;
