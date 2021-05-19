@@ -520,9 +520,9 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
                                   const real* q, dynmat_view<real> X,
                                   OUT dynmat_view<real> Minv_X) {
 
-    assert(X.cols == art.num_vel_dofs);
-    assert(Minv_X.cols == art.num_vel_dofs);
-    assert(X.rows == Minv_X.rows);
+    assert(X.rows == art.num_vel_dofs);
+    assert(Minv_X.rows == art.num_vel_dofs);
+    assert(X.cols == Minv_X.cols);
 
     int num_joints = art.get_num_joints();
     auto data = new FeatherstoneData[num_joints];
@@ -549,9 +549,9 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
         }
     }
 
-    for (int b = 0; b < X.rows; b++) {
+    for (int b = 0; b < X.cols; b++) {
         if (art.floating) {
-            auto tau_root = tscrew<real>(X(b, 0), X(b, 1), X(b, 2), X(b, 3), X(b, 4), X(b, 5));
+            auto tau_root = tscrew<real>(X(0, b), X(1, b), X(2, b), X(3, b), X(4, b), X(5, b));
             data[0].p_a = -tau_root;
         }
         int i_start = art.floating? 1 : 0;
@@ -560,7 +560,7 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
             int num_vel_dofs = art.joint_vel_dofs[i];
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             for (int j = 0; j < num_vel_dofs; j++) {
-                data[i].tau[j] = X(b, cur_vel_dof + j);
+                data[i].tau[j] = X(cur_vel_dof + j, b);
             }
         }
         for (int j = num_joints - 1; j >= j_limit; j--) {
@@ -589,18 +589,18 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
         if (art.floating) {
             ttransform<real> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
             data[0].a += Ad(inverse(T_root), tscrew<real>(IDENTITY));
-            Minv_X(b, 0) = data[0].a.w[0];
-            Minv_X(b, 1) = data[0].a.w[1];
-            Minv_X(b, 2) = data[0].a.w[2];
-            Minv_X(b, 3) = data[0].a.v[0];
-            Minv_X(b, 4) = data[0].a.v[1];
-            Minv_X(b, 5) = data[0].a.v[2];
+            Minv_X(0, b) = data[0].a.w[0];
+            Minv_X(1, b) = data[0].a.w[1];
+            Minv_X(2, b) = data[0].a.w[2];
+            Minv_X(3, b) = data[0].a.v[0];
+            Minv_X(4, b) = data[0].a.v[1];
+            Minv_X(5, b) = data[0].a.v[2];
         }
         for (int i = i_start; i < num_joints; i++) {
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
             for (int j = 0; j < num_vel_dofs; j++) {
-                Minv_X(b, cur_vel_dof + j) = data[i].udot[j];
+                Minv_X(cur_vel_dof + j, b) = data[i].udot[j];
             }
         }
     }
@@ -773,8 +773,8 @@ void glm_to_dynmat(const tmat3x3<real>& C, OUT dynmat_view<real> M) {
 
 void glm_to_dynmat(const tsmat6x6<real>& I, OUT dynmat_view<real> M) {
     glm_to_dynmat(I.I, M.slice(0, 3, 0, 3));
-    glm_to_dynmat(I.C, M.slice(3, 3, 0, 3));
-    glm_to_dynmat(glm::transpose(I.C), M.slice(0, 3, 3, 3));
+    glm_to_dynmat(I.C, M.slice(0, 3, 3, 3));
+    glm_to_dynmat(glm::transpose(I.C), M.slice(3, 3, 0, 3));
     glm_to_dynmat(I.M, M.slice(3, 3, 3, 3));
 }
 

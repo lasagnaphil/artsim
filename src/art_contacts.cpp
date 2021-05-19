@@ -226,8 +226,8 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
     Eigen::Matrix<real, Dynamic, Dynamic> Minv_Jc_T(num_vel_dofs, 3*num_contact_points);
     std::vector<real> zero_vec(num_vel_dofs, 0);
 
-    dynmat_view<real> Minv_Jc_T_view(Minv_Jc_T.data(), 3*num_contact_points, num_vel_dofs);
-    dynmat_view<real> Jc_T_view(Jc_T.data(), 3*num_contact_points, num_vel_dofs);
+    dynmat_view<real> Minv_Jc_T_view(Minv_Jc_T.data(), num_vel_dofs, 3*num_contact_points);
+    dynmat_view<real> Jc_T_view(Jc_T.data(), num_vel_dofs, 3*num_contact_points);
 
     multiply_inverse_mass_matrix(art, dt, q, Jc_T_view, OUT Minv_Jc_T_view);
 
@@ -241,8 +241,7 @@ void solve_collision(ContactSolverType type, uint32_t max_iters,
     for (int k = 0; k < num_contact_points; k++) {
         Eigen::Matrix<real, Dynamic, 3> Minv_Jck_T = Minv_Jc_T.middleCols<3>(3*k);
         for (int i = 0; i < num_contact_points; i++) {
-            Eigen::Matrix<real, 3, Dynamic> Jci = Jc_T.middleCols<3>(3*i).transpose();
-            Eigen::Matrix<real, 3, 3> M_contact_inv_eigen = Jci * Minv_Jck_T;
+            Eigen::Matrix<real, 3, 3> M_contact_inv_eigen = Jc_T.middleCols<3>(3*i).transpose() * Minv_Jck_T;
             M_contact_inv(i, k) = glm::make_mat3(M_contact_inv_eigen.data());
         }
     }
@@ -471,7 +470,7 @@ std::vector<ContactPoint> get_contact_points_bullet(btCollisionWorld* bt_world) 
 }
 
 std::vector<ContactPoint>
-contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, const Id<ArticulatedBodySpec> art_id,
+contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, const Id<ArticulatedBody> art_id,
                                             const uint32_t* link_indices, uint32_t link_indices_count,
                                             const ttransform<real>* link_global_trans) {
 

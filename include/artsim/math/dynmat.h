@@ -24,20 +24,20 @@ struct dynmat_view {
     : ptr(ptr), rows(rows), cols(cols), row_stride(row_stride), col_stride(col_stride) {}
 
     T& operator()(uint32_t i, uint32_t j) {
-        return ptr[i*col_stride + j];
+        return ptr[j*row_stride + i];
     }
     const T& operator()(uint32_t i, uint32_t j) const {
-        return ptr[i*col_stride + j];
+        return ptr[j*row_stride + i];
     }
 
     dynmat_view<T> slice(uint32_t row_start, uint32_t row_n, uint32_t col_start, uint32_t col_n) {
-        return dynmat_view<T>(ptr + row_start*col_stride + col_start, row_n, col_n, row_stride, col_stride);
+        return dynmat_view<T>(ptr + col_start*row_stride + row_start, row_n, col_n, row_stride, col_stride);
     }
 
     void clear_zero() {
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                ptr[i*col_stride + j] = T(0);
+        for (int j = 0; j < cols; j++) {
+            for (int i = 0; i < rows; i++) {
+                ptr[j*row_stride + i] = T(0);
             }
         }
     }
@@ -72,17 +72,17 @@ struct dynmat {
     }
 
     T& operator()(uint32_t i, uint32_t j) {
-        return ptr[i*cols + j];
+        return ptr[j*rows + i];
     }
     const T& operator()(uint32_t i, uint32_t j) const {
-        return ptr[i*cols + j];
+        return ptr[j*rows + i];
     }
 
     T* data() { return ptr; }
     const T* data() const { return ptr; }
 
     dynmat_view<T> slice(uint32_t row_start, uint32_t row_n, uint32_t col_start, uint32_t col_n) {
-        return dynmat_view<T>(ptr + row_start*cols + col_start, row_n, col_n, rows, cols);
+        return dynmat_view<T>(ptr + col_start*rows + row_start, row_n, col_n, rows, cols);
     }
 
     dynmat_view<T> to_view() {
