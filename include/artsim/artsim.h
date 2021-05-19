@@ -214,6 +214,7 @@ struct RigidBodySpec {
     CollisionShape col_shape;
     RenderShape render_shape;
     glmx::ttransform<real> global_trans;
+    Id<Material> mat_id;
 };
 
 struct RigidBody {
@@ -388,6 +389,9 @@ public:
 
     void forward_dynamics(const glm::rvec3& gravity, real dt);
 
+    glmx::rtransform* get_global_joint_trans_buf() { return T_joint_globals.data(); }
+    glmx::rtransform* get_global_link_trans_buf() { return T_link_globals.data(); }
+
     glmx::rtransform get_global_joint_trans(int joint_idx) const;
     glmx::rtransform get_global_link_trans(int link_idx) const;
 };
@@ -510,6 +514,22 @@ struct MaterialDB {
                            real friction, real restitution, real restitution_threshold) {
         material_pairs[std::make_pair(mat1_id, mat2_id)] = Material{friction, restitution, restitution_threshold};
     }
+
+    Material get_material_pair(Id<Material> mat1_id, Id<Material> mat2_id) {
+        auto it = material_pairs.find({mat1_id, mat2_id});
+        if (it == material_pairs.end()) {
+            Material* mat1 = materials.get(mat1_id);
+            Material* mat2 = materials.get(mat2_id);
+            Material mat;
+            mat.friction = glm::max(mat1->friction, mat2->friction);
+            mat.restitution = glm::min(mat1->restitution, mat2->restitution);
+            mat.restitution_threshold = glm::max(mat1->restitution_threshold, mat2->restitution_threshold);
+            return mat;
+        }
+        else {
+            return it->second;
+        }
+    }
 };
 
 enum class ContactSolverType {
@@ -556,6 +576,20 @@ public:
         return id;
     }
 
+    // TODO
+    RigidBody* get_rigid_body(Id<RigidBody> id) {
+        return rigid_bodies.get(id);
+    }
+
+    // TODO
+    bool remove_rigid_body(Id<RigidBody> id) {
+        auto ptr = rigid_bodies.try_get(id);
+        if (!ptr) return false;
+        // ptr->release();
+        rigid_bodies.release(id);
+        return true;
+    }
+
     Id<ArticulatedBody> add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id) {
         auto id = articulated_bodies.make();
         auto ptr = articulated_bodies.get(id);
@@ -563,7 +597,10 @@ public:
         return id;
     }
 
-    ArticulatedBody* get_articulated_body(Id<ArticulatedBody> id) { return articulated_bodies.get(id); }
+    ArticulatedBody* get_articulated_body(Id<ArticulatedBody> id) {
+        return articulated_bodies.get(id);
+    }
+
     bool remove_articulated_body(Id<ArticulatedBody> id) {
         auto ptr = articulated_bodies.try_get(id);
         if (!ptr) return false;

@@ -37,8 +37,7 @@ namespace artsim {
 
     glmx::tscrew<real> calc_v0(const Joint& joint, const real*__restrict u);
 
-    void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, glmx::ttransform<real> offset,
-                            const glmx::tscrew<real>* S,
+    void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const glmx::ttransform<real>& offset,
                             const glmx::ttransform<real>* T_joint_global,
                             OUT glmx::tscrew<real>* J_s);
 

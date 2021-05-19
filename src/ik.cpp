@@ -18,11 +18,8 @@ void artsim::inverse_kinematics(
 
     int num_joints = art.get_num_joints();
     int num_vel_dofs = art.get_num_vel_dofs();
-    std::vector<tscrew<real>> S(num_vel_dofs);
     std::vector<tscrew<real>> S_ee(num_vel_dofs);
     std::vector<ttransform<real>> T_joint_global(num_joints);
-
-    calc_S(art, q, S.data());
 
     Map<VectorXr> q_cur(q, num_vel_dofs);
     Matrix<real, 3, Dynamic> J_b(3, num_vel_dofs-6);
@@ -34,7 +31,7 @@ void artsim::inverse_kinematics(
     int iter;
     for (iter = 0; iter < num_iters; iter++) {
         calc_transforms(art, q, T_joint_global.data(), nullptr);
-        calc_body_jacobian(art, ee_idx, ttransform<real>(IDENTITY), S.data(), T_joint_global.data(), S_ee.data());
+        calc_body_jacobian(art, ee_idx, ttransform<real>(IDENTITY), T_joint_global.data(), S_ee.data());
         auto T_global = T_joint_global[ee_idx] * ee_offset;
         for (int i = 6; i < num_vel_dofs; i++) {
             tvec3<real> v = T_global.R * S_ee[i].v;

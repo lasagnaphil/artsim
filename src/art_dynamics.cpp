@@ -93,8 +93,8 @@ tscrew<real> calc_v0(const Joint& joint, const real* u) {
     }
 }
 
-void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, ttransform<real> offset,
-                        const tscrew<real>* S,
+// TODO: create specialized calc_body_jacobian_pos_dof() for contact resolution
+void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const ttransform<real>& offset,
                         const ttransform<real>* T_joint_global,
                         tscrew<real>* J_b) {
     std::fill_n(J_b, art.get_num_vel_dofs(), tscrew<real>(IDENTITY));
@@ -103,9 +103,29 @@ void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, ttra
     do {
         int joint_vel_dof_start = art.joint_vel_dof_starts[i];
         int joint_vel_dofs = art.joint_vel_dofs[i];
+        auto& joint = art.joints[i];
         auto T = T_joint_global[i] / T_m;
-        for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
-            J_b[j] = Ad(T, S[j]);
+        // TODO: inline this further (create specialized Ad functions)
+        switch (joint.type) {
+            case JOINT_TYPE_REVOLUTE_X:  J_b[joint_vel_dof_start] = Ad(T, rscrew(1, 0, 0, 0, 0, 0)); break;
+            case JOINT_TYPE_REVOLUTE_Y:  J_b[joint_vel_dof_start] = Ad(T, rscrew(0, 1, 0, 0, 0, 0)); break;
+            case JOINT_TYPE_REVOLUTE_Z:  J_b[joint_vel_dof_start] = Ad(T, rscrew(0, 0, 1, 0, 0, 0)); break;
+            case JOINT_TYPE_PRISMATIC_X: J_b[joint_vel_dof_start] = Ad(T, rscrew(0, 0, 0, 1, 0, 0)); break;
+            case JOINT_TYPE_PRISMATIC_Y: J_b[joint_vel_dof_start] = Ad(T, rscrew(0, 0, 0, 0, 1, 0)); break;
+            case JOINT_TYPE_PRISMATIC_Z: J_b[joint_vel_dof_start] = Ad(T, rscrew(0, 0, 0, 0, 0, 1)); break;
+            case JOINT_TYPE_SPHERICAL: {
+                J_b[joint_vel_dof_start+0] = Ad(T, rscrew(1, 0, 0, 0, 0, 0));
+                J_b[joint_vel_dof_start+1] = Ad(T, rscrew(0, 1, 0, 0, 0, 0));
+                J_b[joint_vel_dof_start+2] = Ad(T, rscrew(0, 0, 1, 0, 0, 0));
+            } break;
+            case JOINT_TYPE_FLOATING: {
+                J_b[joint_vel_dof_start+0] = Ad(T, rscrew(1, 0, 0, 0, 0, 0));
+                J_b[joint_vel_dof_start+1] = Ad(T, rscrew(0, 1, 0, 0, 0, 0));
+                J_b[joint_vel_dof_start+2] = Ad(T, rscrew(0, 0, 1, 0, 0, 0));
+                J_b[joint_vel_dof_start+3] = Ad(T, rscrew(0, 0, 0, 1, 0, 0));
+                J_b[joint_vel_dof_start+4] = Ad(T, rscrew(0, 0, 0, 0, 1, 0));
+                J_b[joint_vel_dof_start+5] = Ad(T, rscrew(0, 0, 0, 0, 0, 1));
+            } break;
         }
         i = art.parents[i];
     } while (i != -1);
