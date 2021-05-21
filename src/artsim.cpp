@@ -261,7 +261,7 @@ void ArticulatedBody::init(artsim::ArticulatedBodySpec art_spec) {
     T_link_globals.resize(num_links, glmx::ttransform<real>(glmx::IDENTITY));
     T_joint_globals.resize(num_joints, glmx::ttransform<real>(glmx::IDENTITY));
 
-    reset_positions();
+    reset();
 }
 
 void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_spec, Id<Material> mat_id,
@@ -296,7 +296,7 @@ void ArticulatedBody::release() {
     }
 }
 
-void ArticulatedBody::reset_positions() {
+void ArticulatedBody::reset() {
     real* qp = q.data();
     int num_joints = get_num_joints();
     for (int i = 0; i < num_joints; i++) {
@@ -314,6 +314,11 @@ void ArticulatedBody::reset_positions() {
         }
         qp += spec.joint_pos_dofs[i];
     }
+    std::fill(u.begin(), u.end(), 0);
+    std::fill(udot.begin(), udot.end(), 0);
+    std::fill(tau.begin(), tau.end(), 0);
+    std::fill(f_ext.begin(), f_ext.end(), glmx::rscrew(glmx::IDENTITY));
+
     forward_kinematics();
 }
 
@@ -373,8 +378,26 @@ void ArticulatedBody::update_colliders() {
 void ArticulatedBody::forward_dynamics(const glm::rvec3& gravity, real dt) {
     artsim::featherstone_forward_dynamics(spec, gravity, dt, f_ext.data(), q.data(), u.data(), tau.data(),
                                           OUT udot.data());
+}
+
+void ArticulatedBody::integrate(real dt) {
     artsim::integrate_implicit_euler(spec, dt, udot.data(), INOUT q.data(), INOUT u.data());
     forward_kinematics();
+}
+
+void ArticulatedBody::simulate(const glm::rvec3& gravity, real dt) {
+    forward_dynamics(gravity, dt);
+    integrate(dt);
+}
+
+void ArticulatedBody::mass_matrix(
+        OUT glmx::dynmat_view<real> M, real dt) {
+    artsim::mass_matrix(spec, dt, q.data(), OUT M);
+}
+
+void ArticulatedBody::multiply_inverse_mass_matrix(
+        glmx::dynmat_view<real> X, OUT glmx::dynmat_view<real> Minv_X, real dt) {
+    artsim::multiply_inverse_mass_matrix(spec, dt, q.data(), X, OUT Minv_X);
 }
 
 real ArticulatedBody::get_joint_pos_1dof(int joint_idx) const {

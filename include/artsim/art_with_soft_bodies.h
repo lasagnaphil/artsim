@@ -18,7 +18,7 @@ struct ArtWithSoftBodies {
 protected:
     std::shared_ptr<tinyxml2::XMLDocument> doc;
 
-    ArticulatedBodySpec art;
+    ArticulatedBody art;
     std::vector<SoftBodyData> soft_bodies;
     std::vector<SoftBodyPrecalcData> soft_bodies_precalc;
     std::vector<ADMMConstraints> sb_constraints;
@@ -40,10 +40,7 @@ protected:
     int N_s, N_f, N_c, N_r;
     int N_t;
 
-    VectorXr x_s, x_r, v_s, v_r, f_s, f_r;
-    std::vector<glmx::ttransform<real>> art_link_trans;
-    std::vector<glmx::ttransform<real>> art_joint_trans;
-    std::vector<glmx::tscrew<real>> art_joint_S;
+    VectorXr x_s, v_s, f_s;
     MatrixXr J_cr;
     MatrixXr M_r;
     MatrixXr M_r_inv;
@@ -114,7 +111,7 @@ public:
         return sb_names[sb_idx].c_str();
     }
 
-    const ArticulatedBodySpec& get_articulation() {
+    const ArticulatedBody& get_articulation() {
         return art;
     }
     int get_art_pos_dof() {
@@ -124,21 +121,21 @@ public:
         return art.get_num_vel_dofs();
     }
     real* get_art_pos_buf() {
-        return x_r.data();
+        return art.get_pos_buf();
     }
     real* get_art_vel_buf() {
-        return v_r.data();
+        return art.get_vel_buf();
     }
     real* get_art_force_buf() {
-        return f_r.data();
+        return art.get_internal_force_buf();
     }
     glmx::rtransform get_link_trans(int link_idx) {
         assert(link_idx >= 0 && link_idx < N_r);
-        return art_link_trans[link_idx];
+        return art.get_global_link_trans(link_idx);
     }
     glmx::rtransform get_joint_trans(int joint_idx) {
         assert(joint_idx >= 0 && joint_idx < N_r);
-        return art_joint_trans[joint_idx];
+        return art.get_global_joint_trans(joint_idx);
     }
 
     real get_sim_deltatime() const { return dt; }

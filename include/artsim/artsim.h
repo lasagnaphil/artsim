@@ -13,6 +13,7 @@
 #include <glm/vec3.hpp>
 #include <glm/mat3x3.hpp>
 #include <artsim/math/se3.h>
+#include <artsim/math/dynmat.h>
 #include <artsim/obj_file.h>
 
 #include <cstdint>
@@ -349,10 +350,11 @@ public:
               btCollisionWorld* bt_collision_world);
     void release();
 
-    void reset_positions();
+    void reset();
     void randomize_positions();
 
     const ArticulatedBodySpec& get_spec() const { return spec; }
+    ArticulatedBodySpec& get_spec_mut() { return spec; }
 
     int get_num_pos_dofs() const { return spec.get_num_pos_dofs(); }
     int get_num_vel_dofs() const { return spec.get_num_vel_dofs(); }
@@ -387,6 +389,11 @@ public:
     void update_colliders();
 
     void forward_dynamics(const glm::rvec3& gravity, real dt);
+    void integrate(real dt);
+    void simulate(const glm::rvec3& gravity, real dt);
+
+    void mass_matrix(OUT glmx::dynmat_view<real> M, real dt = 0);
+    void multiply_inverse_mass_matrix(glmx::dynmat_view<real> X, OUT glmx::dynmat_view<real> Minv_X, real dt = 0);
 
     glmx::rtransform get_global_joint_trans(int joint_idx) const;
     glmx::rtransform get_global_link_trans(int link_idx) const;
