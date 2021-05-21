@@ -70,7 +70,7 @@ public:
             glm::mat4 joint_trans = glmx::mat4_cast(art->get_global_joint_trans(i));
             renderer.queueRender(PBRCommand {link_meshes[i], link_mat, link_trans});
             if (i == 0 && art->get_spec().floating) continue;
-            // renderer.queueRender(PBRCommand {joint_meshes[i], joint_mat, joint_trans});
+            renderer.queueRender(PBRCommand {joint_meshes[i], joint_mat, joint_trans});
         }
         /*
         for (int c = 0; c < state->contact_points.size(); c++) {
@@ -89,7 +89,6 @@ public:
          */
     }
 
-private:
     const artsim::ArticulatedBody* art = nullptr;
     Ref<PBRMaterial> link_mat;
     Ref<PBRMaterial> joint_mat;
@@ -156,7 +155,6 @@ public:
         }
     }
 
-private:
     const artsim::ArticulatedBodySpec* spec = nullptr;
     Ref<PBRMaterial> link_mat;
     Ref<PBRMaterial> joint_mat;
