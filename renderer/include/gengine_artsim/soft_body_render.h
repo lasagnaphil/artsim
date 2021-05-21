@@ -82,7 +82,6 @@ public:
         m.updateVBO();
     }
 
-private:
     const artsim::SoftBodyData* data;
     Ref<Mesh> mesh;
     Ref<PBRMaterial> mat;
