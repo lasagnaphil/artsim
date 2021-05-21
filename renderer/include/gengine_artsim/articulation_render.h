@@ -135,7 +135,7 @@ public:
         }
         if (!joint_mat) {
             this->joint_mat = std::make_shared<PBRMaterial>();
-            this->joint_mat->texAlbedo = Texture::fromSingleColor(colors::WhiteSmoke);
+            this->joint_mat->texAlbedo = Texture::fromSingleColor(colors::Gray);
             this->joint_mat->texAO = Texture::fromSingleColor({1.0f, 0.0f, 0.0f});
             this->joint_mat->texMetallic = Texture::fromSingleColor({0.8f, 0.0f, 0.0f});
             this->joint_mat->texRoughness = Texture::fromSingleColor({0.8f, 0.0f, 0.0f});
@@ -152,7 +152,7 @@ public:
             glm::mat4 joint_trans = glmx::mat4_cast(T_joint_global[i]);
             renderer.queueRender(PBRCommand {link_meshes[i], link_mat, link_trans});
             if (i == 0 && spec->floating) continue;
-            // renderer.queueRender(PBRCommand {joint_meshes[i], joint_mat, joint_trans});
+            renderer.queueRender(PBRCommand {joint_meshes[i], joint_mat, joint_trans});
         }
     }
 

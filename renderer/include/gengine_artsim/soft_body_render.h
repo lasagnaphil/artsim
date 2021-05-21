@@ -78,7 +78,6 @@ public:
             m.vertices[i].normal = glm::normalize(m.vertices[i].normal);
         }
 
-        m.sortVertices(glmx::transform(glmx::IDENTITY), camera->getViewMatrix()[2]);
         m.updateVBO();
     }
 
