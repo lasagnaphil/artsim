@@ -41,6 +41,10 @@ namespace artsim {
                             const glmx::ttransform<real>* T_joint_global,
                             OUT glmx::tscrew<real>* J_s);
 
+    void calc_contact_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const glmx::rtransform& offset,
+                               const glmx::rtransform* T_joint_global,
+                               OUT glmx::dynmat_view<real> Jc_T);
+
     void rne_inverse_dynamics(const ArticulatedBodySpec& art,
                               glm::tvec3<real> gravity, real dt,
                               const real*__restrict q, const real*__restrict u, const real*__restrict udot,

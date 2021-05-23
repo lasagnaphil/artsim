@@ -113,11 +113,12 @@ public:
         world = World();
         WorldConfig world_cfg;
         world_cfg.dt = sim_dt;
-        world_cfg.create_plane = true;
         world_cfg.max_iters = 8;
         world_cfg.contact_solver_type = ContactSolverType::PGS;
         world.init(world_cfg);
         default_mat_id = world.add_material(1.0f, 0.0f, 0.00f);
+
+        world.add_plane(default_mat_id);
 
         art_id = world.add_articulated_body(
                 load_from_xml("demo/resources/human.xml", contact_indices), default_mat_id);

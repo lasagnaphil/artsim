@@ -214,7 +214,7 @@ struct RigidBodySpec {
     CollisionShape col_shape;
     RenderShape render_shape;
     glmx::ttransform<real> global_trans;
-    Id<Material> mat_id;
+    bool is_static = false;
 };
 
 struct RigidBody {
@@ -223,14 +223,15 @@ struct RigidBody {
     glm::rvec3 vel;
     glm::rquat rot;
     glm::rvec3 angvel;
+    Id<Material> mat_id;
+    btCollisionObject* bt_collision_object;
 
-    void init(RigidBodySpec rb_spec) {
-        this->spec = std::move(rb_spec);
-        pos = glm::rvec3(0);
-        vel = glm::rvec3(0);
-        rot = glm::identity<glm::rquat>();
-        angvel = glm::rvec3(0);
-    }
+    void init(RigidBodySpec rb_spec);
+
+    void init(Id<RigidBody> rb_id, RigidBodySpec rb_spec, Id<Material> mat_id,
+              btCollisionWorld* bt_collision_world);
+
+    void release(btCollisionWorld* bt_world);
 };
 
 struct Link {
@@ -348,7 +349,7 @@ public:
     void init(artsim::ArticulatedBodySpec art_spec);
     void init(Id<ArticulatedBody> art_id, artsim::ArticulatedBodySpec art_spec, Id<Material> mat_id,
               btCollisionWorld* bt_collision_world);
-    void release();
+    void release(btCollisionWorld* bt_collision_world);
 
     void reset_positions();
     void randomize_positions();
@@ -541,7 +542,6 @@ struct WorldConfig {
     real dt = 1.0 / 240.0;
     ContactSolverType contact_solver_type = ContactSolverType::PGS;
     int max_iters = 4;
-    bool create_plane = false;
 };
 
 class World {
@@ -554,10 +554,6 @@ private:
     btCollisionWorld* bt_collision_world = nullptr;
     btCollisionObject* bt_plane_col = nullptr;
 
-    // TODO: temp
-    std::vector<std::vector<ContactPoint>> art_ground_contacts;
-    std::vector<std::vector<glm::rvec3>> art_ground_contact_forces;
-
     WorldConfig cfg;
 
 public:
@@ -569,23 +565,21 @@ public:
     real get_timestep() const { return cfg.dt; }
     void set_timestep(real dt) { cfg.dt = dt; }
 
-    Id<RigidBody> add_rigid_body(const RigidBodySpec& spec) {
+    Id<RigidBody> add_rigid_body(const RigidBodySpec& spec, Id<Material> mat_id) {
         auto id = rigid_bodies.make();
         auto ptr = rigid_bodies.get(id);
-        ptr->init(spec);
+        ptr->init(id, spec, mat_id, bt_collision_world);
         return id;
     }
 
-    // TODO
     RigidBody* get_rigid_body(Id<RigidBody> id) {
         return rigid_bodies.get(id);
     }
 
-    // TODO
     bool remove_rigid_body(Id<RigidBody> id) {
         auto ptr = rigid_bodies.try_get(id);
         if (!ptr) return false;
-        // ptr->release();
+        ptr->release(bt_collision_world);
         rigid_bodies.release(id);
         return true;
     }
@@ -604,7 +598,7 @@ public:
     bool remove_articulated_body(Id<ArticulatedBody> id) {
         auto ptr = articulated_bodies.try_get(id);
         if (!ptr) return false;
-        ptr->release();
+        ptr->release(bt_collision_world);
         articulated_bodies.release(id);
         return true;
     }
@@ -626,6 +620,18 @@ public:
     void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
                            real friction, real restitution, real restitution_threshold) {
         material_db.set_material_pair(mat1_id, mat2_id, friction, restitution, restitution_threshold);
+    }
+
+    Id<RigidBody> add_plane(Id<Material> mat_id) {
+        RigidBodySpec spec;
+        const real inf = std::numeric_limits<real>::infinity();
+        spec.mass = inf;
+        spec.inertia = glmx::rsmat3x3(inf);
+        spec.col_shape = CollisionShape::make_ground();
+        // spec.render_shape = RenderShape::make_from_collision_shape(spec.col_shape);
+        spec.global_trans = glmx::rtransform(glmx::IDENTITY);
+        spec.is_static = true;
+        return add_rigid_body(spec, mat_id);
     }
 
     void simulate(real dt);

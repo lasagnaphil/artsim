@@ -61,6 +61,7 @@ public:
         if (inputMgr->isKeyEntered(SDL_SCANCODE_SPACE)) {
             run_simulation = !run_simulation;
         }
+
         if (inputMgr->isKeyEntered(SDL_SCANCODE_1)) { demo_type = DemoType::Pendulum; art_type = 1; resetPhysics(); }
         if (inputMgr->isKeyEntered(SDL_SCANCODE_2)) { demo_type = DemoType::Pendulum; art_type = 2; resetPhysics(); }
         if (inputMgr->isKeyEntered(SDL_SCANCODE_3)) { demo_type = DemoType::Pendulum; art_type = 3; resetPhysics(); }
@@ -112,12 +113,12 @@ public:
         world_cfg.dt = sim_dt;
         world_cfg.max_iters = 8;
         world_cfg.contact_solver_type = ContactSolverType::PGS;
+        world.init(world_cfg);
+
         default_mat_id = world.add_material(0.1f, 0.0f, 0.00f);
 
         switch (demo_type) {
             case DemoType::Pendulum: {
-                world_cfg.create_plane = false;
-                world.init(world_cfg);
                 switch (art_type) {
                     case 1: art_id = world.add_articulated_body(
                             examples::create_double_pendulum_ball(false, 1.0f, 1.0f, 1.0f, 1.0f), default_mat_id); break;
@@ -135,8 +136,7 @@ public:
                 art->randomize_positions();
             } break;
             case DemoType::Contacts: {
-                world_cfg.create_plane = true;
-                world.init(world_cfg);
+                world.add_plane(default_mat_id);
                 art_id = world.add_articulated_body(
                         examples::create_free_link(art_type, true), default_mat_id);
 
@@ -162,8 +162,8 @@ private:
     Ref<PBRMaterial> orig_mesh_mat, joint_mat;
     ArticulationRender art_render;
 
-    DemoType demo_type = DemoType::Pendulum;
-    int art_type = 1;
+    DemoType demo_type = DemoType::Contacts;
+    int art_type = 5;
 };
 
 int main(int argc, char** argv)
