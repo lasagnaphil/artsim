@@ -176,9 +176,9 @@ void calc_contact_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, c
 
 struct RecursiveNewtonEulerData {
     // IN
-    bool is_floating_art;
     JointType joint_type;
     bool has_parent;
+    bool is_floating_art;
 
     ttransform<real> Tinv;
     tscrew<real> v0;
@@ -186,7 +186,6 @@ struct RecursiveNewtonEulerData {
     tscrew<real> f_ext;
     tvec3<real> udot;         // dof
     real kd;
-    real dt;
 
     // INTERMEDIATE VALUES
     // ttransform<real> T_global_inv;
@@ -215,7 +214,7 @@ struct RecursiveNewtonEulerData {
         f = I * a - adT(v, I * v) - f_ext;
     }
 
-    void rnea_pass2() {
+    void rnea_pass2(real dt) {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
@@ -257,7 +256,6 @@ void rne_inverse_dynamics(const ArticulatedBodySpec& art, glm::tvec3<real> gravi
             }
         }
         data[i].kd = joint.kd;
-        data[i].dt = dt;
     }
 
     for (int i : art.bfs_iteration_order) {
@@ -284,7 +282,7 @@ void rne_inverse_dynamics(const ArticulatedBodySpec& art, glm::tvec3<real> gravi
     int j_limit = art.floating? 1 : 0;
     for (int j = num_joints - 1; j >= j_limit; j--) {
         int i = art.bfs_iteration_order[j];
-        data[i].rnea_pass2();
+        data[i].rnea_pass2(dt);
         if (i != 0) {
             data[art.parents[i]].f += data[i].f;
         }
@@ -313,7 +311,6 @@ void rne_inverse_dynamics(const ArticulatedBodySpec& art, glm::tvec3<real> gravi
 
 struct FeatherstoneData {
     JointType joint_type;
-    bool has_parent;
 
     // IN
     ttransform<real> Tinv;
@@ -321,7 +318,6 @@ struct FeatherstoneData {
     tscrew<real> f_ext;
     tvec3<real> tau;          // dof
     real kd;
-    real dt;
 
     // INTERMEDIATE VALUES
     // ttransform<real> T_global_inv;
@@ -370,14 +366,15 @@ struct FeatherstoneData {
         }
     }
 
-    inline void backward_pass() {
+    template <bool has_parent>
+    inline void backward_pass(real dt) {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
                 j1dof.D = I_a[k];
                 j1dof.H = j1dof.D[k] + kd * dt;
                 u[0] = tau[0] - p_a[k];
-                if (has_parent) {
+                if constexpr (has_parent) {
                     tsmat6x6<real> I_prime = I_a - symmetric_cartesian_product(j1dof.D) / j1dof.H;
                     tscrew<real> p_prime = p_a + I_prime * c + ((u[0] - kd * v0[k]) / j1dof.H) * j1dof.D;
                     I_a = inv_transform(I_prime, Tinv);
@@ -389,7 +386,7 @@ struct FeatherstoneData {
                 j3dof.I_Dinv = I_a.I * j3dof.Dinv;
                 j3dof.Ct_Dinv = glm::transpose(I_a.C) * mat3_cast(j3dof.Dinv);
                 u = tau - p_a.w;
-                if (has_parent) {
+                if constexpr (has_parent) {
                     auto I_prime = tsmat6x6<real>(
                             I_a.I - j3dof.I_Dinv * I_a.I,
                             I_a.C - mat3_cast(j3dof.I_Dinv) * I_a.C,
@@ -406,14 +403,14 @@ struct FeatherstoneData {
         }
     }
 
-
-    inline void invmass_backward_pass1() {
+    template <bool has_parent>
+    inline void invmass_backward_pass1(real dt) {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
                 j1dof.D = I_a[k];
                 j1dof.H = j1dof.D[k] + kd * dt;
-                if (has_parent) {
+                if constexpr (has_parent) {
                     tsmat6x6<real> I_prime = I_a - symmetric_cartesian_product(j1dof.D) / j1dof.H;
                     I_a = inv_transform(I_prime, Tinv);
                 }
@@ -422,7 +419,7 @@ struct FeatherstoneData {
                 j3dof.Dinv = inverse(I_a.I + tsmat3x3<real>(kd * dt));
                 j3dof.I_Dinv = I_a.I * j3dof.Dinv;
                 j3dof.Ct_Dinv = glm::transpose(I_a.C) * mat3_cast(j3dof.Dinv);
-                if (has_parent) {
+                if constexpr (has_parent) {
                     auto I_prime = tsmat6x6<real>(
                             I_a.I - j3dof.I_Dinv * I_a.I,
                             I_a.C - mat3_cast(j3dof.I_Dinv) * I_a.C,
@@ -433,19 +430,20 @@ struct FeatherstoneData {
         }
     }
 
-    inline void invmass_backward_pass2() {
+    template <bool has_parent>
+    inline void invmass_backward_pass2(real dt) {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
                 u[0] = tau[0] - p_a[k];
-                if (has_parent) {
+                if constexpr (has_parent) {
                     tscrew<real> p_prime = p_a + (u[0] / j1dof.H) * j1dof.D;
                     p_a = AdT(Tinv, p_prime);
                 }
             } break;
             case JOINT_TYPE_SPHERICAL: {
                 u = tau - p_a.w;
-                if (has_parent) {
+                if constexpr (has_parent) {
                     tvec3<real> tau_prime = u;
                     tscrew<real> p_prime = p_a;
                     p_prime.w += j3dof.I_Dinv * tau_prime;
@@ -475,9 +473,9 @@ struct FeatherstoneData {
 };
 
 void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
-                                   glm::tvec3<real> gravity, real dt,
-                                   const tscrew<real>* f_ext, const real* q, const real* u, const real* tau,
-                                   real* udot) {
+                                         glm::tvec3<real> gravity, real dt,
+                                         const tscrew<real>* f_ext, const real* q, const real* u, const real* tau,
+                                         real* udot) {
 
     int num_joints = art.get_num_joints();
     auto data = new FeatherstoneData[num_joints];
@@ -489,7 +487,6 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
         uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
         int num_vel_dofs = art.joint_vel_dofs[i];
         data[i].joint_type = joint.type;
-        data[i].has_parent = i != 0;
         data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
         data[i].v0 = calc_v0(joint, u + cur_vel_dof);
         data[i].I_a = tsmat6x6<real>(link.I_j);
@@ -499,56 +496,51 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
         else {
             data[i].f_ext = tscrew<real>(IDENTITY);
         }
-        if (!(i == 0 && art.floating)) {
+        if (!art.floating || i != 0) {
             for (int j = 0; j < num_vel_dofs; j++) {
                 data[i].tau[j] = tau[cur_vel_dof + j];
             }
         }
         data[i].kd = joint.kd;
-        data[i].dt = dt;
     }
 
-    for (int i : art.bfs_iteration_order) {
-        if (i == 0) {
-            if (art.floating) {
-                data[0].v = make_tscrew(u);
-                data[0].p_a = -adT(data[0].v, data[0].I_a * data[0].v) - data[0].f_ext - make_tscrew(tau);
-                continue;
-            }
-            else {
-                data[0].v = tscrew<real>(IDENTITY);
-            }
-        }
-        else {
-            data[i].v = data[art.parents[i]].v;
-        }
+    if (art.floating) {
+        data[0].v = make_tscrew(u);
+        data[0].p_a = -adT(data[0].v, data[0].I_a * data[0].v) - data[0].f_ext - make_tscrew(tau);
+    }
+    else {
+        data[0].v = tscrew<real>(IDENTITY);
+        data[0].forward_pass1();
+    }
+    for (int j = 1; j < num_joints; j++) {
+        int i = art.bfs_iteration_order[j];
+        data[i].v = data[art.parents[i]].v;
         data[i].forward_pass1();
     }
-    int j_limit = art.floating? 1 : 0;
-    for (int j = num_joints - 1; j >= j_limit; j--) {
+
+    for (int j = num_joints - 1; j >= 1; j--) {
         int i = art.bfs_iteration_order[j];
-        data[i].backward_pass();
-        if (i != 0) {
-            data[art.parents[i]].I_a += data[i].I_a;
-            data[art.parents[i]].p_a += data[i].p_a;
-        }
+        data[i].backward_pass<true>(dt);
+        data[art.parents[i]].I_a += data[i].I_a;
+        data[art.parents[i]].p_a += data[i].p_a;
     }
-    for (int i : art.bfs_iteration_order) {
-        if (i == 0) {
-            if (art.floating) {
-                data[0].a = inverse(data[0].I_a) * (-data[0].p_a);
-                continue;
-            }
-            else {
-                data[i].a = tscrew<real>(tvec3<real>(0), -gravity);
-            }
-        }
-        else {
-            data[i].a = data[art.parents[i]].a;
-        }
+    if (!art.floating) {
+        data[0].backward_pass<false>(dt);
+    }
+
+    if (art.floating) {
+        data[0].a = inverse(data[0].I_a) * (-data[0].p_a);
+    }
+    else {
+        data[0].a = tscrew<real>(tvec3<real>(0), -gravity);
+        data[0].forward_pass2();
+    }
+    for (int j = 1; j < num_joints; j++) {
+        int i = art.bfs_iteration_order[j];
+        data[i].a = data[art.parents[i]].a;
         data[i].forward_pass2();
     }
-    int i_start = art.floating? 1 : 0;
+
     if (art.floating) {
         ttransform<real> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
         data[0].a += Ad(inverse(T_root), tscrew<real>(tvec3<real>(0), gravity));
@@ -559,7 +551,13 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
         udot[4] = data[0].a.v[1];
         udot[5] = data[0].a.v[2];
     }
-    for (int i = i_start; i < num_joints; i++) {
+    else {
+        int num_vel_dofs = art.joint_vel_dofs[0];
+        for (int j = 0; j < num_vel_dofs; j++) {
+            udot[j] = data[0].udot[j];
+        }
+    }
+    for (int i = 1; i < num_joints; i++) {
         uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
         int num_vel_dofs = art.joint_vel_dofs[i];
         for (int j = 0; j < num_vel_dofs; j++) {
@@ -570,8 +568,8 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
     delete [] data;
 }
 
-// Solves M^{-1} X, using Featherstone's algorithm, where M is the mass matrix.
 
+// Solves M^{-1} X, using Featherstone's algorithm, where M is the mass matrix.
 void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
                                   const real* q, dynmat_view<real> X,
                                   OUT dynmat_view<real> Minv_X) {
@@ -589,20 +587,18 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
         uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
         uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
         data[i].joint_type = joint.type;
-        data[i].has_parent = i != 0;
         data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
         data[i].I_a = tsmat6x6<real>(link.I_j);
         data[i].kd = joint.kd;
-        data[i].dt = dt;
     }
 
-    int j_limit = art.floating? 1 : 0;
-    for (int j = num_joints - 1; j >= j_limit; j--) {
+    if (art.floating) {
+        data[0].invmass_backward_pass1<false>(dt);
+    }
+    for (int j = num_joints - 1; j >= 1; j--) {
         int i = art.bfs_iteration_order[j];
-        data[i].invmass_backward_pass1();
-        if (i != 0) {
-            data[art.parents[i]].I_a += data[i].I_a;
-        }
+        data[i].invmass_backward_pass1<true>(dt);
+        data[art.parents[i]].I_a += data[i].I_a;
     }
 
     for (int b = 0; b < X.cols; b++) {
@@ -610,8 +606,14 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
             auto tau_root = tscrew<real>(X(0, b), X(1, b), X(2, b), X(3, b), X(4, b), X(5, b));
             data[0].p_a = -tau_root;
         }
-        int i_start = art.floating? 1 : 0;
-        for (int i = i_start; i < num_joints; i++) {
+        else {
+            data[0].p_a = tscrew<real>(IDENTITY);
+            int num_vel_dofs = art.joint_vel_dofs[0];
+            for (int j = 0; j < num_vel_dofs; j++) {
+                data[0].tau[j] = X(j, b);
+            }
+        }
+        for (int i = 1; i < num_joints; i++) {
             data[i].p_a = tscrew<real>(IDENTITY);
             int num_vel_dofs = art.joint_vel_dofs[i];
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
@@ -619,29 +621,28 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
                 data[i].tau[j] = X(cur_vel_dof + j, b);
             }
         }
-        for (int j = num_joints - 1; j >= j_limit; j--) {
+        for (int j = num_joints - 1; j >= 1; j--) {
             int i = art.bfs_iteration_order[j];
-            data[i].invmass_backward_pass2();
-            if (i != 0) {
-                data[art.parents[i]].p_a += data[i].p_a;
-            }
+            data[i].invmass_backward_pass2<true>(dt);
+            data[art.parents[i]].p_a += data[i].p_a;
+        }
+        if (!art.floating) {
+            data[0].invmass_backward_pass2<false>(dt);
         }
 
-        for (int i : art.bfs_iteration_order) {
-            if (i == 0) {
-                if (art.floating) {
-                    data[0].a = inverse(data[0].I_a) * (-data[0].p_a);
-                    continue;
-                }
-                else {
-                    data[i].a = tscrew<real>(IDENTITY);
-                }
-            }
-            else {
-                data[i].a = data[art.parents[i]].a;
-            }
+        if (art.floating) {
+            data[0].a = inverse(data[0].I_a) * (-data[0].p_a);
+        }
+        else {
+            data[0].a = tscrew<real>(IDENTITY);
+            data[0].invmass_forward_pass();
+        }
+        for (int j = 1; j < num_joints; j++) {
+            int i = art.bfs_iteration_order[j];
+            data[i].a = data[art.parents[i]].a;
             data[i].invmass_forward_pass();
         }
+
         if (art.floating) {
             ttransform<real> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
             data[0].a += Ad(inverse(T_root), tscrew<real>(IDENTITY));
@@ -652,7 +653,13 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
             Minv_X(4, b) = data[0].a.v[1];
             Minv_X(5, b) = data[0].a.v[2];
         }
-        for (int i = i_start; i < num_joints; i++) {
+        else {
+            int num_vel_dofs = art.joint_vel_dofs[0];
+            for (int j = 0; j < num_vel_dofs; j++) {
+                Minv_X(j, b) = data[0].udot[j];
+            }
+        }
+        for (int i = 1; i < num_joints; i++) {
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
             for (int j = 0; j < num_vel_dofs; j++) {

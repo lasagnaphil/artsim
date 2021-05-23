@@ -764,6 +764,13 @@ void World::solve_contacts() {
 
         multiply_inverse_mass_matrix(art1_spec, cfg.dt, art1_q, Jc_T_view, OUT Minv_Jc_T_view);
 
+        /*
+        for (int k = 0; k < 3*art1_num_contact_points; k++) {
+            featherstone_forward_dynamics(art1_spec, glm::tvec3<real>(0), cfg.dt, nullptr, art1_q, zero_vec.data(), Jc_T.data() + k*art1_num_vel_dofs,
+                                          OUT Minv_Jc_T.data() + k*art1_num_vel_dofs);
+        }
+         */
+
         for (int k = 0; k < art1_num_contact_points; k++) {
             Eigen::Matrix<real, Eigen::Dynamic, 3> Minv_Jck_T = Minv_Jc_T.middleCols<3>(3*k);
             for (int i = 0; i < art1_num_contact_points; i++) {
