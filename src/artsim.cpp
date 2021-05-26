@@ -184,7 +184,7 @@ Link Link::create(const tsmat3x3<real>& inertia, real mass,
     return link;
 }
 
-void ArticulatedBodySpec::build(bool use_bullet, btCollisionWorld* bt_col_world) {
+void ArticulatedBodySpec::build() {
     int num_joints = get_num_joints();
     joint_pos_dofs.resize(num_joints);
     joint_pos_dof_starts.resize(num_joints + 1);

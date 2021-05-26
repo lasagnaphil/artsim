@@ -49,7 +49,7 @@ protected:
     std::vector<glmx::ttransform<real>> constr_vertices_offset;
 
 public:
-    virtual void load(const char* metadata, bool do_soft_body_precomputation = true);
+    virtual void load(const char* metadata);
 
     virtual void save(const char* metadata);
 

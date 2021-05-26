@@ -150,7 +150,7 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
             local_joint_pose = T_global_joint / T_global_joint_map[parent_name];
         }
         else {
-            local_joint_pose = ttransform<real>(IDENTITY);
+            local_joint_pose = T_global_joint;
         }
         ttransform<real> local_link_pose = T_global_body / T_global_joint;
 
@@ -188,11 +188,11 @@ bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT Articu
         current_idx++;
     }
 
-    spec.build(false);
+    spec.build();
     return true;
 }
 
-void ArtWithSoftBodies::load(const char* metadata, bool do_soft_body_precomputation) {
+void ArtWithSoftBodies::load(const char* metadata) {
     fs::path metadata_path(metadata);
     fs::path folder = metadata_path.parent_path();
 
@@ -283,11 +283,9 @@ void ArtWithSoftBodies::load(const char* metadata, bool do_soft_body_precomputat
         sb_tet_start_idx[sb_idx] = sb_tet_start_idx[sb_idx-1] + sb_num_tets;
     }
 
-    if (do_soft_body_precomputation) {
 #pragma omp parallel for
-        for (int sb_idx = 0; sb_idx < sb_count; sb_idx++) {
-            soft_body_precomputation(soft_bodies[sb_idx], sb_constraints[sb_idx], dt, OUT soft_bodies_precalc[sb_idx]);
-        }
+    for (int sb_idx = 0; sb_idx < sb_count; sb_idx++) {
+        soft_body_precomputation(soft_bodies[sb_idx], sb_constraints[sb_idx], dt, OUT soft_bodies_precalc[sb_idx]);
     }
 
     N_s = sb_vert_start_idx[sb_count];

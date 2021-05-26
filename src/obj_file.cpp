@@ -156,7 +156,7 @@ void OBJFile::load_msh(const char* filename) {
     PyMesh::MshLoader msh(filename);
     auto& nodes = msh.get_nodes();
     auto& elems = msh.get_elements();
-    std::cout << "nodes =" << nodes.size() << ", elems=" << elems.size() << std::endl;
+    std::cout << "nodes=" << nodes.size() << ", elems=" << elems.size() << std::endl;
     int num_nodes = nodes.rows() / 3;
     int num_elems = elems.rows() / 4;
     vertices.resize(num_nodes);

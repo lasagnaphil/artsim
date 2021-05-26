@@ -183,7 +183,7 @@ struct RenderShape {
         Box, Sphere, Mesh
     };
     Type type;
-    glm::vec3 scale;
+    glm::vec3 scale = glm::vec3(1);
 
     union {
         struct {
@@ -293,7 +293,7 @@ struct ArticulatedBodySpec {
         names.push_back(name);
     }
 
-    void build(bool use_bullet = true, btCollisionWorld* bt_collision_world = nullptr);
+    void build();
 
     int get_num_joints() const {
         return joints.size();
@@ -326,6 +326,35 @@ struct ArticulatedBodySpec {
         }
         if (i == names.size()) return -1;
         else return i;
+    }
+
+    void scale_link(int link_idx, const glm::rvec3& scale, bool scale_shapes) {
+        auto& link = links[link_idx];
+        if (scale_shapes) {
+            link.render_shape.scale *= scale;
+            link.col_shape.scale *= scale;
+        }
+        link.local_link_pose.v = glm::rvec3(scale) * link.local_link_pose.v;
+        uint32_t num_children = get_num_children(link_idx);
+        const int* children = get_children(link_idx);
+        for (int i = 0; i < num_children; i++) {
+            uint32_t child_idx = children[i];
+            links[child_idx].local_joint_pose.v =
+                    glm::rvec3(scale) * links[child_idx].local_joint_pose.v;
+        }
+    }
+
+    void scale_link(int link_idx, const glm::rmat3& rot, const glm::rvec3& scale) {
+        auto& link = links[link_idx];
+        auto T = rot * glm::rmat3(scale[0], 0, 0, 0, scale[1], 0, 0, 0, scale[2]) * glm::transpose(rot);
+        link.local_link_pose.v = T * link.local_link_pose.v;
+        uint32_t num_children = get_num_children(link_idx);
+        const int* children = get_children(link_idx);
+        for (int i = 0; i < num_children; i++) {
+            uint32_t child_idx = children[i];
+            links[child_idx].local_joint_pose.v =
+                    T * links[child_idx].local_joint_pose.v;
+        }
     }
 };
 
