@@ -57,7 +57,7 @@ tsmat3x3<real> CollisionShape::inertia(real density) {
             return tsmat3x3<real>(I.x, I.y, I.z, 0, 0, 0);
         }
         case Type::Mesh: {
-            // TODO: Calculate proper inertia
+            // TODO: Calculate proper inertia (Resources: https://abhilashreddy.com/writing/6/mesh_props.html)
             return tsmat3x3<real>(1, 1, 1, 0, 0, 0);
         }
         default: return tsmat3x3<real>(0, 0, 0, 0, 0, 0);

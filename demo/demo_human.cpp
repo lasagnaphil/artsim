@@ -119,9 +119,19 @@ public:
         world.init(world_cfg);
         default_mat_id = world.add_material(1.0f, 0.0f, 0.00f);
 
-        art_id = world.add_articulated_body(
-                load_from_xml("demo/resources/human.xml", contact_indices), default_mat_id);
+        ArticulatedBodySpec art_spec;
+        if (load_from_xml("demo/resources/human.xml", art_spec) != tinyxml2::XML_SUCCESS) {
+            fmt::print("Failed to load articulation!\n");
+            exit(EXIT_FAILURE);
+        }
+        /*
+        if (save_to_xml("demo/resources/human.xml", art_spec)) {
+            fmt::print("Failed to save articulation!\n");
+            exit(EXIT_FAILURE);
+        }
+         */
 
+        art_id = world.add_articulated_body(art_spec, default_mat_id);
         auto art = world.get_articulated_body(art_id);
 
         art->set_root_transform(glmx::ttransform<real>(tvec3<real>(0.0f, 1.3f, 0.0f)));

@@ -3,17 +3,15 @@
 //
 
 #include "artsim/art_with_soft_bodies.h"
-
 #include "artsim/art_dynamics.h"
 #include "artsim/math/fastsvd.h"
 #include "artsim/tet_mesh.h"
+#include "artsim/utils/xml.h"
 
 #include <iostream>
 #include <filesystem>
 #include <tinyxml2.h>
 #include <glm/gtc/type_ptr.hpp>
-
-#include "tiny_obj_loader.h"
 
 using namespace glmx;
 using namespace tinyxml2;
@@ -53,145 +51,6 @@ glm::tmat3x3<real> string_to_matrix3d(const std::string& input) {
     return M;
 }
 
-bool load_from_xml(XMLElement* art_elem, const fs::path& current_dir, OUT ArticulatedBodySpec& spec) {
-    std::unordered_map<std::string, ttransform<real>> T_global_body_map;
-    std::unordered_map<std::string, ttransform<real>> T_global_joint_map;
-    std::unordered_map<std::string, int> idx_map;
-
-    T_global_body_map["none"] = ttransform<real>(IDENTITY);
-    T_global_joint_map["none"] = ttransform<real>(IDENTITY);
-    idx_map["none"] = -1;
-
-    std::string art_name = art_elem->Attribute("name");
-    std::string art_xform_mode = art_elem->Attribute("xform_mode");
-    if (art_xform_mode != "global") {
-        std::cout << "Only xform_mode = global supported!" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    int current_idx = 0;
-    for(XMLElement* node = art_elem->FirstChildElement("node"); node != nullptr; node = node->NextSiblingElement("node"))
-    {
-        artsim::Joint joint;
-        artsim::Link link;
-
-        std::string name = node->Attribute("name");
-
-        std::string parent_name = node->Attribute("parent");
-
-        XMLElement* link_elem = node->FirstChildElement("link");
-
-        std::string body_type = link_elem->Attribute("type");
-        CollisionShape col_shape;
-        RenderShape render_shape;
-        if (body_type == "box") {
-            glm::tvec3<real> size = string_to_vector3d(link_elem->Attribute("size"));
-            col_shape = CollisionShape::make_box(size);
-            render_shape = RenderShape::make_box(size);
-        }
-        else if (body_type == "sphere") {
-            double radius = std::stod(link_elem->Attribute("radius"));
-            col_shape = CollisionShape::make_sphere(radius);
-            render_shape = RenderShape::make_sphere(radius);
-        }
-        else if (body_type == "mesh") {
-            fs::path filepath = current_dir / link_elem->Attribute("obj");
-            tinyobj::ObjReader reader;
-            reader.ParseFromFile(filepath);
-            if (reader.Valid()) {
-                auto& shapes = reader.GetShapes();
-                col_shape = CollisionShape::make_mesh(&reader.GetAttrib(), shapes.data(), shapes.size());
-                render_shape = RenderShape::make_mesh(&reader.GetAttrib(), shapes.data(), shapes.size());
-            }
-            else {
-                fprintf(stderr, "Invalid OBJ file %s!\n", filepath.c_str());
-                fprintf(stderr, "Message: %s\n", reader.Error().c_str());
-                return false;
-            }
-        }
-        else if (body_type == "capsule") {
-            double radius = std::stod(link_elem->Attribute("radius"));
-            double height = std::stod(link_elem->Attribute("height"));
-            printf("Capsule not supported!");
-            return false;
-        }
-
-        real mass, density;
-        if (link_elem->Attribute("density")) {
-            density = std::stod(link_elem->Attribute("density"));
-            real volume = col_shape.mass(real(1));
-            mass = density * volume;
-        }
-        else if (link_elem->Attribute("mass")) {
-            mass = std::stod(link_elem->Attribute("mass"));
-            real volume = col_shape.mass(real(1));
-            density = mass / volume;
-        }
-
-        tsmat3x3<real> inertia = col_shape.inertia(density);
-
-        ttransform<real> T_global_body;
-        T_global_body.R = glmx::exp_mat(string_to_vector3d(link_elem->Attribute("rot")));
-        T_global_body.v = string_to_vector3d(link_elem->Attribute("pos"));
-
-        XMLElement* joint_elem = node->FirstChildElement("joint");
-        std::string joint_type = joint_elem->Attribute("type");
-        real joint_damping = joint_elem->DoubleAttribute("damping");
-
-        ttransform<real> T_global_joint;
-        T_global_joint.R = glmx::exp_mat(string_to_vector3d(joint_elem->Attribute("rot")));
-        T_global_joint.v = string_to_vector3d(joint_elem->Attribute("pos"));
-
-        T_global_body_map[name] = T_global_body;
-        T_global_joint_map[name] = T_global_joint;
-
-        ttransform<real> local_joint_pose;
-        if (parent_name != "none") {
-            local_joint_pose = T_global_joint / T_global_joint_map[parent_name];
-        }
-        else {
-            local_joint_pose = T_global_joint;
-        }
-        ttransform<real> local_link_pose = T_global_body / T_global_joint;
-
-        link = Link::create(inertia, mass, col_shape, render_shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
-
-        if(joint_type == "free")
-        {
-            // TODO: Should we also put kd on floating joints?
-            joint = Joint::floating();
-        }
-        else if(joint_type == "ball")
-        {
-            joint = Joint::spherical(0, joint_damping);
-        }
-        else if(joint_type == "revolute")
-        {
-            glm::tvec3<real> axis = string_to_vector3d(joint_elem->Attribute("axis"));
-            if (glm::epsilonEqual<real>(axis.x, 1.0, 1e-8)) {
-                joint = Joint::revolute_x(0, joint_damping);
-            }
-            else if (glm::epsilonEqual<real>(axis.y, 1.0, 1e-8)) {
-                joint = Joint::revolute_y(0, joint_damping);
-            }
-            else if (glm::epsilonEqual<real>(axis.z, 1.0, 1e-8)) {
-                joint = Joint::revolute_z(0, joint_damping);
-            }
-            else {
-                std::cout << "Only revolute joints with X, Y, or Z axis supported!" << std::endl;
-                return false;
-            }
-        }
-
-        spec.add_link_and_joint(link, joint, name);
-        idx_map[name] = current_idx;
-        current_idx++;
-    }
-
-    spec.build();
-    return true;
-}
-
 void ArtWithSoftBodies::load(const char* metadata) {
     fs::path metadata_path(metadata);
     fs::path folder = metadata_path.parent_path();
@@ -207,7 +66,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
 
     auto articulation_el = root_el->FirstChildElement("articulation");
     ArticulatedBodySpec art_spec;
-    bool art_loaded = load_from_xml(articulation_el, folder, OUT art_spec);
+    bool art_loaded = artsim::load_from_xml(articulation_el, folder.string().c_str(), OUT art_spec);
     if (!art_loaded) {
         exit(EXIT_FAILURE);
     }
