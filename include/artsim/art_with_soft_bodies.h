@@ -111,7 +111,10 @@ public:
         return sb_names[sb_idx].c_str();
     }
 
-    const ArticulatedBody& get_articulation() {
+    const ArticulatedBody& get_articulation() const {
+        return art;
+    }
+    ArticulatedBody& get_articulation() {
         return art;
     }
     int get_art_pos_dof() {

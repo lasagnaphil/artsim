@@ -14,7 +14,7 @@ using namespace artsim;
 using namespace glmx;
 namespace fs = std::filesystem;
 
-std::vector<double> split_to_double(const std::string& input, int num)
+static std::vector<double> split_to_double(const std::string& input, int num)
 {
     std::vector<double> result;
     std::string::size_type sz = 0, nsz = 0;
@@ -25,22 +25,22 @@ std::vector<double> split_to_double(const std::string& input, int num)
     return result;
 }
 
-glm::tvec1<real> string_to_vector1d(const std::string& input) {
+static glm::tvec1<real> string_to_vector1d(const std::string& input) {
     std::vector<double> v = split_to_double(input, 1);
     return glm::tvec1<real>(v[0]);
 }
 
-glm::tvec3<real> string_to_vector3d(const std::string& input) {
+static glm::tvec3<real> string_to_vector3d(const std::string& input) {
     std::vector<double> v = split_to_double(input, 3);
     return {v[0], v[1], v[2]};
 }
 
-glm::tvec4<real> string_to_vector4d(const std::string& input) {
+static glm::tvec4<real> string_to_vector4d(const std::string& input) {
     std::vector<double> v = split_to_double(input, 4);
     return {v[0], v[1], v[2], v[3]};
 }
 
-glm::tmat3x3<real> string_to_matrix3d(const std::string& input) {
+static glm::tmat3x3<real> string_to_matrix3d(const std::string& input) {
     std::vector<double> v = split_to_double(input, 9);
     auto M = glm::transpose(glm::make_mat3x3(v.data()));
     return M;
