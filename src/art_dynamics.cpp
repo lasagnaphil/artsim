@@ -130,10 +130,52 @@ void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, cons
     } while (i != -1);
 }
 
+void calc_linear_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& offset,
+                          const rtransform* T_joint_global,
+                          OUT dynmat_view<real> Jc) {
+    assert(Jc.rows == 3);
+    assert(Jc.cols == art.get_num_vel_dofs());
+    Jc.clear_zero();
+    auto T_m = T_joint_global[joint_idx] * offset;
+    int i = joint_idx;
+    do {
+        int joint_vel_dof_start = art.joint_vel_dof_starts[i];
+        int joint_vel_dofs = art.joint_vel_dofs[i];
+        auto& joint = art.joints[i];
+        auto T = T_joint_global[i] / T_m;
+        auto set_jacobian = [&Jc, joint_vel_dof_start](int i, glm::rvec3 v) {
+            Jc(0, joint_vel_dof_start+i) = v[0];
+            Jc(1, joint_vel_dof_start+i) = v[1];
+            Jc(2, joint_vel_dof_start+i) = v[2];
+        };
+        switch (joint.type) {
+            case JOINT_TYPE_REVOLUTE_X: set_jacobian(0, glm::cross(T.v, T.R[0])); break;
+            case JOINT_TYPE_REVOLUTE_Y: set_jacobian(0, glm::cross(T.v, T.R[1])); break;
+            case JOINT_TYPE_REVOLUTE_Z: set_jacobian(0, glm::cross(T.v, T.R[2])); break;
+            case JOINT_TYPE_PRISMATIC_X: set_jacobian(0, T.R[0]); break;
+            case JOINT_TYPE_PRISMATIC_Y: set_jacobian(0, T.R[1]); break;
+            case JOINT_TYPE_PRISMATIC_Z: set_jacobian(0, T.R[2]); break;
+            case JOINT_TYPE_SPHERICAL: {
+                set_jacobian(0, glm::cross(T.v, T.R[0]));
+                set_jacobian(1, glm::cross(T.v, T.R[1]));
+                set_jacobian(2, glm::cross(T.v, T.R[2]));
+            } break;
+            case JOINT_TYPE_FLOATING: {
+                set_jacobian(0, glm::cross(T.v, T.R[0]));
+                set_jacobian(1, glm::cross(T.v, T.R[1]));
+                set_jacobian(2, glm::cross(T.v, T.R[2]));
+                set_jacobian(3, T.R[0]);
+                set_jacobian(4, T.R[1]);
+                set_jacobian(5, T.R[2]);
+            } break;
+        }
+        i = art.parents[i];
+    } while (i != -1);
+}
 
-void calc_contact_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& offset,
-                           const rtransform* T_joint_global,
-                           OUT dynmat_view<real> Jc_T) {
+void calc_linear_jacobian_transpose(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& offset,
+                                    const rtransform* T_joint_global,
+                                    OUT dynmat_view<real> Jc_T) {
     assert(Jc_T.rows == art.get_num_vel_dofs());
     assert(Jc_T.cols == 3);
     Jc_T.clear_zero();

@@ -747,8 +747,8 @@ void World::integrate_with_contacts() {
             auto contact_rel_T = contact_T / art1.get_global_joint_trans(art1_lidx);
             rtransform* T_joint_global = art1.get_global_joint_trans_buf();
             dynmat_view<real> Jc_T_view(Jc_T.data() + 3*c*art1_num_vel_dofs, art1_num_vel_dofs, 3);
-            calc_contact_jacobian(art1.get_spec(), art1_lidx, contact_rel_T, T_joint_global,
-                                  OUT Jc_T_view);
+            calc_linear_jacobian_transpose(art1.get_spec(), art1_lidx, contact_rel_T, T_joint_global,
+                                           OUT Jc_T_view);
         }
 
         VectorXr tau_star = Jc_T.transpose() * art1_u_bar;

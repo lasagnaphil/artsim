@@ -320,8 +320,8 @@ euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
             auto contact_rel_T = contact_T / T_joint_global[art_link_idx];
             // art_contact_T[c] = inverse(contact_rel_T);
             dynmat_view<real> Jc_T_view(Jc_T.data() + 3*c*num_vel_dofs, num_vel_dofs, 3);
-            calc_contact_jacobian(art, art_link_idx, contact_rel_T, T_joint_global.data(),
-                                  OUT Jc_T_view);
+            calc_linear_jacobian_transpose(art, art_link_idx, contact_rel_T, T_joint_global.data(),
+                                           OUT Jc_T_view);
         }
 
         Eigen::Matrix<real, Dynamic, 1> tau_star = Jc_T.transpose() * u_bar;
