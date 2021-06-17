@@ -63,10 +63,16 @@ struct Id {
     }
 
     bool operator==(const Id<T>& other) const {
-        return index == other.index && generation == other.generation;
+        return std::memcmp(this, &other, sizeof(Id<T>)) == 0;
     }
     bool operator!=(const Id<T>& other) const {
-        return !((*this) == other);
+        return std::memcmp(this, &other, sizeof(Id<T>)) != 0;
+    }
+    bool operator<(const Id<T>& other) const {
+        return std::memcmp(this, &other, sizeof(Id<T>)) < 0;
+    }
+    bool operator>(const Id<T>& other) const {
+        return std::memcmp(this, &other, sizeof(Id<T>)) > 0;
     }
 };
 

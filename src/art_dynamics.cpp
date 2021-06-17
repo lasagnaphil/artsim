@@ -64,7 +64,7 @@ void calc_S(const ArticulatedBodySpec &art, const real *q, tscrew<real> *S) {
 ttransform<real> calc_Tinv(const Joint& joint, const Link& link, const real* q) {
     auto inv_linkT = ttransform<real>(inverse(link.local_joint_pose));
     switch (joint.type) {
-        case JOINT_TYPE_FLOATING: return ttransform<real>(IDENTITY);
+        case JOINT_TYPE_FLOATING: return inverse(rtransform(make_vec3(q), mat3_cast(make_quat(q)))) * inv_linkT;
         case JOINT_TYPE_REVOLUTE_X: return Rx(-q[0]) * inv_linkT;
         case JOINT_TYPE_REVOLUTE_Y: return Ry(-q[0]) * inv_linkT;
         case JOINT_TYPE_REVOLUTE_Z: return Rz(-q[0]) * inv_linkT;
@@ -93,8 +93,7 @@ tscrew<real> calc_v0(const Joint& joint, const real* u) {
     }
 }
 
-void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, ttransform<real> offset,
-                        const tscrew<real>* S,
+void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const ttransform<real>& offset,
                         const ttransform<real>* T_joint_global,
                         tscrew<real>* J_b) {
     std::fill_n(J_b, art.get_num_vel_dofs(), tscrew<real>(IDENTITY));
@@ -103,9 +102,73 @@ void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, ttra
     do {
         int joint_vel_dof_start = art.joint_vel_dof_starts[i];
         int joint_vel_dofs = art.joint_vel_dofs[i];
+        auto& joint = art.joints[i];
         auto T = T_joint_global[i] / T_m;
-        for (int j = joint_vel_dof_start; j < joint_vel_dof_start + joint_vel_dofs; j++) {
-            J_b[j] = Ad(T, S[j]);
+        // TODO: inline this further (create specialized Ad functions)
+        switch (joint.type) {
+            case JOINT_TYPE_REVOLUTE_X:  J_b[joint_vel_dof_start] = {T.R[0], glm::cross(T.v, T.R[0])}; break;
+            case JOINT_TYPE_REVOLUTE_Y:  J_b[joint_vel_dof_start] = {T.R[1], glm::cross(T.v, T.R[1])}; break;
+            case JOINT_TYPE_REVOLUTE_Z:  J_b[joint_vel_dof_start] = {T.R[2], glm::cross(T.v, T.R[2])}; break;
+            case JOINT_TYPE_PRISMATIC_X: J_b[joint_vel_dof_start] = {glm::rvec3(0), T.R[0]}; break;
+            case JOINT_TYPE_PRISMATIC_Y: J_b[joint_vel_dof_start] = {glm::rvec3(0), T.R[1]}; break;
+            case JOINT_TYPE_PRISMATIC_Z: J_b[joint_vel_dof_start] = {glm::rvec3(0), T.R[2]}; break;
+            case JOINT_TYPE_SPHERICAL: {
+                J_b[joint_vel_dof_start+0] = {T.R[0], glm::cross(T.v, T.R[0])};
+                J_b[joint_vel_dof_start+1] = {T.R[1], glm::cross(T.v, T.R[1])};
+                J_b[joint_vel_dof_start+2] = {T.R[2], glm::cross(T.v, T.R[2])};
+            } break;
+            case JOINT_TYPE_FLOATING: {
+                J_b[joint_vel_dof_start+0] = {T.R[0], glm::cross(T.v, T.R[0])};
+                J_b[joint_vel_dof_start+1] = {T.R[1], glm::cross(T.v, T.R[1])};
+                J_b[joint_vel_dof_start+2] = {T.R[2], glm::cross(T.v, T.R[2])};
+                J_b[joint_vel_dof_start+3] = {glm::rvec3(0), T.R[0]};
+                J_b[joint_vel_dof_start+4] = {glm::rvec3(0), T.R[1]};
+                J_b[joint_vel_dof_start+5] = {glm::rvec3(0), T.R[2]};
+            } break;
+        }
+        i = art.parents[i];
+    } while (i != -1);
+}
+
+
+void calc_contact_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& offset,
+                           const rtransform* T_joint_global,
+                           OUT dynmat_view<real> Jc_T) {
+    assert(Jc_T.rows == art.get_num_vel_dofs());
+    assert(Jc_T.cols == 3);
+    Jc_T.clear_zero();
+    auto T_m = T_joint_global[joint_idx] * offset;
+    int i = joint_idx;
+    do {
+        int joint_vel_dof_start = art.joint_vel_dof_starts[i];
+        int joint_vel_dofs = art.joint_vel_dofs[i];
+        auto& joint = art.joints[i];
+        auto T = T_joint_global[i] / T_m;
+        auto set_jacobian = [&Jc_T, joint_vel_dof_start](int i, glm::rvec3 v) {
+            Jc_T(joint_vel_dof_start+i, 0) = v[0];
+            Jc_T(joint_vel_dof_start+i, 1) = v[1];
+            Jc_T(joint_vel_dof_start+i, 2) = v[2];
+        };
+        switch (joint.type) {
+            case JOINT_TYPE_REVOLUTE_X: set_jacobian(0, glm::cross(T.v, T.R[0])); break;
+            case JOINT_TYPE_REVOLUTE_Y: set_jacobian(0, glm::cross(T.v, T.R[1])); break;
+            case JOINT_TYPE_REVOLUTE_Z: set_jacobian(0, glm::cross(T.v, T.R[2])); break;
+            case JOINT_TYPE_PRISMATIC_X: set_jacobian(0, T.R[0]); break;
+            case JOINT_TYPE_PRISMATIC_Y: set_jacobian(0, T.R[1]); break;
+            case JOINT_TYPE_PRISMATIC_Z: set_jacobian(0, T.R[2]); break;
+            case JOINT_TYPE_SPHERICAL: {
+                set_jacobian(0, glm::cross(T.v, T.R[0]));
+                set_jacobian(1, glm::cross(T.v, T.R[1]));
+                set_jacobian(2, glm::cross(T.v, T.R[2]));
+            } break;
+            case JOINT_TYPE_FLOATING: {
+                set_jacobian(0, glm::cross(T.v, T.R[0]));
+                set_jacobian(1, glm::cross(T.v, T.R[1]));
+                set_jacobian(2, glm::cross(T.v, T.R[2]));
+                set_jacobian(3, T.R[0]);
+                set_jacobian(4, T.R[1]);
+                set_jacobian(5, T.R[2]);
+            } break;
         }
         i = art.parents[i];
     } while (i != -1);
@@ -126,7 +189,7 @@ struct RecursiveNewtonEulerData {
     real dt;
 
     // INTERMEDIATE VALUES
-    ttransform<real> T_global_inv;
+    // ttransform<real> T_global_inv;
 
     // OUT
     tscrew<real> v;
@@ -136,7 +199,6 @@ struct RecursiveNewtonEulerData {
 
     // kin must be calculated using jcalc() before this call
     void rnea_pass1() {
-        if (has_parent) T_global_inv = T_global_inv * Tinv;
         v = Ad(Tinv, v) + v0;
         a = Ad(Tinv, a) + ad(v, v0); // + c0; (c0 is zero for all types of joints)
         if (!is_floating_art) {
@@ -150,7 +212,7 @@ struct RecursiveNewtonEulerData {
                 } break;
             }
         }
-        f = I * a - adT(v, I * v) - AdT(T_global_inv, f_ext);
+        f = I * a - adT(v, I * v) - f_ext;
     }
 
     void rnea_pass2() {
@@ -202,7 +264,6 @@ void rne_inverse_dynamics(const ArticulatedBodySpec& art, glm::tvec3<real> gravi
         if (i == 0) {
             if (art.floating) {
                 ttransform<real> T_root = ttransform<real>(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
-                data[0].T_global_inv = ttransform<real>(IDENTITY);
                 data[0].v = make_tscrew(u);
                 data[0].a = Ad(inverse(T_root), tscrew<real>(tvec3<real>(0), -gravity));
                 data[0].f = data[0].I * data[0].a - adT(data[0].v, data[0].I * data[0].v) - data[0].f_ext;
@@ -211,11 +272,9 @@ void rne_inverse_dynamics(const ArticulatedBodySpec& art, glm::tvec3<real> gravi
             else {
                 data[0].v = tscrew<real>(IDENTITY);
                 data[0].a = tscrew<real>(tvec3<real>(0), -gravity);
-                data[0].T_global_inv = ttransform<real>(IDENTITY);
             }
         }
         else {
-            data[i].T_global_inv = data[art.parents[i]].T_global_inv;
             data[i].v = data[art.parents[i]].v;
             data[i].a = data[art.parents[i]].a;
         }
@@ -265,7 +324,7 @@ struct FeatherstoneData {
     real dt;
 
     // INTERMEDIATE VALUES
-    ttransform<real> T_global_inv;
+    // ttransform<real> T_global_inv;
     tsmat6x6<real> I_a;
     tscrew<real> p_a;
     tscrew<real> v;
@@ -289,10 +348,9 @@ struct FeatherstoneData {
 
     // kin must be calculated using jcalc() before this call
     inline void forward_pass1() {
-        if (has_parent) T_global_inv = T_global_inv * Tinv;
         v = Ad(Tinv, v) + v0;
         c = ad(v, v0); // + c0; (c0 is zero for all joints)
-        p_a = -adT(v, I_a * v) - AdT(T_global_inv, f_ext);
+        p_a = -adT(v, I_a * v) - f_ext;
     }
 
     inline void forward_pass2() {
@@ -452,18 +510,16 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
 
     for (int i : art.bfs_iteration_order) {
         if (i == 0) {
-            data[0].T_global_inv = ttransform<real>(IDENTITY);
             if (art.floating) {
                 data[0].v = make_tscrew(u);
                 data[0].p_a = -adT(data[0].v, data[0].I_a * data[0].v) - data[0].f_ext - make_tscrew(tau);
                 continue;
             }
             else {
-                data[i].v = tscrew<real>(IDENTITY);
+                data[0].v = tscrew<real>(IDENTITY);
             }
         }
         else {
-            data[i].T_global_inv = data[art.parents[i]].T_global_inv;
             data[i].v = data[art.parents[i]].v;
         }
         data[i].forward_pass1();
