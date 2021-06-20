@@ -91,13 +91,13 @@ TEST_CASE("se(3) log/exp") {
     get_random(engine, V);
     T = exp(V);
     tscrew<real> dV = log(T) - V;
-    CHECK(doctest::Approx(length(dV.w)).epsilon(1e-6) == 0);
-    CHECK(doctest::Approx(length(dV.v)).epsilon(1e-6) == 0);
+    CHECK(doctest::Approx(length(dV.w)).epsilon(1e-4) == 0);
+    CHECK(doctest::Approx(length(dV.v)).epsilon(1e-4) == 0);
 
     get_random(engine, T);
     V = log(T);
     ttransform<real> dT = T / exp(V);
 
-    CHECK(doctest::Approx(length(dT.v)).epsilon(1e-6) == 0);
-    CHECK(doctest::Approx(length(log_mat(dT.R))).epsilon(1e-6) == 0);
+    CHECK(doctest::Approx(length(dT.v)).epsilon(1e-4) == 0);
+    CHECK(doctest::Approx(length(log_mat(dT.R))).epsilon(1e-4) == 0);
 }

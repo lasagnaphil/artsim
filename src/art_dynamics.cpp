@@ -882,13 +882,13 @@ void glm_to_dynmat(const tsmat3x3<real>& I, OUT dynmat_view<real> M) {
 
 void glm_to_dynmat(const tmat3x3<real>& C, OUT dynmat_view<real> M) {
     M(0, 0) = C[0][0];
-    M(0, 1) = C[0][1];
-    M(0, 2) = C[0][2];
-    M(1, 0) = C[1][0];
+    M(0, 1) = C[1][0];
+    M(0, 2) = C[2][0];
+    M(1, 0) = C[0][1];
     M(1, 1) = C[1][1];
-    M(1, 2) = C[1][2];
-    M(2, 0) = C[2][0];
-    M(2, 1) = C[2][1];
+    M(1, 2) = C[2][1];
+    M(2, 0) = C[0][2];
+    M(2, 1) = C[1][2];
     M(2, 2) = C[2][2];
 }
 
@@ -912,15 +912,15 @@ void mass_matrix(const ArticulatedBodySpec& art, real dt, const real* q, dynmat_
 
     // Calculates Fi to M.
 #define CRBA_COPY_Fi_TO_M(k) \
-        M(0, vpos_i + k) = M(vpos_i + k, 0) = Fi[k][0]; \
-        M(1, vpos_i + k) = M(vpos_i + k, 1) = Fi[k][1]; \
-        M(2, vpos_i + k) = M(vpos_i + k, 2) = Fi[k][2]; \
-        M(3, vpos_i + k) = M(vpos_i + k, 3) = Fi[k][3]; \
-        M(4, vpos_i + k) = M(vpos_i + k, 4) = Fi[k][4]; \
-        M(5, vpos_i + k) = M(vpos_i + k, 5) = Fi[k][5];
+        M(0, vpos_i + (k)) = M(vpos_i + (k), 0) = Fi[(k)][0]; \
+        M(1, vpos_i + (k)) = M(vpos_i + (k), 1) = Fi[(k)][1]; \
+        M(2, vpos_i + (k)) = M(vpos_i + (k), 2) = Fi[(k)][2]; \
+        M(3, vpos_i + (k)) = M(vpos_i + (k), 3) = Fi[(k)][3]; \
+        M(4, vpos_i + (k)) = M(vpos_i + (k), 4) = Fi[(k)][4]; \
+        M(5, vpos_i + (k)) = M(vpos_i + (k), 5) = Fi[(k)][5];
 
     std::vector<ttransform<real>> Tinv(num_joints);
-    std::vector<ttransform<real>> T_flink(num_joints); // used when art.floating == true
+    // std::vector<ttransform<real>> T_flink(num_joints); // used when art.floating == true
 
     for (uint32_t i : art.bfs_iteration_order) {
         uint32_t ppos = art.joint_pos_dof_starts[i];
@@ -929,10 +929,12 @@ void mass_matrix(const ArticulatedBodySpec& art, real dt, const real* q, dynmat_
         auto I0 = tspmat<real>(tsmat3x3<real>(art.links[i].inertia), glm::tvec3<real>(0), art.links[i].mass);
         I[i] = tsmat6x6<real>(art.links[i].I_j);
 
+        /*
         if (art.floating) {
             if (i == 0) T_flink[i] = ttransform<real>(IDENTITY);
             else T_flink[i] = T_flink[art.parents[i]] * Tinv[i];
         }
+         */
     }
 
     int l_finish = art.floating? 1 : 0;
@@ -945,6 +947,12 @@ void mass_matrix(const ArticulatedBodySpec& art, real dt, const real* q, dynmat_
             I[art.parents[i]] += inv_transform(I[i], Tinv[i]);
         }
         real kd = art.joints[i].kd;
+        /*
+        glmx::rtransform root_Tinv;
+        if (art.floating) {
+            root_Tinv = glmx::inverse(glmx::rtransform(glm::make_vec3(q), glm::mat3_cast(glm::make_quat(q+3))));
+        }
+         */
         switch (art.joints[i].type) {
             JOINT_DOF_1_CASE {
                 int ti = get_screw_idx(art.joints[i].type);
@@ -968,7 +976,7 @@ void mass_matrix(const ArticulatedBodySpec& art, real dt, const real* q, dynmat_
                     }
                 }
                 if (art.floating) {
-                    Fi[0] = AdT(T_flink[j], Fi[0]);
+                    // Fi[0] = AdT(root_Tinv, Fi[0]);
                     CRBA_COPY_Fi_TO_M(0);
                 }
             } break;
@@ -1008,7 +1016,7 @@ void mass_matrix(const ArticulatedBodySpec& art, real dt, const real* q, dynmat_
                 }
                 if (art.floating) {
                     for (int k = 0; k < 3; k++) {
-                        Fi[k] = AdT(T_flink[j], Fi[k]);
+                        // Fi[k] = AdT(root_Tinv, Fi[k]);
                         CRBA_COPY_Fi_TO_M(k);
                     }
                 }

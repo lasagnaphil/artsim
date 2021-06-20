@@ -247,15 +247,12 @@ TEST_CASE("Various kinds of pendulums") {
 
                 Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic> M_eigen_inv = M1_eigen.inverse();
 
-                // TODO: Fix CRBA for floating articulations
-                if (!spec.floating) {
-                    SUBCASE("Mass matrix inverse obtained by Featherstone and CRBA are the same") {
-                        for (int k1 = 0; k1 < num_vel_dofs; k1++) {
-                            for (int k2 = 0; k2 < num_vel_dofs; k2++) {
-                                CAPTURE(k1);
-                                CAPTURE(k2);
-                                CHECK(Minv_using_fs(k1, k2) == doctest::Approx(M_eigen_inv(k1, k2)).epsilon(1e-4));
-                            }
+                SUBCASE("Mass matrix inverse obtained by Featherstone and CRBA are the same") {
+                    for (int k1 = 0; k1 < num_vel_dofs; k1++) {
+                        for (int k2 = 0; k2 < num_vel_dofs; k2++) {
+                            CAPTURE(k1);
+                            CAPTURE(k2);
+                            CHECK(Minv_using_fs(k1, k2) == doctest::Approx(M_eigen_inv(k1, k2)).epsilon(1e-4));
                         }
                     }
                 }

@@ -392,6 +392,11 @@ namespace glmx {
     }
 
     template <class T>
+    inline tsmat3x3<T> operator*(const tsmat3x3<T>& m, T k) {
+        return {m.xx * k, m.yy * k, m.zz * k, m.yz * k, m.zx * k, m.xy * k};
+    }
+
+    template <class T>
     inline tsmat3x3<T> operator/(const tsmat3x3<T>& m, T k) {
         return {m.xx / k, m.yy / k, m.zz / k, m.yz / k, m.zx / k, m.xy / k};
     }
