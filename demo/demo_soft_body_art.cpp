@@ -76,7 +76,7 @@ public:
 
         link_mat = PBRMaterial::quick(colors::LightGray);
         joint_mat = PBRMaterial::quick(colors::Blue);
-        art_render = ArticulationRender(&system.get_articulation(), link_mat, joint_mat);
+        // art_render = ArticulationRender(&system.get_articulation(), link_mat, joint_mat);
 
         resetPhysics();
 
@@ -151,7 +151,7 @@ public:
             }
         }
 
-        art_render.render(pbRenderer);
+        // art_render.render(pbRenderer);
 
         pbRenderer.render();
         imRenderer.render();
@@ -246,7 +246,7 @@ private:
     ArtWithSoftBodies system;
 
     std::vector<SoftBodyRender> soft_body_renderers;
-    ArticulationRender art_render;
+    // ArticulationRender art_render;
     std::vector<unsigned char> soft_body_selection_mask;
 
     Ref<PBRMaterial> ground_mat;

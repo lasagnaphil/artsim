@@ -78,7 +78,6 @@ struct Id {
 
 struct AnyId : public Id<void> {};
 
-
 template <typename T>
 class Arena {
 private:
@@ -100,10 +99,12 @@ public:
 
     uint32_t size() const { return items.size(); }
     uint32_t capacity() const { return items.capacity(); }
+
     typename std::vector<T>::iterator begin() { return items.begin(); }
     typename std::vector<T>::const_iterator cbegin() const { return items.cbegin(); }
     typename std::vector<T>::iterator end() { return items.end(); }
     typename std::vector<T>::const_iterator cend() const { return items.cend(); }
+
     T* get_items_buf() { return items.data(); }
     const T* get_items_buf() const { return items.data(); }
 
@@ -259,6 +260,23 @@ public:
         assert(node.generation == id.generation);
         assert(node.index < size());
         return node.index;
+    }
+
+    template <class Fun>
+    void foreach_id(Fun&& fun) {
+        for (int i = 0; i < dense_to_sparse_map.size(); i++) {
+            auto& id = free_list[dense_to_sparse_map[i]];
+            fun(id);
+        }
+    }
+
+    template <class Fun>
+    void foreach_id_val(Fun&& fun) {
+        for (int i = 0; i < dense_to_sparse_map.size(); i++) {
+            auto& id = free_list[dense_to_sparse_map[i]];
+            auto& val = items[i];
+            fun(id, val);
+        }
     }
 };
 

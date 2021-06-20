@@ -19,10 +19,11 @@ using namespace artsim;
 class ArticulationRender {
 public:
     ArticulationRender() = default;
-    ArticulationRender(const ArticulatedBody* art,
+    ArticulationRender(World* world, Id<ArticulatedBody> art_id,
                        Ref<PBRMaterial> link_mat = {}, Ref<PBRMaterial> joint_mat = {})
-            : art(art), link_mat(link_mat), joint_mat(joint_mat) {
+            : world(world), art_id(art_id), link_mat(link_mat), joint_mat(joint_mat) {
 
+        auto art = world->get_articulated_body(art_id);
         int num_joints = art->get_num_joints();
         link_meshes.resize(num_joints);
         joint_meshes.resize(num_joints);
@@ -62,6 +63,7 @@ public:
     }
 
     void render(PBRenderer& renderer) {
+        auto art = world->get_articulated_body(art_id);
         int num_joints = art->get_num_joints();
         for (int i = 0; i < num_joints; i++) {
             auto& spec = art->get_spec();
@@ -89,7 +91,8 @@ public:
          */
     }
 
-    const artsim::ArticulatedBody* art = nullptr;
+    World* world;
+    Id<ArticulatedBody> art_id;
     Ref<PBRMaterial> link_mat;
     Ref<PBRMaterial> joint_mat;
     std::vector<Ref<Mesh>> link_meshes;

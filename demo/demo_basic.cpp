@@ -61,6 +61,14 @@ public:
         if (inputMgr->isKeyEntered(SDL_SCANCODE_SPACE)) {
             run_simulation = !run_simulation;
         }
+        if (inputMgr->isKeyEntered(SDL_SCANCODE_RETURN)) {
+            auto new_art_id = world.add_articulated_body(
+                    examples::create_free_link(art_type, true), default_mat_id);
+
+            auto new_art = world.get_articulated_body(new_art_id);
+            new_art->randomize_positions();
+            art_renderers.push_back(ArticulationRender(&world, new_art_id, orig_mesh_mat, joint_mat));
+        }
 
         if (inputMgr->isKeyEntered(SDL_SCANCODE_1)) { demo_type = DemoType::Pendulum; art_type = 1; resetPhysics(); }
         if (inputMgr->isKeyEntered(SDL_SCANCODE_2)) { demo_type = DemoType::Pendulum; art_type = 2; resetPhysics(); }
@@ -91,7 +99,9 @@ public:
         if (demo_type == DemoType::Contacts) {
             pbRenderer.queueRender({ground_mesh, ground_mat, rootTransform->getWorldTransform()});
         }
-        art_render.render(pbRenderer);
+        for (auto& art_renderer : art_renderers) {
+            art_renderer.render(pbRenderer);
+        }
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
         /*
@@ -108,6 +118,8 @@ public:
     }
 
     void resetPhysics() {
+        art_renderers.clear();
+
         world = World();
         WorldConfig world_cfg;
         world_cfg.dt = sim_dt;
@@ -142,10 +154,9 @@ public:
 
                 auto art = world.get_articulated_body(art_id);
                 art->randomize_positions();
-
             } break;
         }
-        art_render = ArticulationRender(world.get_articulated_body(art_id), orig_mesh_mat, joint_mat);
+        art_renderers.push_back(ArticulationRender(&world, art_id, orig_mesh_mat, joint_mat));
     }
 
 private:
@@ -160,7 +171,7 @@ private:
     Ref<Mesh> ground_mesh;
 
     Ref<PBRMaterial> orig_mesh_mat, joint_mat;
-    ArticulationRender art_render;
+    std::vector<ArticulationRender> art_renderers;
 
     DemoType demo_type = DemoType::Contacts;
     int art_type = 5;

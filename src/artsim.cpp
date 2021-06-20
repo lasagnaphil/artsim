@@ -651,9 +651,7 @@ void World::integrate_with_contacts() {
         }
     }
 
-    std::vector<MatrixXr> art_contact_jacobian_map(art_contact_points_map.size());
-    std::vector<MatrixXr> rb_contact_jacobian_map(rb_contact_points_map.size());
-    std::vector<rvec3> c(num_contacts);
+    std::vector<rvec3> c(num_contacts, rvec3(0));
     std::vector<rvec3> lambda(num_contacts, rvec3(0));
     std::vector<Material> mat(num_contacts);
     dynmat<glm::rmat3> M_delassus(num_contacts, num_contacts);
@@ -683,11 +681,10 @@ void World::integrate_with_contacts() {
 
             VectorXr art1_u_bar = Eigen::Map<VectorXr>(art1_u, art1_num_vel_dofs) + art1_udot_bar * cfg.dt;
 
-            art_contact_jacobian_map[i] = MatrixXr(art1_num_vel_dofs, 3*art1_num_contact_points);
-            auto& Jc_T = art_contact_jacobian_map[i];
+            MatrixXr Jc_T(art1_num_vel_dofs, 3*art1_num_contact_points);
 
-            for (int c = 0; c < cidx_list.size(); c++) {
-                int cidx = cidx_list[c];
+            for (int k = 0; k < cidx_list.size(); k++) {
+                int cidx = cidx_list[k];
                 Id<ContactPoint> cp_id = contact_point_ids[cidx];
                 ContactPoint* cp = contact_points.get(cp_id);
                 bool body1_is_art1 = cp->body1_id.is_articulation() && cp->body1_id.get_articulation_id().first == art1_id;
@@ -700,9 +697,9 @@ void World::integrate_with_contacts() {
                 auto contact_T = rtransform(cp->pos, mat3_cast(rotation(Ez<real>(), cp->normal)));
                 auto contact_rel_T = contact_T / art1.get_global_joint_trans(art1_lidx);
                 rtransform* T_joint_global = art1.get_global_joint_trans_buf();
-                dynmat_view<real> Jc_T_view(Jc_T.data() + 3*c*art1_num_vel_dofs, art1_num_vel_dofs, 3);
+                dynmat_view<real> Jc_T_view(Jc_T.data(), art1_num_vel_dofs, 3*art1_num_contact_points);
                 calc_linear_jacobian_transpose(art1.get_spec(), art1_lidx, contact_rel_T, T_joint_global,
-                                               OUT Jc_T_view);
+                                               OUT Jc_T_view.slice(0, art1_num_vel_dofs, 3*k, 3));
             }
 
             VectorXr tau_star = Jc_T.transpose() * art1_u_bar;
@@ -710,14 +707,18 @@ void World::integrate_with_contacts() {
             const real beta = 0.01;
             const real slop = 5e-5;
 
-            for (int cidx : cidx_list) {
+            for (int k = 0; k < cidx_list.size(); k++) {
+                int cidx = cidx_list[k];
                 Id<ContactPoint> cp_id = contact_point_ids[cidx];
                 ContactPoint* cp = contact_points.get(cp_id);
                 bool body1_is_art1 = cp->body1_id.is_articulation() && cp->body1_id.get_articulation_id().first == art1_id;
                 BodyId body1_id = body1_is_art1? cp->body1_id : cp->body2_id;
                 BodyId body2_id = body1_is_art1? cp->body2_id : cp->body1_id;
-                glm::rvec3 tau = make_vec3<real>(tau_star.data() + 3*cidx);
+                glm::rvec3 tau = make_vec3<real>(tau_star.data() + 3*k);
                 tau.z -= beta / cfg.dt * glm::max<real>(cp->depth - slop, 0);
+                if (glm::isnan(tau.x) || glm::isnan(tau.y) || glm::isnan(tau.z)) {
+                    printf("NaN error!\n");
+                }
                 if (body1_is_art1) c[cidx] += tau;
                 else c[cidx] -= tau;
                 Id<Material> body1_mat, body2_mat;
@@ -748,7 +749,7 @@ void World::integrate_with_contacts() {
                 for (int k = 0; k < art1_num_contact_points; k++) {
                     for (int i = 0; i < art1_num_contact_points; i++) {
                         Eigen::Matrix<real, 3, 3> M_contact_inv_eigen = M_delassus_eigen.block<3, 3>(3*i, 3*k);
-                        M_delassus(cidx_list[i], cidx_list[k]) = glm::make_mat3(M_contact_inv_eigen.data());
+                        M_delassus(cidx_list[i], cidx_list[k]) += glm::make_mat3(M_contact_inv_eigen.data());
                     }
                 }
             }
@@ -772,33 +773,36 @@ void World::integrate_with_contacts() {
     {
         ZoneNamedN(IntegrateWithContacts, "IntegrateWithContacts", true);
 
-        for (auto& [art_id, cidx_list] : art_contact_points_map) {
-            auto& art = *articulated_bodies.get(art_id);
+        articulated_bodies.foreach_id_val([&](Id<ArticulatedBody> art_id, ArticulatedBody& art) {
             int num_joints = art.get_num_joints();
             std::vector<rscrew> f_ext_tot(num_joints);
             std::copy_n(art.get_external_force_buf(), num_joints, f_ext_tot.data());
-            for (int i = 0; i < cidx_list.size(); i++) {
-                int cidx = cidx_list[i];
-                auto cp = contact_points.get(contact_point_ids[cidx]);
-                bool body1_is_art1 = cp->body1_id.is_articulation() && cp->body1_id.get_articulation_id().first == art_id;
-                BodyId body1_id = body1_is_art1? cp->body1_id : cp->body2_id;
-                BodyId body2_id = body1_is_art1? cp->body2_id : cp->body1_id;
-                auto [_, art_lidx] = body1_id.get_articulation_id();
-                auto contact_T = rtransform(cp->pos, mat3_cast(rotation(Ez<real>(), cp->normal)));
-                auto contact_rel_T = art.get_global_joint_trans(art_lidx) / contact_T;
-                f_ext_tot[art_lidx] += AdT(contact_rel_T, rscrew(rvec3(0), lambda[cidx] / cfg.dt));
+            auto it = art_contact_points_map.find(art_id);
+            if (it != art_contact_points_map.end()) {
+                auto& cidx_list = it->second;
+                for (int cidx : cidx_list) {
+                    auto cp = contact_points.get(contact_point_ids[cidx]);
+                    bool body1_is_art1 = cp->body1_id.is_articulation() &&
+                            cp->body1_id.get_articulation_id().first == art_id;
+                    BodyId body1_id = body1_is_art1? cp->body1_id : cp->body2_id;
+                    BodyId body2_id = body1_is_art1? cp->body2_id : cp->body1_id;
+                    auto [_, art_lidx] = body1_id.get_articulation_id();
+                    auto contact_T = rtransform(cp->pos, mat3_cast(rotation(Ez<real>(), cp->normal)));
+                    auto contact_rel_T = art.get_global_joint_trans(art_lidx) / contact_T;
+                    f_ext_tot[art_lidx] += AdT(contact_rel_T, rscrew(rvec3(0), lambda[cidx] / cfg.dt));
+                }
             }
+
             auto& spec = art.get_spec();
             real* q = art.get_pos_buf(); real* u = art.get_vel_buf(); real* udot = art.get_acc_buf();
             featherstone_forward_dynamics(spec, cfg.gravity, cfg.dt,
                                           f_ext_tot.data(), q, u,
                                           art.get_internal_force_buf(), OUT udot);
             integrate_implicit_euler(spec, cfg.dt, udot, INOUT q, INOUT u);
-        }
+        });
 
-        for (auto& [rb1_id, cidx_list] : rb_contact_points_map) {
+        rigid_bodies.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
             // TODO
-        }
-
+        });
     }
 }
