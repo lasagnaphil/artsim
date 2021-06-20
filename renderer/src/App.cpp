@@ -18,6 +18,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include <Tracy.hpp>
+
 static void sdl_die(const char * message) {
     fprintf(stderr, "%s: %s\n", message, SDL_GetError());
     exit(2);
@@ -225,6 +227,7 @@ void App::startMainLoop() {
                 if (!settings.skipRenderFramesOnLag) {
                     internalRender();
                     SDL_GL_SwapWindow(window);
+                    FrameMark
                 }
 
                 dt = duration_cast<Ns>(Clock::now() - previousUpdate).count() * 1e-9;
@@ -235,6 +238,7 @@ void App::startMainLoop() {
         if (settings.skipRenderFramesOnLag) {
             internalRender();
             SDL_GL_SwapWindow(window);
+            FrameMark
         }
 
         fps = (int)std::roundf(1.f / (duration_cast<Ns>(Clock::now() - current).count() * 1e-9));

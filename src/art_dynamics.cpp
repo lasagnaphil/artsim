@@ -6,6 +6,8 @@
 
 #include <Eigen/Dense>
 
+#include <Tracy.hpp>
+
 using namespace glm;
 using namespace glmx;
 
@@ -96,6 +98,7 @@ tscrew<real> calc_v0(const Joint& joint, const real* u) {
 void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const ttransform<real>& offset,
                         const ttransform<real>* T_joint_global,
                         tscrew<real>* J_b) {
+    ZoneScoped
     std::fill_n(J_b, art.get_num_vel_dofs(), tscrew<real>(IDENTITY));
     auto T_m = T_joint_global[joint_idx] * offset;
     int i = joint_idx;
@@ -133,6 +136,7 @@ void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, cons
 void calc_linear_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& offset,
                           const rtransform* T_joint_global,
                           OUT dynmat_view<real> Jc) {
+    ZoneScoped
     assert(Jc.rows == 3);
     assert(Jc.cols == art.get_num_vel_dofs());
     Jc.clear_zero();
@@ -176,6 +180,7 @@ void calc_linear_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, co
 void calc_linear_jacobian_transpose(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& offset,
                                     const rtransform* T_joint_global,
                                     OUT dynmat_view<real> Jc_T) {
+    ZoneScoped
     assert(Jc_T.rows == art.get_num_vel_dofs());
     assert(Jc_T.cols == 3);
     Jc_T.clear_zero();
@@ -520,98 +525,116 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                                    glm::tvec3<real> gravity, real dt,
                                    const tscrew<real>* f_ext, const real* q, const real* u, const real* tau,
                                    real* udot) {
+    ZoneScoped
 
     int num_joints = art.get_num_joints();
     auto data = new FeatherstoneData[num_joints];
 
     // Setup
-    for (int i = 0; i < num_joints; i++) {
-        auto& joint = art.joints[i];
-        auto& link = art.links[i];
-        uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
-        uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
-        int num_vel_dofs = art.joint_vel_dofs[i];
-        data[i].joint_type = joint.type;
-        data[i].has_parent = i != 0;
-        data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
-        data[i].v0 = calc_v0(joint, u + cur_vel_dof);
-        data[i].I_a = tsmat6x6<real>(link.I_j);
-        if (f_ext) {
-            data[i].f_ext = f_ext[i];
-        }
-        else {
-            data[i].f_ext = tscrew<real>(IDENTITY);
-        }
-        if (!(i == 0 && art.floating)) {
-            for (int j = 0; j < num_vel_dofs; j++) {
-                data[i].tau[j] = tau[cur_vel_dof + j];
+    {
+        ZoneNamedN(Setup, "Setup", true)
+        for (int i = 0; i < num_joints; i++) {
+            auto& joint = art.joints[i];
+            auto& link = art.links[i];
+            uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
+            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+            int num_vel_dofs = art.joint_vel_dofs[i];
+            data[i].joint_type = joint.type;
+            data[i].has_parent = i != 0;
+            data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
+            data[i].v0 = calc_v0(joint, u + cur_vel_dof);
+            data[i].I_a = tsmat6x6<real>(link.I_j);
+            if (f_ext) {
+                data[i].f_ext = f_ext[i];
             }
+            else {
+                data[i].f_ext = tscrew<real>(IDENTITY);
+            }
+            if (!(i == 0 && art.floating)) {
+                for (int j = 0; j < num_vel_dofs; j++) {
+                    data[i].tau[j] = tau[cur_vel_dof + j];
+                }
+            }
+            data[i].kd = joint.kd;
         }
-        data[i].kd = joint.kd;
     }
 
     // Forward pass 1
-    if (art.floating) {
-        data[0].v = make_tscrew(u);
-        data[0].p_a = -adT(data[0].v, data[0].I_a * data[0].v) - data[0].f_ext - make_tscrew(tau);
-    }
-    else {
-        data[0].v = tscrew<real>(IDENTITY);
-        data[0].forward_pass1();
-    }
-    for (int j = 1; j < num_joints; j++) {
-        int i = art.bfs_iteration_order[j];
-        data[i].v = data[art.parents[i]].v;
-        data[i].forward_pass1();
+    {
+        ZoneNamedN(ForwardPass1, "Forward pass 1", true)
+        if (art.floating) {
+            data[0].v = make_tscrew(u);
+            data[0].p_a = -adT(data[0].v, data[0].I_a * data[0].v) - data[0].f_ext - make_tscrew(tau);
+        }
+        else {
+            data[0].v = tscrew<real>(IDENTITY);
+            data[0].forward_pass1();
+        }
+        for (int j = 1; j < num_joints; j++) {
+            int i = art.bfs_iteration_order[j];
+            data[i].v = data[art.parents[i]].v;
+            data[i].forward_pass1();
+        }
     }
 
     // Backward pass
-    for (int j = num_joints - 1; j >= 1; j--) {
-        int i = art.bfs_iteration_order[j];
-        data[i].backward_pass<true>(dt);
-        data[art.parents[i]].I_a += data[i].I_a;
-        data[art.parents[i]].p_a += data[i].p_a;
-    }
-    if (!art.floating) {
-        data[0].backward_pass<false>(dt);
+    {
+        ZoneNamedN(BackwardPass, "Backward pass 1", true)
+        for (int j = num_joints - 1; j >= 1; j--) {
+            int i = art.bfs_iteration_order[j];
+            data[i].backward_pass<true>(dt);
+            data[art.parents[i]].I_a += data[i].I_a;
+            data[art.parents[i]].p_a += data[i].p_a;
+        }
+        if (!art.floating) {
+            data[0].backward_pass<false>(dt);
+        }
+
     }
 
     // Forward pass 2
-    if (art.floating) {
-        data[0].a = inverse(data[0].I_a) * (-data[0].p_a);
-    }
-    else {
-        data[0].a = tscrew<real>(tvec3<real>(0), -gravity);
-        data[0].forward_pass2();
-    }
-    for (int j = 1; j < num_joints; j++) {
-        int i = art.bfs_iteration_order[j];
-        data[i].a = data[art.parents[i]].a;
-        data[i].forward_pass2();
-    }
-
-    // Output udot
-    if (art.floating) {
-        ttransform<real> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
-        data[0].a += Ad(inverse(T_root), tscrew<real>(tvec3<real>(0), gravity));
-        udot[0] = data[0].a.w[0];
-        udot[1] = data[0].a.w[1];
-        udot[2] = data[0].a.w[2];
-        udot[3] = data[0].a.v[0];
-        udot[4] = data[0].a.v[1];
-        udot[5] = data[0].a.v[2];
-    }
-    else {
-        int num_vel_dofs = art.joint_vel_dofs[0];
-        for (int j = 0; j < num_vel_dofs; j++) {
-            udot[j] = data[0].udot[j];
+    {
+        ZoneNamedN(ForwardPass2, "Forward pass 2", true)
+        if (art.floating) {
+            data[0].a = inverse(data[0].I_a) * (-data[0].p_a);
+        }
+        else {
+            data[0].a = tscrew<real>(tvec3<real>(0), -gravity);
+            data[0].forward_pass2();
+        }
+        for (int j = 1; j < num_joints; j++) {
+            int i = art.bfs_iteration_order[j];
+            data[i].a = data[art.parents[i]].a;
+            data[i].forward_pass2();
         }
     }
-    for (int i = 1; i < num_joints; i++) {
-        uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
-        int num_vel_dofs = art.joint_vel_dofs[i];
-        for (int j = 0; j < num_vel_dofs; j++) {
-            udot[cur_vel_dof + j] = data[i].udot[j];
+
+
+    // Output udot
+    {
+        ZoneNamedN(CopyOutput, "Copy output", true)
+        if (art.floating) {
+            ttransform<real> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
+            data[0].a += Ad(inverse(T_root), tscrew<real>(tvec3<real>(0), gravity));
+            udot[0] = data[0].a.w[0];
+            udot[1] = data[0].a.w[1];
+            udot[2] = data[0].a.w[2];
+            udot[3] = data[0].a.v[0];
+            udot[4] = data[0].a.v[1];
+            udot[5] = data[0].a.v[2];
+        }
+        else {
+            int num_vel_dofs = art.joint_vel_dofs[0];
+            for (int j = 0; j < num_vel_dofs; j++) {
+                udot[j] = data[0].udot[j];
+            }
+        }
+        for (int i = 1; i < num_joints; i++) {
+            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+            int num_vel_dofs = art.joint_vel_dofs[i];
+            for (int j = 0; j < num_vel_dofs; j++) {
+                udot[cur_vel_dof + j] = data[i].udot[j];
+            }
         }
     }
 
@@ -623,6 +646,7 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
 void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
                                   const real* q, dynmat_view<real> X,
                                   OUT dynmat_view<real> Minv_X) {
+    ZoneScoped
 
     assert(X.rows == art.num_vel_dofs);
     assert(Minv_X.rows == art.num_vel_dofs);
@@ -632,98 +656,119 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
     auto data = new FeatherstoneData[num_joints];
 
     // Setup
-    for (int i = 0; i < num_joints; i++) {
-        auto& joint = art.joints[i];
-        auto& link = art.links[i];
-        uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
-        uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
-        data[i].joint_type = joint.type;
-        data[i].has_parent = i != 0;
-        data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
-        data[i].I_a = tsmat6x6<real>(link.I_j);
-        data[i].kd = joint.kd;
+    {
+        ZoneNamedN(Setup, "Setup", true)
+        for (int i = 0; i < num_joints; i++) {
+            auto& joint = art.joints[i];
+            auto& link = art.links[i];
+            uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
+            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+            data[i].joint_type = joint.type;
+            data[i].has_parent = i != 0;
+            data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
+            data[i].I_a = tsmat6x6<real>(link.I_j);
+            data[i].kd = joint.kd;
+        }
     }
 
     // Backward pass 1 (same for all items in batch)
-    for (int j = num_joints - 1; j >= 1; j--) {
-        int i = art.bfs_iteration_order[j];
-        data[i].invmass_backward_pass1<true>(dt);
-        data[art.parents[i]].I_a += data[i].I_a;
+    {
+        ZoneNamedN(BackwardPass1, "Backward pass 1", true)
+        for (int j = num_joints - 1; j >= 1; j--) {
+            int i = art.bfs_iteration_order[j];
+            data[i].invmass_backward_pass1<true>(dt);
+            data[art.parents[i]].I_a += data[i].I_a;
+        }
+        if (!art.floating) {
+            data[0].invmass_backward_pass1<false>(dt);
+        }
     }
-    if (!art.floating) {
-        data[0].invmass_backward_pass1<false>(dt);
-    }
+
 
     for (int b = 0; b < X.cols; b++) {
         // Setup p_a and atu
-        if (art.floating) {
-            auto tau_root = tscrew<real>(X(0, b), X(1, b), X(2, b), X(3, b), X(4, b), X(5, b));
-            data[0].p_a = -tau_root;
-        }
-        else {
-            data[0].p_a = tscrew<real>(IDENTITY);
-            int num_vel_dofs = art.joint_vel_dofs[0];
-            for (int j = 0; j < num_vel_dofs; j++) {
-                data[0].tau[j] = X(j, b);
+        {
+            ZoneNamedN(BackwardPass2Setup, "Backward pass 2 setup", true)
+            if (art.floating) {
+                auto tau_root = tscrew<real>(X(0, b), X(1, b), X(2, b), X(3, b), X(4, b), X(5, b));
+                data[0].p_a = -tau_root;
             }
-        }
-        for (int i = 1; i < num_joints; i++) {
-            data[i].p_a = tscrew<real>(IDENTITY);
-            int num_vel_dofs = art.joint_vel_dofs[i];
-            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
-            for (int j = 0; j < num_vel_dofs; j++) {
-                data[i].tau[j] = X(cur_vel_dof + j, b);
+            else {
+                data[0].p_a = tscrew<real>(IDENTITY);
+                int num_vel_dofs = art.joint_vel_dofs[0];
+                for (int j = 0; j < num_vel_dofs; j++) {
+                    data[0].tau[j] = X(j, b);
+                }
             }
+            for (int i = 1; i < num_joints; i++) {
+                data[i].p_a = tscrew<real>(IDENTITY);
+                int num_vel_dofs = art.joint_vel_dofs[i];
+                uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+                for (int j = 0; j < num_vel_dofs; j++) {
+                    data[i].tau[j] = X(cur_vel_dof + j, b);
+                }
+            }
+
         }
 
         // Backward pass 2
-        for (int j = num_joints - 1; j >= 1; j--) {
-            int i = art.bfs_iteration_order[j];
-            data[i].invmass_backward_pass2<true>();
-            data[art.parents[i]].p_a += data[i].p_a;
-        }
-        if (!art.floating) {
-            data[0].invmass_backward_pass2<false>();
+        {
+            ZoneNamedN(BackwardPass2, "Backward pass 2", true)
+            for (int j = num_joints - 1; j >= 1; j--) {
+                int i = art.bfs_iteration_order[j];
+                data[i].invmass_backward_pass2<true>();
+                data[art.parents[i]].p_a += data[i].p_a;
+            }
+            if (!art.floating) {
+                data[0].invmass_backward_pass2<false>();
+            }
         }
 
         // Forward pass
-        if (art.floating) {
-            data[0].a = inverse(data[0].I_a) * (-data[0].p_a);
-        }
-        else {
-            data[0].a = tscrew<real>(IDENTITY);
-            data[0].invmass_forward_pass();
-        }
-        for (int j = 1; j < num_joints; j++) {
-            int i = art.bfs_iteration_order[j];
-            data[i].a = data[art.parents[i]].a;
-            data[i].invmass_forward_pass();
+        {
+            ZoneNamedN(ForwardPass, "Forward pass", true);
+            if (art.floating) {
+                data[0].a = inverse(data[0].I_a) * (-data[0].p_a);
+            }
+            else {
+                data[0].a = tscrew<real>(IDENTITY);
+                data[0].invmass_forward_pass();
+            }
+            for (int j = 1; j < num_joints; j++) {
+                int i = art.bfs_iteration_order[j];
+                data[i].a = data[art.parents[i]].a;
+                data[i].invmass_forward_pass();
+            }
         }
 
         // Output Minv_X
-        if (art.floating) {
-            ttransform<real> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
-            data[0].a += Ad(inverse(T_root), tscrew<real>(IDENTITY));
-            Minv_X(0, b) = data[0].a.w[0];
-            Minv_X(1, b) = data[0].a.w[1];
-            Minv_X(2, b) = data[0].a.w[2];
-            Minv_X(3, b) = data[0].a.v[0];
-            Minv_X(4, b) = data[0].a.v[1];
-            Minv_X(5, b) = data[0].a.v[2];
-        }
-        else {
-            int num_vel_dofs = art.joint_vel_dofs[0];
-            for (int j = 0; j < num_vel_dofs; j++) {
-                Minv_X(j, b) = data[0].udot[j];
+        {
+            ZoneNamedN(CopyOutput, "Copy output", true);
+            if (art.floating) {
+                ttransform<real> T_root = ttransform(make_vec3(q), glm::mat3_cast(make_quat(q + 3)));
+                data[0].a += Ad(inverse(T_root), tscrew<real>(IDENTITY));
+                Minv_X(0, b) = data[0].a.w[0];
+                Minv_X(1, b) = data[0].a.w[1];
+                Minv_X(2, b) = data[0].a.w[2];
+                Minv_X(3, b) = data[0].a.v[0];
+                Minv_X(4, b) = data[0].a.v[1];
+                Minv_X(5, b) = data[0].a.v[2];
+            }
+            else {
+                int num_vel_dofs = art.joint_vel_dofs[0];
+                for (int j = 0; j < num_vel_dofs; j++) {
+                    Minv_X(j, b) = data[0].udot[j];
+                }
+            }
+            for (int i = 1; i < num_joints; i++) {
+                uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
+                int num_vel_dofs = art.joint_vel_dofs[i];
+                for (int j = 0; j < num_vel_dofs; j++) {
+                    Minv_X(cur_vel_dof + j, b) = data[i].udot[j];
+                }
             }
         }
-        for (int i = 1; i < num_joints; i++) {
-            uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
-            int num_vel_dofs = art.joint_vel_dofs[i];
-            for (int j = 0; j < num_vel_dofs; j++) {
-                Minv_X(cur_vel_dof + j, b) = data[i].udot[j];
-            }
-        }
+
     }
 
     delete [] data;
