@@ -589,6 +589,7 @@ void World::integrate_with_contacts() {
                 contact_point_ids.push_back(cp_id);
                 auto cp = contact_points.get(cp_id);
                 cp->bt_manifold = manifold;
+                cp->bt_manifold_point = &pt;
                 cp->pos = glmconv(pt.getPositionWorldOnB());
                 cp->normal = glmconv(pt.m_normalWorldOnB);
                 cp->depth = -pt.getDistance();
@@ -700,6 +701,9 @@ void World::integrate_with_contacts() {
                 dynmat_view<real> Jc_T_view(Jc_T.data(), art1_num_vel_dofs, 3*art1_num_contact_points);
                 calc_linear_jacobian_transpose(art1.get_spec(), art1_lidx, contact_rel_T, T_joint_global,
                                                OUT Jc_T_view.slice(0, art1_num_vel_dofs, 3*k, 3));
+                // lambda[cidx].x = cp->bt_manifold_point->m_appliedImpulseLateral1;
+                // lambda[cidx].y = cp->bt_manifold_point->m_appliedImpulseLateral2;
+                // lambda[cidx].z = cp->bt_manifold_point->m_appliedImpulse;
             }
 
             VectorXr tau_star = Jc_T.transpose() * art1_u_bar;
@@ -790,6 +794,9 @@ void World::integrate_with_contacts() {
                     auto contact_T = rtransform(cp->pos, mat3_cast(rotation(Ez<real>(), cp->normal)));
                     auto contact_rel_T = art.get_global_joint_trans(art_lidx) / contact_T;
                     f_ext_tot[art_lidx] += AdT(contact_rel_T, rscrew(rvec3(0), lambda[cidx] / cfg.dt));
+                    cp->bt_manifold_point->m_appliedImpulseLateral1 = lambda[cidx].x;
+                    cp->bt_manifold_point->m_appliedImpulseLateral2 = lambda[cidx].y;
+                    cp->bt_manifold_point->m_appliedImpulse = lambda[cidx].z;
                 }
             }
 

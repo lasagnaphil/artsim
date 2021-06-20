@@ -138,7 +138,7 @@ public:
         art->set_root_transform(glmx::ttransform<real>(tvec3<real>(0.0f, 1.3f, 0.0f)));
         art->forward_kinematics();
 
-        art_render = ArticulationRender(art, orig_mesh_mat, joint_mat);
+        art_render = ArticulationRender(&world, art_id, orig_mesh_mat, joint_mat);
     }
 
 private:

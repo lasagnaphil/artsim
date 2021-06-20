@@ -510,6 +510,7 @@ inline bool operator!=(BodyId id1, BodyId id2) {
 
 struct ContactPoint {
     btPersistentManifold* bt_manifold;
+    btManifoldPoint* bt_manifold_point;
     glm::tvec3<real> pos;
     glm::tvec3<real> normal;
     real depth;
