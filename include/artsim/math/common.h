@@ -187,12 +187,13 @@ namespace glmx {
 
     template <class T>
     inline glm::tvec3<T> log_mat(const glm::tmat3x3<T> &R) {
-        T theta = glm::acos((R[0][0] + R[1][1] + R[2][2] - 1) / 2);
         auto v = glm::tvec3<T>(R[1][2] - R[2][1], R[2][0] - R[0][2], R[0][1] - R[1][0]);
-        if (glm::epsilonEqual<T>(theta, 0, 1e-6)) {
+        T cos_theta = (R[0][0] + R[1][1] + R[2][2] - 1) / 2;
+        if (glm::epsilonEqual(cos_theta, T(1), T(1e-6))) {
             return T(0.5) * v;
         }
         else {
+            T theta = glm::acos(cos_theta);
             return v * (theta / (2*glm::sin(theta)));
         }
     }
