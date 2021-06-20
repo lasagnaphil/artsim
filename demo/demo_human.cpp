@@ -14,6 +14,7 @@
 #include <artsim/artsim.h>
 #include <artsim/utils/urdf.h>
 #include <artsim/utils/xml.h>
+#include <artsim/utils/art_imgui.h>
 
 #include <gengine/App.h>
 #include <gengine/InputManager.h>
@@ -104,6 +105,9 @@ public:
 
         pbRenderer.render();
         imRenderer.render();
+
+        auto art = world.get_articulated_body(art_id);
+        articulated_body_imgui(*art);
     }
 
     void release() override {

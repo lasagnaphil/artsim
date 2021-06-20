@@ -524,6 +524,7 @@ struct FeatherstoneData {
 void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                                    glm::tvec3<real> gravity, real dt,
                                    const tscrew<real>* f_ext, const real* q, const real* u, const real* tau,
+                                   const real* q_target,
                                    real* udot) {
     ZoneScoped
 
@@ -551,10 +552,34 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                 data[i].f_ext = tscrew<real>(IDENTITY);
             }
             if (!(i == 0 && art.floating)) {
-                for (int j = 0; j < num_vel_dofs; j++) {
-                    data[i].tau[j] = tau[cur_vel_dof + j];
+                switch (joint.type) {
+                    JOINT_DOF_1_CASE {
+                        real kd_force = -joint.kd * u[cur_vel_dof];
+                        data[i].tau[0] = tau[cur_vel_dof] + kd_force;
+                        if (joint.kp != 0.0) {
+                            real kp_force = -joint.kp * (q[cur_pos_dof] + u[cur_vel_dof]*dt - q_target[cur_pos_dof]);
+                            data[i].tau[0] += kp_force;
+                        }
+                    } break;
+                    case JOINT_TYPE_SPHERICAL: {
+                        rvec3 kd_force = -joint.kd * glm::make_vec3(u + cur_vel_dof);
+                        data[i].tau = glm::make_vec3(tau + cur_vel_dof) + kd_force;
+                        if (joint.kp != 0.0) {
+                            glm::rquat qi = glm::make_quat(q + cur_pos_dof);
+                            const real* qdi = u + cur_vel_dof;
+                            qi[0] += real(0.5)*dt*(qi[3]*qdi[0] + qi[1]*qdi[2] - qi[2]*qdi[1]);
+                            qi[1] += real(0.5)*dt*(qi[3]*qdi[1] + qi[2]*qdi[0] - qi[0]*qdi[2]);
+                            qi[2] += real(0.5)*dt*(qi[3]*qdi[2] + qi[0]*qdi[1] - qi[1]*qdi[0]);
+                            qi[3] -= real(0.5)*dt*(qi[0]*qdi[0] + qi[1]*qdi[1] + qi[2]*qdi[2]);
+                            glm::rquat qt = glm::make_quat(q_target + cur_pos_dof);
+                            rvec3 kp_force = -joint.kp * glmx::log(qi * glm::inverse(qt));
+                            data[i].tau += kp_force;
+                        }
+                    } break;
+                    case JOINT_TYPE_FLOATING: break;
                 }
             }
+
             data[i].kd = joint.kd;
         }
     }

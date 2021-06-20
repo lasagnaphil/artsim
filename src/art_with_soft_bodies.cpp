@@ -447,7 +447,7 @@ VectorXr ArtWithSoftBodies::calc_total_force_with_gravity() {
         auto& sb = soft_bodies[sb_idx];
         for (int t = 0; t < sb.tetrahedrons.size(); t++) {
             glm::ivec4 tet = sb.tetrahedrons[t];
-            glm::rvec3 f_g = (1. / 4.) * sb.props.density * sb.W[t] * gravity;
+            glm::rvec3 f_g = real(1. / 4.) * sb.props.density * sb.W[t] * gravity;
             f_s_tot_ptr[vidx_start + tet[0]] += f_g;
             f_s_tot_ptr[vidx_start + tet[1]] += f_g;
             f_s_tot_ptr[vidx_start + tet[2]] += f_g;

@@ -138,8 +138,16 @@ bool artsim::load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT Articulated
 
         link = Link::create(inertia, mass, shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
 
-        const real kp = 0.0;
-        const real kd = 0.4;
+        real kp = 0.0;
+        real kd = 0.0;
+        auto kp_str = joint_elem->Attribute("kp");
+        if (kp_str) {
+            kp = std::stod(kp_str);
+        }
+        auto kd_str = joint_elem->Attribute("kd");
+        if (kd_str) {
+            kd = std::stod(kd_str);
+        }
         if(joint_type == "Free")
         {
             // TODO: Should we also put kd on floating joints?
@@ -271,7 +279,6 @@ bool artsim::load_from_xml(XMLElement* art_elem, const char* current_dir, OUT Ar
 
         XMLElement* joint_elem = node->FirstChildElement("joint");
         std::string joint_type = joint_elem->Attribute("type");
-        real joint_damping = joint_elem->DoubleAttribute("damping");
 
         ttransform<real> T_global_joint;
         T_global_joint.R = glmx::exp_mat(string_to_vector3d(joint_elem->Attribute("rot")));
@@ -291,6 +298,16 @@ bool artsim::load_from_xml(XMLElement* art_elem, const char* current_dir, OUT Ar
 
         link = Link::create(inertia, mass, col_shape, render_shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
 
+        real kp = 0.0;
+        real kd = 0.0;
+        auto kp_str = joint_elem->Attribute("kp");
+        if (kp_str) {
+            kp = std::stod(kp_str);
+        }
+        auto kd_str = joint_elem->Attribute("kd");
+        if (kd_str) {
+            kd = std::stod(kd_str);
+        }
         if(joint_type == "free" || joint_type == "floating")
         {
             // TODO: Should we also put kd on floating joints?
@@ -298,19 +315,19 @@ bool artsim::load_from_xml(XMLElement* art_elem, const char* current_dir, OUT Ar
         }
         else if(joint_type == "ball" || joint_type == "spherical")
         {
-            joint = Joint::spherical(0, joint_damping);
+            joint = Joint::spherical(kp, kd);
         }
         else if(joint_type == "revolute")
         {
             glm::tvec3<real> axis = string_to_vector3d(joint_elem->Attribute("axis"));
             if (glm::epsilonEqual<real>(axis.x, 1.0, 1e-8)) {
-                joint = Joint::revolute_x(0, joint_damping);
+                joint = Joint::revolute_x(kp, kd);
             }
             else if (glm::epsilonEqual<real>(axis.y, 1.0, 1e-8)) {
-                joint = Joint::revolute_y(0, joint_damping);
+                joint = Joint::revolute_y(kp, kd);
             }
             else if (glm::epsilonEqual<real>(axis.z, 1.0, 1e-8)) {
-                joint = Joint::revolute_z(0, joint_damping);
+                joint = Joint::revolute_z(kp, kd);
             }
             else {
                 std::cout << "Only revolute joints with X, Y, or Z axis supported!" << std::endl;

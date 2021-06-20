@@ -295,6 +295,7 @@ void ArticulatedBody::init(artsim::ArticulatedBodySpec art_spec) {
     udot.resize(num_vel_dofs, 0);
     tau.resize(num_vel_dofs, 0);
     f_ext.resize(num_links, glmx::tscrew<real>(glmx::IDENTITY));
+    q_target.resize(num_pos_dofs, 0);
     T_link_globals.resize(num_links, glmx::ttransform<real>(glmx::IDENTITY));
     T_joint_globals.resize(num_joints, glmx::ttransform<real>(glmx::IDENTITY));
 
@@ -330,8 +331,24 @@ void ArticulatedBody::release(btCollisionWorld* bt_world) {
 }
 
 void ArticulatedBody::reset() {
-    real* qp = q.data();
     int num_joints = get_num_joints();
+    real* qp = q.data();
+    for (int i = 0; i < num_joints; i++) {
+        switch (spec.joints[i].type) {
+            JOINT_DOF_1_CASE {
+                qp[0] = 0;
+            } break;
+            case JOINT_TYPE_FLOATING: {
+                qp[0] = 0; qp[1] = 0; qp[2] = 0;
+                qp[3] = 0; qp[4] = 0; qp[5] = 0; qp[6] = 1;
+            } break;
+            case JOINT_TYPE_SPHERICAL: {
+                qp[0] = 0; qp[1] = 0; qp[2] = 0; qp[3] = 1;
+            } break;
+        }
+        qp += spec.joint_pos_dofs[i];
+    }
+    qp = q_target.data();
     for (int i = 0; i < num_joints; i++) {
         switch (spec.joints[i].type) {
             JOINT_DOF_1_CASE {
@@ -409,7 +426,7 @@ void ArticulatedBody::update_colliders() {
 }
 
 void ArticulatedBody::forward_dynamics(const glm::rvec3& gravity, real dt) {
-    artsim::featherstone_forward_dynamics(spec, gravity, dt, f_ext.data(), q.data(), u.data(), tau.data(),
+    artsim::featherstone_forward_dynamics(spec, gravity, dt, f_ext.data(), q.data(), u.data(), tau.data(), q_target.data(),
                                           OUT udot.data());
 }
 
@@ -674,11 +691,12 @@ void World::integrate_with_contacts() {
             real* art1_q = art1.get_pos_buf();
             real* art1_u = art1.get_vel_buf();
             real* art1_tau = art1.get_internal_force_buf();
+            real* art1_q_target = art1.get_target_pos_buf();
 
             VectorXr art1_udot_bar(art1_num_vel_dofs);
 
             featherstone_forward_dynamics(art1_spec, cfg.gravity, cfg.dt,
-                                          art1_f_ext, art1_q, art1_u, art1_tau, OUT art1_udot_bar.data());
+                                          art1_f_ext, art1_q, art1_u, art1_tau, art1_q_target, OUT art1_udot_bar.data());
 
             VectorXr art1_u_bar = Eigen::Map<VectorXr>(art1_u, art1_num_vel_dofs) + art1_udot_bar * cfg.dt;
 
@@ -804,7 +822,7 @@ void World::integrate_with_contacts() {
             real* q = art.get_pos_buf(); real* u = art.get_vel_buf(); real* udot = art.get_acc_buf();
             featherstone_forward_dynamics(spec, cfg.gravity, cfg.dt,
                                           f_ext_tot.data(), q, u,
-                                          art.get_internal_force_buf(), OUT udot);
+                                          art.get_internal_force_buf(), art.get_target_pos_buf(), OUT udot);
             integrate_implicit_euler(spec, cfg.dt, udot, INOUT q, INOUT u);
         });
 

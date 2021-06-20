@@ -169,7 +169,7 @@ void PBDWorld::simulate(real dt, int num_substeps) {
 
                 rb.prev_rot = rb.rot;
                 rb.angvel += h*(rb.inv_inertia*(rb.tau_ext - glm::cross(rb.angvel, rb.inertia * rb.angvel)));
-                rb.rot += glm::rquat(0, 0.5*h*rb.angvel) * rb.rot;
+                rb.rot += glm::rquat(0, real(0.5)*h*rb.angvel) * rb.rot;
                 rb.rot = glm::normalize(rb.rot);
             }
         }
@@ -179,7 +179,7 @@ void PBDWorld::simulate(real dt, int num_substeps) {
             if (rb.is_dynamic) {
                 rb.vel = (rb.pos - rb.prev_pos) / h;
                 glm::rquat dq = rb.rot * glm::inverse(rb.prev_rot);
-                rb.angvel = (2.0/h) * glm::rvec3(dq.x, dq.y, dq.z);
+                rb.angvel = (real(2.0)/h) * glm::rvec3(dq.x, dq.y, dq.z);
                 rb.angvel = dq.w >= 0? rb.angvel : -rb.angvel;
             }
         }
@@ -263,12 +263,12 @@ void project_positions(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dx,
 
     if (rb1.is_dynamic) {
         rb1.pos += rb1.inv_mass * p;
-        rb1.rot += 0.5 * (glm::rquat(0, rb1.inv_inertia * glm::cross(r1, p)) * rb1.rot);
+        rb1.rot += real(0.5) * (glm::rquat(0, rb1.inv_inertia * glm::cross(r1, p)) * rb1.rot);
         rb1.rot = glm::normalize(rb1.rot);
     }
     if (rb2.is_dynamic) {
         rb2.pos -= rb2.inv_mass * p;
-        rb2.rot -= 0.5 * (glm::rquat(0, rb2.inv_inertia * glm::cross(r2, p)) * rb2.rot);
+        rb2.rot -= real(0.5) * (glm::rquat(0, rb2.inv_inertia * glm::cross(r2, p)) * rb2.rot);
         rb2.rot = glm::normalize(rb2.rot);
     }
 }
@@ -288,11 +288,11 @@ void project_rotations(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3 dq,
 
     glm::rvec3 p = dlambda * n_rel;
     if (rb1.is_dynamic) {
-        rb1.rot += 0.5 * (glm::rquat(0, rb1.inv_inertia * p) * rb1.rot);
+        rb1.rot += real(0.5) * (glm::rquat(0, rb1.inv_inertia * p) * rb1.rot);
         rb1.rot = glm::normalize(rb1.rot);
     }
     if (rb2.is_dynamic) {
-        rb2.rot -= 0.5 * (glm::rquat(0, rb2.inv_inertia * p) * rb2.rot);
+        rb2.rot -= real(0.5) * (glm::rquat(0, rb2.inv_inertia * p) * rb2.rot);
         rb2.rot = glm::normalize(rb2.rot);
     }
 }
@@ -418,14 +418,14 @@ void PBDWorld::solve_velocities(real h) {
                 auto& rev_con = con.revolute_joint;
                 auto& rb1 = *rigid_bodies.get(rev_con.rb_id1);
                 auto& rb2 = *rigid_bodies.get(rev_con.rb_id2);
-                glm::rvec3 dw = (rb2.angvel - rb1.angvel) * glm::min(rev_con.damping * h, 1.0);
+                glm::rvec3 dw = (rb2.angvel - rb1.angvel) * glm::min(rev_con.damping * h, real(1));
                 project_angular_velocities(rb1, rb2, dw);
             } break;
             case PBDConstraintType::SphericalJoint: {
                 auto& sph_con = con.spherical_joint;
                 auto& rb1 = *rigid_bodies.get(sph_con.rb_id1);
                 auto& rb2 = *rigid_bodies.get(sph_con.rb_id2);
-                glm::rvec3 dw = (rb2.angvel - rb1.angvel) * glm::min(sph_con.damping * h, 1.0);
+                glm::rvec3 dw = (rb2.angvel - rb1.angvel) * glm::min(sph_con.damping * h, real(1));
                 project_angular_velocities(rb1, rb2, dw);
             } break;
         }
@@ -452,7 +452,7 @@ void PBDWorld::solve_velocities(real h) {
         if (v_n_next < 2*glm::length(gravity)*h) {
             restitution = 0;
         }
-        glm::rvec3 dv = con.normal * (-v_n_next + glm::max(-restitution * v_n, 0.0));
+        glm::rvec3 dv = con.normal * (-v_n_next + glm::max(-restitution * v_n, real(0)));
         project_velocities(rb1, rb2, dv, con.r1, con.r2);
     }
 

@@ -81,8 +81,8 @@ enum JointType : int {
                          case JOINT_TYPE_PRISMATIC_X: case JOINT_TYPE_PRISMATIC_Y: case JOINT_TYPE_PRISMATIC_Z:
 
 struct Joint {
-    constexpr static real default_kp = 10.0;
-    constexpr static real default_kd = 0.1;
+    constexpr static real default_kp = 0.0;
+    constexpr static real default_kd = 0.0;
     constexpr static real default_maxvel = 100.0;
 
     JointType type;
@@ -369,6 +369,7 @@ private:
     std::vector<real> udot;
     std::vector<real> tau;
     std::vector<glmx::tscrew<real>> f_ext;
+    std::vector<real> q_target;
     std::vector<glmx::ttransform<real>> T_link_globals;
     std::vector<glmx::ttransform<real>> T_joint_globals;
 
@@ -396,6 +397,7 @@ public:
     real* get_acc_buf() { return udot.data(); }
     real* get_internal_force_buf() { return tau.data(); }
     glmx::rscrew* get_external_force_buf() { return f_ext.data(); }
+    real* get_target_pos_buf() { return q_target.data(); }
 
     Id<Material> get_mat_id() { return mat_id; }
     void set_mat_id(Id<Material> new_mat_id) { mat_id = new_mat_id; }

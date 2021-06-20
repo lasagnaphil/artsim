@@ -278,7 +278,7 @@ void iterative_contact_solver(
 void
 euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
                           const ArticulatedBodySpec& art, const Material* mat, glm::tvec3<real> gravity, real dt,
-                          const real* tau, const tscrew<real>* f_ext, const ContactPoint* contact_points,
+                          const real* tau, const tscrew<real>* f_ext, const real* q_target, const ContactPoint* contact_points,
                           uint32_t num_contact_points,
                           INOUT real* q, INOUT real* u,
                           OUT real* udot, OUT glm::tvec3<real>* lambda) {
@@ -288,7 +288,7 @@ euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
     int num_joints = art.get_num_joints();
 
     Matrix<real, Dynamic, 1> udot_bar(num_vel_dofs);
-    featherstone_forward_dynamics(art, gravity, dt, f_ext, q, u, tau, OUT udot_bar.data());
+    featherstone_forward_dynamics(art, gravity, dt, f_ext, q, u, tau, q_target, OUT udot_bar.data());
 
     if (num_contact_points == 0) {
         integrate_implicit_euler(art, dt, udot_bar.data(), INOUT q, INOUT u);
@@ -371,7 +371,7 @@ euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
         output_log("Contact solver: %lld ns\n", duration.count());
 
         // printf("\n");
-        featherstone_forward_dynamics(art, gravity, dt, f_ext_tot.data(), q, u, tau, OUT udot);
+        featherstone_forward_dynamics(art, gravity, dt, f_ext_tot.data(), q, u, tau, q_target, OUT udot);
 
         integrate_implicit_euler(art, dt, udot, INOUT q, INOUT u);
     }

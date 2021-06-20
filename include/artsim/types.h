@@ -23,9 +23,11 @@ namespace artsim {
 #ifdef ARTSIM_USE_DOUBLE
 using real = double;
 constexpr real REAL_MAX = DBL_MAX;
+#define ImGuiDataType_Real ImGuiDataType_Double
 #else
 using real = float;
 constexpr real REAL_MAX = FLT_MAX;
+#define ImGuiDataType_Real ImGuiDataType_Float
 #endif
 
 }
