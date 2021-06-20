@@ -696,6 +696,7 @@ namespace glmx {
     }
 
     using transform = ttransform<float>;
+    using quat_transform = tquat_transform<float>;
     using screw = tscrew<float>;
     using spmat = tspmat<float>;
     using smat6x6 = tsmat6x6<float>;

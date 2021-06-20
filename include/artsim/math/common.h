@@ -129,6 +129,24 @@ namespace glmx {
     }
 
     template <class T>
+    glm::tquat<T> Rx_quat(T theta) {
+        T s = glm::sin(theta/2); T c = glm::cos(theta/2);
+        return glm::tquat<T>(c, s, 0, 0);
+    }
+
+    template <class T>
+    glm::tquat<T> Ry_quat(T theta) {
+        T s = glm::sin(theta/2); T c = glm::cos(theta/2);
+        return glm::tquat<T>(c, 0, s, 0);
+    }
+
+    template <class T>
+    glm::tquat<T> Rz_quat(T theta) {
+        T s = glm::sin(theta/2); T c = glm::cos(theta/2);
+        return glm::tquat<T>(c, 0, 0, s);
+    }
+
+    template <class T>
     inline glm::tmat3x3<T> mat3_from_diag(glm::tvec3<T> v) {
         return glm::tmat3x3<T>(v.x, 0, 0, 0, v.y, 0, 0, 0, v.z);
     }
