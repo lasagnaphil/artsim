@@ -3,7 +3,6 @@
 //
 
 #include "artsim/art_contacts.h"
-
 #include "artsim/art_dynamics.h"
 
 #include <Eigen/Dense>
@@ -369,7 +368,7 @@ euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
 
         auto t2 = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
-        printf("Contact solver: %lld ns\n", duration.count());
+        output_log("Contact solver: %lld ns\n", duration.count());
 
         // printf("\n");
         featherstone_forward_dynamics(art, gravity, dt, f_ext_tot.data(), q, u, tau, OUT udot);

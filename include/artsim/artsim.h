@@ -25,9 +25,7 @@
 
 namespace artsim {
 
-#define SHOW_LOG
-
-#ifdef SHOW_LOG
+#ifdef ARTSIM_USE_LOGGING
 #define output_log(...) printf(__VA_ARGS__)
 #else
 #define output_log(...)

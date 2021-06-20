@@ -12,6 +12,7 @@ find_package(Eigen3 REQUIRED)
 # For URDF exports
 find_package(TinyXML2 REQUIRED)
 
+option(ARTSIM_USE_LOGGING "Log simulation info to stdout" OFF)
 option(ARTSIM_USE_DOUBLE "Use double instead of float" ON)
 option(ARTSIM_USE_OPENMP "Use OpenMP" ON)
 option(ARTSIM_USE_ASAN "Use Address Sanitizer" OFF)
@@ -53,6 +54,9 @@ target_link_libraries(artsim PUBLIC ${ARTSIM_LIB})
 
 target_compile_definitions(artsim PRIVATE EIGEN_DONT_PARALLELIZE)
 
+if (ARTSIM_USE_LOGGING)
+    target_compile_definitions(artsim PUBLIC ARTSIM_USE_LOGGING)
+endif()
 if (ARTSIM_USE_DOUBLE)
     target_compile_definitions(artsim PUBLIC ARTSIM_USE_DOUBLE)
 endif()

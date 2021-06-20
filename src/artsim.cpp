@@ -772,7 +772,7 @@ void World::integrate_with_contacts() {
 
     auto t2 = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
-    printf("Contact solver: %lld ns\n", duration.count());
+    output_log("Contact solver: %lld ns\n", duration.count());
 
     {
         ZoneNamedN(IntegrateWithContacts, "IntegrateWithContacts", true);
