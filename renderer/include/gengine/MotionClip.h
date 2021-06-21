@@ -6,6 +6,7 @@
 #define DEEPMIMIC_MOTIONCLIP_H
 
 #include <artsim/types.h>
+#include <artsim/math/pose.h>
 
 struct MotionClipView {
     float* data = nullptr;

@@ -521,6 +521,14 @@ struct FeatherstoneData {
     }
 };
 
+glm::rvec3 spherical_joint_kp_force(real kp, const glm::rquat& q, const glm::rquat& qd) {
+    glm::rvec3 tau;
+    tau.x = -real(2) * kp * (qd.w * q.x - qd.x * q.w - qd.y * q.z + qd.z * q.y);
+    tau.y = -real(2) * kp * (qd.w * q.y + qd.x * q.z - qd.y * q.w - qd.z * q.x);
+    tau.z = -real(2) * kp * (qd.w * q.z - qd.x * q.y + qd.y * q.x - qd.z * q.w);
+    return tau;
+}
+
 void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                                    glm::tvec3<real> gravity, real dt,
                                    const tscrew<real>* f_ext, const real* q, const real* u, const real* tau,
@@ -572,8 +580,7 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                             qi[2] += real(0.5)*dt*(qi[3]*qdi[2] + qi[0]*qdi[1] - qi[1]*qdi[0]);
                             qi[3] -= real(0.5)*dt*(qi[0]*qdi[0] + qi[1]*qdi[1] + qi[2]*qdi[2]);
                             glm::rquat qt = glm::make_quat(q_target + cur_pos_dof);
-                            rvec3 kp_force = -joint.kp * glmx::log(qi * glm::inverse(qt));
-                            data[i].tau += kp_force;
+                            data[i].tau += spherical_joint_kp_force(joint.kp, qi, qt);
                         }
                     } break;
                     case JOINT_TYPE_FLOATING: break;
