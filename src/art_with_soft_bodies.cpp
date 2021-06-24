@@ -115,6 +115,13 @@ void ArtWithSoftBodies::load(const char* metadata) {
             // Material is applied to entire soft body
             real mu = sb.props.calc_mu();
             real lambda = sb.props.calc_lambda();
+            if (mat_type == "arap") {
+                real k = sb.props.calc_arap_stiffness();
+                int sb_num_tets = sb.tetrahedrons.size();
+                for (int i = 0; i < sb_num_tets; i++) {
+                    sb_constraints[sb_idx].arap_energy.push_back({i, k, mu});
+                }
+            }
             if (mat_type == "corotational") {
                 real k = sb.props.calc_corotational_stiffness();
                 int sb_num_tets = sb.tetrahedrons.size();
@@ -282,6 +289,60 @@ void ArtWithSoftBodies::reset() {
     art.reset();
 }
 
+
+template <class Constraint>
+void admm_vel_volume_constraint_local_solve(
+        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
+        const glm::tmat3x3<real>* F, const glmx::SVD_mats<real>* F_svd,
+        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u) {
+
+    for (int cidx = 0; cidx < num_constraints; cidx++) {
+        auto& c = constraints[cidx];
+        auto& svd = F_svd[c.tet_id];
+        glm::rvec3 sigma = proximal_eigvec(svd.Sigma, body.W[c.tet_id], c);
+        z[c.tet_id] = glmx::svd_mult(svd.U, sigma, svd.V);
+        u[c.tet_id] = F[c.tet_id] - z[c.tet_id];
+    }
+}
+
+#define X(CTYPE, CFIELD) \
+template void admm_vel_volume_constraint_local_solve( \
+        const SoftBodyData&, const CTYPE*, uint32_t, \
+        const glm::tmat3x3<real>* F, const glmx::SVD_mats<real>* F_svd, \
+        OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u);
+ADMM_VOLUME_CONSTRAINTS
+#undef X
+
+template <class Constraint>
+void admm_vel_volume_constraint_update_b(
+        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
+        real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0,
+        INOUT real* b) {
+
+    for (int cidx = 0; cidx < num_constraints; cidx++) {
+        auto& c = constraints[cidx];
+        glm::ivec4 tet = body.tetrahedrons[c.tet_id];
+        auto p = z[c.tet_id] - u[c.tet_id];
+        auto& D_i = body.D[c.tet_id];
+        auto D_x0 = glm::rmat3(x0[tet[0]] - x0[tet[3]], x0[tet[1]] - x0[tet[3]], x0[tet[2]] - x0[tet[3]]) * body.B_m[c.tet_id];
+        real k_s = dt * c.k * body.W[c.tet_id];
+        for (int j = 0; j < 4; j++) {
+            glm::tvec3<real> db = k_s * ((p - D_x0) * D_i[j]);
+            b[3*tet[j]+0] += db[0];
+            b[3*tet[j]+1] += db[1];
+            b[3*tet[j]+2] += db[2];
+        }
+    }
+}
+
+#define X(CTYPE, CFIELD) \
+template void admm_vel_volume_constraint_update_b( \
+        const SoftBodyData& body, const CTYPE* constraints, uint32_t num_constraints, \
+        real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0, INOUT real* b);
+ADMM_VOLUME_CONSTRAINTS
+#undef X
+
+
 void ArtWithSoftBodies::admm_calc_deformation_field_and_svd(
         const glm::tmat3x3<real>* u, OUT glm::tmat3x3<real>* F, OUT glmx::SVD_mats<real>* F_svd) {
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
@@ -344,7 +405,7 @@ void ArtWithSoftBodies::admm_update_residuals(
         int start_vidx = sb_vert_start_idx[sb_idx];
         int start_tidx = sb_tet_start_idx[sb_idx];
 #define X(CTYPE, CFIELD) \
-        admm_vel_volume_constraint_update_residuals( \
+        admm_volume_constraint_update_residuals( \
                 soft_bodies[sb_idx], \
                 constraints.CFIELD.data(), \
                 constraints.CFIELD.size(), \

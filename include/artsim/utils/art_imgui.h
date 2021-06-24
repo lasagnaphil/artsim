@@ -13,13 +13,13 @@
 
 namespace artsim {
 
-void articulated_body_imgui(ArticulatedBody& art) {
+void articulated_body_imgui(ArticulatedBody& art, bool& pos_edited, bool& vel_edited, bool& force_edited) {
+    pos_edited = false;
     auto& art_spec = art.get_spec();
     real* pos_buf = art.get_pos_buf();
     real* vel_buf = art.get_vel_buf();
     real* force_buf = art.get_internal_force_buf();
     if (ImGui::TreeNode("Positions##art_pos")) {
-        bool edited = false;
         double pos_min = -5, pos_max = 5;
         double rot_min = -2*M_PI, rot_max = 2*M_PI;
         double quat_min = -1, quat_max = 1;
@@ -30,20 +30,20 @@ void articulated_body_imgui(ArticulatedBody& art) {
             auto label = fmt::format("{}##jointpos_{}", joint_name, joint_name);
             switch (joint.type) {
                 JOINT_DOF_1_CASE {
-                    edited |= ImGui::SliderScalar(label.c_str(), ImGuiDataType_Real, pos_buf + jidx_start, &rot_min, &rot_max, "%.6g");
+                    pos_edited |= ImGui::SliderScalar(label.c_str(), ImGuiDataType_Real, pos_buf + jidx_start, &rot_min, &rot_max, "%.6g");
                 } break;
                 case JOINT_TYPE_SPHERICAL: {
                     bool rot_edited = ImGui::SliderScalarN(label.c_str(), ImGuiDataType_Real, pos_buf + jidx_start, 4, &quat_min, &quat_max, "%.6g");
-                    edited |= rot_edited;
+                    pos_edited |= rot_edited;
                     if (rot_edited) {
                         glm::rquat q = glm::normalize(glm::make_quat(pos_buf + jidx_start));
                         std::memcpy(pos_buf + jidx_start, (real*)&q, 4*sizeof(real));
                     }
                 } break;
                 case JOINT_TYPE_FLOATING: {
-                    edited |= ImGui::SliderScalarN("Root pos##jointpos_root_pos", ImGuiDataType_Real, pos_buf + jidx_start, 3, &pos_min, &pos_max, "%.6g");
+                    pos_edited |= ImGui::SliderScalarN("Root pos##jointpos_root_pos", ImGuiDataType_Real, pos_buf + jidx_start, 3, &pos_min, &pos_max, "%.6g");
                     bool rot_edited = ImGui::SliderScalarN("Root rot##jointpos_root_rot", ImGuiDataType_Real, pos_buf + jidx_start + 3, 4, &quat_min, &quat_max, "%.6g");
-                    edited |= rot_edited;
+                    pos_edited |= rot_edited;
                     if (rot_edited) {
                         glm::rquat q = glm::normalize(glm::make_quat(pos_buf + jidx_start));
                         std::memcpy(pos_buf + jidx_start + 3, (real*)&q, 4*sizeof(real));
@@ -52,7 +52,7 @@ void articulated_body_imgui(ArticulatedBody& art) {
             }
         }
         ImGui::TreePop();
-        if (edited) {
+        if (pos_edited) {
             art.forward_kinematics();
         }
     }

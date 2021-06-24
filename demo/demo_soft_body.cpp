@@ -54,8 +54,9 @@ public:
         tet_mesh.load_obj("demo/resources/soft_body/octopus.obj");
 
         SoftBodyProperties props;
+        props.density = 1000;
         props.young_modulus = 1e8;
-        props.poisson_ratio = 0.499;
+        props.poisson_ratio = 0.4;
         soft_body.load(tet_mesh, props);
 
 #if defined(DEMO_PD)
@@ -70,12 +71,12 @@ public:
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();
         for (int i = 0; i < soft_body.tetrahedrons.size(); i++) {
-            // constraints.corotational_energy.push_back({i, 210, 5, 200});
+            // constraints.arap_energy.push_back({i, stiffness, mu});
             constraints.corotational_energy.push_back({i, stiffness, mu, lambda});
             // constraints.neohookean_energy.push_back({i, stiffness, mu, lambda});
         }
-        constraints.positional.push_back({0, 1e3, glm::rvec3(0, 0, 0)});
-        constraints.positional.push_back({400, 1e3, glm::rvec3(0, 0, 0)});
+        constraints.positional.push_back({0, 1e7, glm::rvec3(0, 0, 0)});
+        constraints.positional.push_back({400, 1e7, glm::rvec3(0, 0, 0)});
 #endif
         soft_body_precomputation(soft_body, constraints, sim_dt, OUT soft_body_precalc);
 
@@ -114,7 +115,7 @@ public:
 #endif
 #elif defined(DEMO_ADMM)
             admm_dynamics(soft_body, soft_body_precalc, constraints, sim_dt, 20, (real*) sb_force.data(),
-                          INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
+                              INOUT (real*) sb_pos.data(), INOUT (real*) sb_vel.data());
 #elif defined(DEMO_QUASINEWTON)
             quasinewton_dynamics(soft_body, soft_body_precalc, constraints, sim_dt, 5, (real*) sb_force.data(),
                                  INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
