@@ -149,7 +149,7 @@ void SoftBodyData::load(const PyMesh::MshLoader& msh, const SoftBodyProperties& 
     gen_surface_triangles_from_tet_mesh(tetrahedrons, OUT surface_triangles);
 }
 
-btTriangleMesh SoftBodyData::create_bullet_surface_trimesh() {
+btTriangleIndexVertexArray SoftBodyData::create_bullet_surface_trimesh() {
     btIndexedMesh imesh;
     imesh.m_numTriangles = surface_triangles.size();
     imesh.m_triangleIndexBase = reinterpret_cast<const unsigned char*>(surface_triangles.data());
@@ -157,7 +157,7 @@ btTriangleMesh SoftBodyData::create_bullet_surface_trimesh() {
     imesh.m_numVertices = vertices.size();
     imesh.m_vertexBase = reinterpret_cast<const unsigned char*>(vertices.data());
     imesh.m_vertexStride = 3 * sizeof(real);
-    btTriangleMesh trimesh;
+    btTriangleIndexVertexArray trimesh;
     trimesh.addIndexedMesh(imesh);
     return trimesh;
 }
@@ -223,6 +223,16 @@ void update_system_matrix(SoftBodyData& body, const PDConstraints& constraints, 
     PD_VOLUME_CONSTRAINTS
 #undef X
     for (const auto& c : constraints.positional) {
+        real dL = c.k;
+        L.coeffRef(3*c.vert_id+0, 3*c.vert_id+0) += dL;
+        L.coeffRef(3*c.vert_id+1, 3*c.vert_id+1) += dL;
+        L.coeffRef(3*c.vert_id+2, 3*c.vert_id+2) += dL;
+        real dA = dt * dt * dL;
+        A.coeffRef(3*c.vert_id+0, 3*c.vert_id+0) += dA;
+        A.coeffRef(3*c.vert_id+1, 3*c.vert_id+1) += dA;
+        A.coeffRef(3*c.vert_id+2, 3*c.vert_id+2) += dA;
+    }
+    for (const auto& c : constraints.soft_rigid_collision) {
         real dL = c.k;
         L.coeffRef(3*c.vert_id+0, 3*c.vert_id+0) += dL;
         L.coeffRef(3*c.vert_id+1, 3*c.vert_id+1) += dL;
@@ -495,6 +505,25 @@ void projective_dynamics_positional_constraint_update_b(
     }
 }
 
+void projective_dynamics_soft_rigid_collision_constraint_update_b(
+        const SoftBodyData& body, const SoftRigidCollisionConstraint* constraints, uint32_t num_constraints, real dt,
+        const glm::rvec3* x, INOUT real* b) {
+    for (int cidx = 0; cidx < num_constraints; cidx++) {
+        auto& c = constraints[cidx];
+        real k_s = c.k * dt * dt;
+        if (glm::dot(c.normal, x[c.vert_id] - c.closest_point) < 0) {
+            b[3*c.vert_id+0] += k_s * c.closest_point.x;
+            b[3*c.vert_id+1] += k_s * c.closest_point.y;
+            b[3*c.vert_id+2] += k_s * c.closest_point.z;
+        }
+        else {
+            b[3*c.vert_id+0] += k_s * x[c.vert_id].x;
+            b[3*c.vert_id+1] += k_s * x[c.vert_id].y;
+            b[3*c.vert_id+2] += k_s * x[c.vert_id].z;
+        }
+    }
+}
+
 template <class Constraint>
 void admm_volume_constraint_local_solve(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
@@ -613,6 +642,10 @@ void projective_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& pr
         projective_dynamics_positional_constraint_update_b(
                 body, constraints.positional.data(), constraints.positional.size(), dt, INOUT b.data());
 
+        projective_dynamics_soft_rigid_collision_constraint_update_b(
+                body, constraints.soft_rigid_collision.data(), constraints.soft_rigid_collision.size(), dt,
+                (glm::rvec3*)x.data(), INOUT b.data());
+
         x = precalc.A_LDLt.solve(b);
     }
     v = (x - x_orig) / dt;
@@ -648,6 +681,9 @@ void projective_dynamics_quasistatic(const SoftBodyData& body, const SoftBodyPre
 #undef X
         projective_dynamics_positional_constraint_update_b(
                 body, constraints.positional.data(), constraints.positional.size(), 1.0, INOUT b.data());
+        projective_dynamics_soft_rigid_collision_constraint_update_b(
+                body, constraints.soft_rigid_collision.data(), constraints.soft_rigid_collision.size(), 1.0,
+                (glm::rvec3*) x.data(), INOUT b.data());
 
         x = precalc.L_LDLt.solve(b);
     }

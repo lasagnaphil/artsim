@@ -92,13 +92,23 @@ struct PositionalConstraint {
     glm::rvec3 target_pos;
 };
 
+struct SoftRigidCollisionConstraint {
+    int vert_id;
+    real k;
+    glm::rvec3 closest_point;
+    glm::rvec3 normal;
+};
+
+
 struct PDConstraints {
     std::vector<LinearStrainEnergyConstraint> linear_strain_energy;
     std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy;
     std::vector<PositionalConstraint> positional;
+    std::vector<SoftRigidCollisionConstraint> soft_rigid_collision;
 
     int count() {
-        return linear_strain_energy.size() + volume_preservation_energy.size() + positional.size();
+        return linear_strain_energy.size() + volume_preservation_energy.size() + positional.size()
+            + soft_rigid_collision.size();
     }
 };
 
@@ -147,7 +157,7 @@ struct SoftBodyData {
     void load(const TetMesh& mesh, const SoftBodyProperties& props);
     void load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props);
 
-    btTriangleMesh create_bullet_surface_trimesh();
+    btTriangleIndexVertexArray create_bullet_surface_trimesh();
 };
 
 template <class Constraints>
