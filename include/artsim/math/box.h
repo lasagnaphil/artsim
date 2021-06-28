@@ -5,27 +5,45 @@
 #ifndef EOS_SCAN_TO_HUMAN_BOX_H
 #define EOS_SCAN_TO_HUMAN_BOX_H
 
+#include <glm/glm.hpp>
+#include <glm/gtx/norm.hpp>
+
 namespace glmx {
 
 template <int Dim, class T>
 struct tbox {
-    glm::vec<Dim, T> lo = glm::vec<Dim, T>(std::numeric_limits<T>::max);
-    glm::vec<Dim, T> hi = glm::vec<Dim, T>(std::numeric_limits<T>::min);
+    glm::vec<Dim, T> lo = glm::vec<Dim, T>(std::numeric_limits<T>::max());
+    glm::vec<Dim, T> hi = glm::vec<Dim, T>(-std::numeric_limits<T>::max());
 
-    void extend(glm::vec<Dim, T> p) {
+    void extend(const glm::vec<Dim, T>& p) {
+        lo = glm::min(lo, p);
+        hi = glm::max(hi, p);
+        /*
         for (int i = 0; i < Dim; i++) {
-            if (p < lo[i]) lo[i] = p;
-            if (p > hi[i]) hi[i] = p;
+            if (p[i] < lo[i]) lo[i] = p[i];
+            if (p[i] > hi[i]) hi[i] = p[i];
         }
+         */
+    }
+
+    void extend(const glmx::tbox<Dim, T>& box) {
+        lo = glm::min(lo, box.lo);
+        hi = glm::max(hi, box.hi);
+        /*
+        for (int i = 0; i < Dim; i++) {
+            if (box.lo[i] < lo[i]) lo[i] = box.lo[i];
+            if (box.hi[i] > hi[i]) hi[i] = box.hi[i];
+        }
+         */
     }
 
     glm::vec<Dim, T> center() {
-        return (lo + hi) / 2;
+        return (lo + hi) / T(2);
     }
     glm::vec<Dim, T> size() {
         return hi - lo;
     }
-    real volume() {
+    T volume() {
         auto s = size();
         return s[0] * s[1] * s[2];
     }

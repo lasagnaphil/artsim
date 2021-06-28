@@ -6,6 +6,8 @@
 #include <artsim/core/aabbtree_visitor.h>
 #include <artsim/math/box.h>
 
+#include <glm/gtx/string_cast.hpp>
+
 #include <numeric>
 #include <fmt/core.h>
 
@@ -27,7 +29,7 @@ public:
     AABBTree() {
     }
 
-    void init(const glm::rvec3* vertices, const int* indices, int num_prims);
+    void init(const glm::rvec3* vertices, const glm::vec<PDIM, int>* indices, int num_prims);
 
     bool traverse(AABBTreeVisitor<T>& visitor) {
         return traverse_children(0, visitor);
@@ -40,22 +42,22 @@ private:
 };
 
 template<class T, int PDIM>
-void AABBTree<T, PDIM>::init(const glm::rvec3* vertices, const int* indices, int num_prims) {
+void AABBTree<T, PDIM>::init(const glm::rvec3* vertices, const glm::vec<PDIM, int>* indices, int num_prims) {
     nodes.clear();
     nodes.push_back(Node{});
-    std::vector<AABB> leaf_aabb;
-    std::vector<glm::rvec3> leaf_centroids;
+    std::vector<AABB> leaf_aabb(num_prims);
+    std::vector<glm::rvec3> leaf_centroids(num_prims, glm::rvec3(0));
     for (int pidx = 0; pidx < num_prims; pidx++) {
+        auto idx = indices[pidx];
         for (int k = 0; k < PDIM; k++) {
-            int prim_id = indices[pidx*PDIM + k];
-            auto p = vertices[prim_id] ;
-            leaf_aabb.extend(p);
+            auto p = vertices[idx[k]];
+            leaf_aabb[pidx].extend(p);
             leaf_centroids[pidx] += p;
         }
         leaf_centroids[pidx] /= PDIM;
     }
     for (int pidx = 0; pidx < num_prims; pidx++) {
-        nodes[0].extend(leaf_aabb[pidx]);
+        nodes[0].aabb.extend(leaf_aabb[pidx]);
     }
 
     std::vector<int> queue(num_prims);
@@ -66,6 +68,7 @@ void AABBTree<T, PDIM>::init(const glm::rvec3* vertices, const int* indices, int
 template<class T, int PDIM>
 void AABBTree<T, PDIM>::create_children(int node_id, std::vector<int>& queue, const std::vector<AABB>& leaves,
                                         const std::vector<glm::rvec3>& centroids) {
+    // fmt::print("create_children({})\n", node_id);
     Node& node = nodes[node_id];
     int n_queue = queue.size();
     if (n_queue == 0) {
@@ -74,7 +77,7 @@ void AABBTree<T, PDIM>::create_children(int node_id, std::vector<int>& queue, co
     }
     if (n_queue == 1) {
         int qidx = queue[0];
-        node.prim = qidx;
+        node.prim_id = qidx;
         node.aabb = leaves[qidx];
         return;
     }
@@ -82,15 +85,15 @@ void AABBTree<T, PDIM>::create_children(int node_id, std::vector<int>& queue, co
     // Compute the splitting plane
     AABB tempAABB;
     for (int i = 0; i < n_queue; ++i) { tempAABB.extend(centroids[queue[i]]); }
-    auto sizes = tempAABB.sizes();
+    auto sizes = tempAABB.size();
     int split = 0;
     if (sizes[1] >= sizes[0] && sizes[1] >= sizes[2]) { split = 1; }
     else if (sizes[2] >= sizes[0] && sizes[2] >= sizes[1]) { split = 2; }
 
     // If two elements, make left and right
     if (n_queue == 2) {
-        node.left_id = node.size();
-        node.right_id = node.size() + 1;
+        node.left_id = nodes.size();
+        node.right_id = nodes.size() + 1;
         Node left_node, right_node;
         int idx0 = queue[0];
         int idx1 = queue[1];
@@ -98,36 +101,40 @@ void AABBTree<T, PDIM>::create_children(int node_id, std::vector<int>& queue, co
         const glm::rvec3& cent1 = centroids[idx1];
 
         if (cent0[split] < cent1[split]) {
-            left_node.prim = idx0;
+            left_node.prim_id = idx0;
             left_node.aabb = leaves[idx0];
-            right_node.prim = idx1;
+            right_node.prim_id = idx1;
             right_node.aabb = leaves[idx1];
         } else {
-            left_node.prim = idx1;
+            left_node.prim_id = idx1;
             left_node.aabb = leaves[idx1];
-            right_node.prim = idx0;
+            right_node.prim_id = idx0;
             right_node.aabb = leaves[idx0];
         }
-        node.push_back(left_node);
-        node.push_back(right_node);
+        nodes.push_back(left_node);
+        nodes.push_back(right_node);
         return;
     }
 
     // Split the queue into left and right
     T center = tempAABB.center()[split];
+    // fmt::print("split on axis {} with center {}\n", split, center);
     AABB left_aabb, right_aabb;
     std::vector<int> left_queue, right_queue;
     for (int i = 0; i < n_queue; ++i) {
         int idx = queue[i];
         const glm::rvec3& cent = centroids[idx];
         if (cent[split] < center) {
+            // fmt::print("insert on left {}\n", glm::to_string(cent));
             left_queue.push_back(idx);
             left_aabb.extend(leaves[idx]);
         } else {
+            // fmt::print("insert on right {}\n", glm::to_string(cent));
             right_queue.push_back(idx);
             right_aabb.extend(leaves[idx]);
         }
     }
+
 
     if (left_queue.size() == 0 || right_queue.size() == 0) {
         fmt::print("AABBTree::init() error: problem splitting geometry\n");

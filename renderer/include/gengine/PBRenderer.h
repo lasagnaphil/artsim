@@ -8,6 +8,8 @@
 #define NUM_PBR_POINT_LIGHTS 16
 #define NUM_PBR_SPOT_LIGHTS 8
 
+#include <artsim/math/box.h>
+
 #include "gengine/Shader.h"
 #include "gengine/Texture.h"
 #include "gengine/Mesh.h"
@@ -98,7 +100,7 @@ public:
         this->camera = camera;
     }
 
-    void setShadowSettings(glmx::box projVolume, glm::ivec2 shadowFBSize) {
+    void setShadowSettings(glmx::tbox<3, float> projVolume, glm::ivec2 shadowFBSize) {
         this->dirLightProjVolume = projVolume;
         this->shadowFramebufferSize = shadowFBSize;
     }
@@ -121,7 +123,7 @@ public:
     glm::vec3 skyColor = {1.0f, 1.0f, 1.0f};
     float exposure = 5.0f;
 
-    glmx::box dirLightProjVolume = {
+    glmx::tbox<3, float> dirLightProjVolume = {
             {-10.f, -10.f, 0.f}, {10.f, 10.f, 100.f}
     };
     glm::ivec2 shadowFramebufferSize = {2048, 2048};
