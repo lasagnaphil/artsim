@@ -37,13 +37,13 @@ struct tbox {
          */
     }
 
-    glm::vec<Dim, T> center() {
+    glm::vec<Dim, T> center() const {
         return (lo + hi) / T(2);
     }
-    glm::vec<Dim, T> size() {
+    glm::vec<Dim, T> size() const {
         return hi - lo;
     }
-    T volume() {
+    T volume() const {
         auto s = size();
         return s[0] * s[1] * s[2];
     }

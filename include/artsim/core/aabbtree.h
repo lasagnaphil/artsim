@@ -13,7 +13,7 @@
 
 namespace artsim {
 
-template <class T, int PDIM>
+template <class T>
 class AABBTree {
 public:
     using AABB = glmx::tbox<3, T>;
@@ -29,7 +29,10 @@ public:
     AABBTree() {
     }
 
+    template <int PDIM>
     void init(const glm::rvec3* vertices, const glm::vec<PDIM, int>* indices, int num_prims);
+    void init(const AABB* aabbs, int num_aabbs);
+    AABB bounds() { return nodes[0].aabb; }
 
     bool traverse(AABBTreeVisitor<T>& visitor) {
         return traverse_children(0, visitor);
@@ -41,9 +44,12 @@ private:
     bool traverse_children(int node_id, AABBTreeVisitor<T>& visitor);
 };
 
-template<class T, int PDIM>
-void AABBTree<T, PDIM>::init(const glm::rvec3* vertices, const glm::vec<PDIM, int>* indices, int num_prims) {
+template <class T>
+template <int PDIM>
+void AABBTree<T>::init(const glm::rvec3* vertices, const glm::vec<PDIM, int>* indices, int num_prims) {
+    static_assert(PDIM > 0);
     nodes.clear();
+    nodes.reserve(2*num_prims);
     nodes.push_back(Node{});
     std::vector<AABB> leaf_aabb(num_prims);
     std::vector<glm::rvec3> leaf_centroids(num_prims, glm::rvec3(0));
@@ -65,9 +71,30 @@ void AABBTree<T, PDIM>::init(const glm::rvec3* vertices, const glm::vec<PDIM, in
     create_children(0, queue, leaf_aabb, leaf_centroids);
 }
 
-template<class T, int PDIM>
-void AABBTree<T, PDIM>::create_children(int node_id, std::vector<int>& queue, const std::vector<AABB>& leaves,
-                                        const std::vector<glm::rvec3>& centroids) {
+template<class T>
+void AABBTree<T>::init(const AABBTree::AABB* aabbs, int num_aabbs) {
+    nodes.clear();
+    nodes.reserve(2*num_aabbs);
+    nodes.push_back(Node{});
+    std::vector<AABB> leaf_aabb(num_aabbs);
+    std::vector<glm::rvec3> leaf_centroids(num_aabbs, glm::rvec3(0));
+    for (int i = 0; i < num_aabbs; i++) {
+        auto& aabb = aabbs[i];
+        leaf_aabb[i].extend(aabb);
+        leaf_centroids[i] = aabb.center();
+    }
+    for (int i = 0; i < num_aabbs; i++) {
+        nodes[0].aabb.extend(leaf_aabb[i]);
+    }
+
+    std::vector<int> queue(num_aabbs);
+    std::iota(queue.begin(), queue.end(), 0);
+    create_children(0, queue, leaf_aabb, leaf_centroids);
+}
+
+template<class T>
+void AABBTree<T>::create_children(int node_id, std::vector<int>& queue, const std::vector<AABB>& leaves,
+                                  const std::vector<glm::rvec3>& centroids) {
     // fmt::print("create_children({})\n", node_id);
     Node& node = nodes[node_id];
     int n_queue = queue.size();
@@ -135,8 +162,20 @@ void AABBTree<T, PDIM>::create_children(int node_id, std::vector<int>& queue, co
         }
     }
 
+    // This could possibly happen if the geometry left in the queue are all the same.
+    // When this happens, just split the right queue in half and share.
+    if (left_queue.size() == 0) {
+        int N = right_queue.size();
+        for (int i = 0; i < N/2; i++) {
+            left_queue.push_back(right_queue[N-1-i]);
+        }
+        for (int i = 0; i < N/2; i++) {
+            right_queue.pop_back();
+        }
+    }
 
-    if (left_queue.size() == 0 || right_queue.size() == 0) {
+    // This should not happen!
+    if (right_queue.size() == 0) {
         fmt::print("AABBTree::init() error: problem splitting geometry\n");
         exit(EXIT_FAILURE);
     }
@@ -156,8 +195,8 @@ void AABBTree<T, PDIM>::create_children(int node_id, std::vector<int>& queue, co
     create_children(node.right_id, right_queue, leaves, centroids);
 }
 
-template<class T, int PDIM>
-bool AABBTree<T, PDIM>::traverse_children(int node_id, AABBTreeVisitor<T>& visitor) {
+template<class T>
+bool AABBTree<T>::traverse_children(int node_id, AABBTreeVisitor<T>& visitor) {
     auto& node = nodes[node_id];
     if (!visitor.hit_aabb(node.aabb)) {
         return false;
