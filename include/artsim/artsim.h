@@ -374,8 +374,10 @@ private:
     std::vector<real> tau;
     std::vector<glmx::tscrew<real>> f_ext;
     std::vector<real> q_target;
-    std::vector<glmx::ttransform<real>> T_link_globals;
-    std::vector<glmx::ttransform<real>> T_joint_globals;
+
+    std::vector<glmx::ttransform<real>> global_link_trans;
+    std::vector<glmx::ttransform<real>> global_joint_trans;
+    std::vector<glmx::tscrew<real>> global_link_vel;
 
     std::vector<btCollisionObject*> bt_collision_objects;
 
@@ -431,11 +433,21 @@ public:
     void mass_matrix(OUT glmx::dynmat_view<real> M, real dt = 0);
     void multiply_inverse_mass_matrix(glmx::dynmat_view<real> X, OUT glmx::dynmat_view<real> Minv_X, real dt = 0);
 
-    glmx::rtransform* get_global_joint_trans_buf() { return T_joint_globals.data(); }
-    glmx::rtransform* get_global_link_trans_buf() { return T_link_globals.data(); }
+    glmx::rtransform* get_global_joint_trans_buf() { return global_joint_trans.data(); }
+    glmx::rtransform* get_global_link_trans_buf() { return global_link_trans.data(); }
 
     glmx::rtransform get_global_joint_trans(int joint_idx) const;
     glmx::rtransform get_global_link_trans(int link_idx) const;
+
+    glmx::rscrew get_global_link_body_vel(int link_idx) const { return global_link_vel[link_idx]; }
+    glm::rvec3 get_global_link_linvel(int link_idx) const {
+        return global_link_trans[link_idx].R * global_link_vel[link_idx].v;
+    }
+    glm::rvec3 get_global_link_angvel(int link_idx) const {
+        return global_link_trans[link_idx].R * global_link_vel[link_idx].w;
+    }
+
+    glm::rvec3 get_center_of_mass() const;
 };
 
 struct pair_hash {

@@ -294,10 +294,12 @@ void ArticulatedBody::init(artsim::ArticulatedBodySpec art_spec) {
     u.resize(num_vel_dofs, 0);
     udot.resize(num_vel_dofs, 0);
     tau.resize(num_vel_dofs, 0);
-    f_ext.resize(num_links, glmx::tscrew<real>(glmx::IDENTITY));
+    f_ext.resize(num_links, glmx::rscrew(glmx::IDENTITY));
     q_target.resize(num_pos_dofs, 0);
-    T_link_globals.resize(num_links, glmx::ttransform<real>(glmx::IDENTITY));
-    T_joint_globals.resize(num_joints, glmx::ttransform<real>(glmx::IDENTITY));
+
+    global_link_trans.resize(num_links, glmx::rtransform(glmx::IDENTITY));
+    global_joint_trans.resize(num_joints, glmx::rtransform (glmx::IDENTITY));
+    global_link_vel.resize(num_links, glmx::rscrew(glmx::IDENTITY));
 
     reset();
 }
@@ -415,13 +417,14 @@ void ArticulatedBody::randomize_positions() {
 }
 
 void ArticulatedBody::forward_kinematics() {
-    artsim::calc_transforms(spec, q.data(), T_joint_globals.data(), T_link_globals.data());
+    artsim::calc_transforms(spec, q.data(), OUT global_joint_trans.data(), OUT global_link_trans.data());
+    artsim::calc_velocities(spec, q.data(), u.data(), OUT global_link_vel.data());
 }
 
 void ArticulatedBody::update_colliders() {
     int num_joints = get_num_joints();
     for (int i = 0; i < num_joints; i++) {
-        bt_collision_objects[i]->setWorldTransform(btconv(T_link_globals[i]));
+        bt_collision_objects[i]->setWorldTransform(btconv(global_link_trans[i]));
     }
 }
 
@@ -535,11 +538,23 @@ void ArticulatedBody::set_root_vel(const glmx::rscrew& V) {
 }
 
 glmx::rtransform ArticulatedBody::get_global_joint_trans(int joint_idx) const {
-    return T_joint_globals[joint_idx];
+    return global_joint_trans[joint_idx];
 }
 
 glmx::rtransform ArticulatedBody::get_global_link_trans(int link_idx) const {
-    return T_link_globals[link_idx];
+    return global_link_trans[link_idx];
+}
+
+glm::rvec3 ArticulatedBody::get_center_of_mass() const {
+    glm::rvec3 com(0, 0, 0);
+    real total_mass = 0;
+    int num_links = spec.get_num_links();
+    for (int lidx = 0; lidx < num_links; lidx++) {
+        com += spec.links[lidx].mass * global_link_trans[lidx].v;
+        total_mass += spec.links[lidx].mass;
+    }
+    com /= total_mass;
+    return com;
 }
 
 void World::init(WorldConfig world_cfg) {

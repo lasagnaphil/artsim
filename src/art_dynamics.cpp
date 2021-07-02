@@ -533,7 +533,7 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                                    glm::tvec3<real> gravity, real dt,
                                    const tscrew<real>* f_ext, const real* q, const real* u, const real* tau,
                                    const real* q_target,
-                                   real* udot) {
+                                   real*__restrict udot) {
     ZoneScoped
 
     int num_joints = art.get_num_joints();
@@ -923,6 +923,26 @@ void calc_transforms(const ArticulatedBodySpec& art, const real* q, glmx::ttrans
         for (int i = 0; i < art.get_num_joints(); i++) {
             T_link_globals[i] = T_joint_globals[i] * ttransform<real>(art.links[i].local_link_pose);
         }
+    }
+}
+
+// Get the generalized velocity of all links (in the body frame)
+void calc_velocities(const ArticulatedBodySpec& art, const real* q, const real* u,
+                     OUT glmx::rscrew* link_V) {
+    int num_joints = art.get_num_joints();
+    if (art.floating) {
+        link_V[0] = make_tscrew(u);
+    }
+    else {
+        link_V[0] = calc_v0(art.joints[0], u);
+    }
+    for (int j = 1; j < num_joints; j++) {
+        int i = art.bfs_iteration_order[j];
+        int i_parent = art.parents[i];
+        int cur_pos_dof = art.joint_pos_dof_starts[i];
+        int cur_vel_dof = art.joint_vel_dof_starts[i];
+        glmx::rtransform Tinv = calc_Tinv(art.joints[i], art.links[i], q + cur_pos_dof);
+        link_V[i] = Ad(Tinv, link_V[i_parent]) + calc_v0(art.joints[i], u + cur_vel_dof);
     }
 }
 
