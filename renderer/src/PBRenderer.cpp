@@ -292,11 +292,11 @@ void PBRenderer::renderImGui() {
 }
 
 glm::mat4 PBRenderer::calcDirLightSpaceMatrix() {
-    glm::mat4 dirLightProjection = glm::ortho(dirLightProjVolume.min.x, dirLightProjVolume.max.x,
-                                              dirLightProjVolume.min.y, dirLightProjVolume.max.y,
-                                              dirLightProjVolume.min.z, dirLightProjVolume.max.z);
+    glm::mat4 dirLightProjection = glm::ortho(dirLightProjVolume.lo.x, dirLightProjVolume.hi.x,
+                                              dirLightProjVolume.lo.y, dirLightProjVolume.hi.y,
+                                              dirLightProjVolume.lo.z, dirLightProjVolume.hi.z);
 
-    glm::vec3 dirLightPos = -glm::normalize(lights.dir.direction) * dirLightProjVolume.max.z * 0.5f;
+    glm::vec3 dirLightPos = -glm::normalize(lights.dir.direction) * dirLightProjVolume.hi.z * 0.5f;
     glm::mat4 dirLightView = glm::lookAt(dirLightPos, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
     glm::mat4 dirLightSpaceMatrix = dirLightProjection * dirLightView;
     return dirLightSpaceMatrix;

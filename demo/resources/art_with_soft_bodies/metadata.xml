@@ -11,7 +11,7 @@
         </node>
     </articulation>
     <soft_body file="mesh_carved_.msh">
-        <material type="corotational" young_modulus="1e8" poisson_ratio="0.48" density="1000"/>
+        <material type="corotational" young_modulus="1e8" poisson_ratio="0.40" density="1000"/>
         <attachment node="link1">
             <vertices>306 134 320 317 307 11 311 358 102 312 250 6 375 245 315 5 8 120 277 283 122 98 251 276 325 286 252 243 278 369 9 10 360 323 103 285 7 275 107 281 289 356 246 125 110 247 268 264 284 272 274 290 109 357 321 316 359 100 319 101 104 105 106 4 108 </vertices>
         </attachment>

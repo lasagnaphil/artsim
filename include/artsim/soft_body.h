@@ -13,6 +13,9 @@
 #include <artsim/math/svd.h>
 #include <artsim/utils/pymesh/MshLoader.h>
 #include <Eigen/SparseCholesky>
+#include <BulletCollision/CollisionShapes/btTriangleMesh.h>
+
+class btBvhTriangleMeshShape;
 
 namespace artsim {
 
@@ -27,6 +30,10 @@ struct SoftBodyProperties {
 
     real calc_lambda() {
         return young_modulus * poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio));
+    }
+
+    real calc_arap_stiffness() {
+        return 2*calc_mu();
     }
 
     real calc_corotational_stiffness() {
@@ -59,6 +66,12 @@ struct VolumePreservationEnergyConstraint {
     real sigma_max;
 };
 
+struct ARAPEnergyConstraint {
+    int tet_id;
+    real k;
+    real mu;
+};
+
 struct CorotationalEnergyConstraint {
     int tet_id;
     real k;
@@ -79,13 +92,23 @@ struct PositionalConstraint {
     glm::rvec3 target_pos;
 };
 
+struct SoftRigidCollisionConstraint {
+    int vert_id;
+    real k;
+    glm::rvec3 closest_point;
+    glm::rvec3 normal;
+};
+
+
 struct PDConstraints {
     std::vector<LinearStrainEnergyConstraint> linear_strain_energy;
     std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy;
     std::vector<PositionalConstraint> positional;
+    std::vector<SoftRigidCollisionConstraint> soft_rigid_collision;
 
     int count() {
-        return linear_strain_energy.size() + volume_preservation_energy.size() + positional.size();
+        return linear_strain_energy.size() + volume_preservation_energy.size() + positional.size()
+            + soft_rigid_collision.size();
     }
 };
 
@@ -94,12 +117,14 @@ struct PDConstraints {
     X(VolumePreservationEnergyConstraint, volume_preservation_energy)
 
 struct ADMMConstraints {
+    std::vector<ARAPEnergyConstraint> arap_energy;
     std::vector<CorotationalEnergyConstraint> corotational_energy;
     std::vector<NeoHookeanEnergyConstraint> neohookean_energy;
     std::vector<PositionalConstraint> positional;
 };
 
 #define ADMM_VOLUME_CONSTRAINTS \
+    X(ARAPEnergyConstraint, arap_energy) \
     X(CorotationalEnergyConstraint, corotational_energy) \
     X(NeoHookeanEnergyConstraint, neohookean_energy)
 
@@ -131,6 +156,8 @@ struct SoftBodyData {
 
     void load(const TetMesh& mesh, const SoftBodyProperties& props);
     void load(const PyMesh::MshLoader& msh, const SoftBodyProperties& props);
+
+    btTriangleIndexVertexArray create_bullet_surface_trimesh();
 };
 
 template <class Constraints>
@@ -145,17 +172,21 @@ template <class Constraints>
 void update_system_matrix(SoftBodyData& body, const Constraints& constraints, real dt,
                           OUT Eigen::SparseMatrix<real>& L, OUT Eigen::SparseMatrix<real>& A);
 
+real energy_eigvec(glm::tvec3<real> S, const ARAPEnergyConstraint& c);
 real energy_eigvec(glm::tvec3<real> S, const CorotationalEnergyConstraint& c);
 real energy_eigvec(glm::tvec3<real> S, const NeoHookeanEnergyConstraint& c);
 
+glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const ARAPEnergyConstraint& c);
 glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const LinearStrainEnergyConstraint& c);
 glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const VolumePreservationEnergyConstraint& c);
 
-glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const CorotationalEnergyConstraint& c);
-glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const NeoHookeanEnergyConstraint& c);
+glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, real volume, const ARAPEnergyConstraint& c);
+glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, real volume, const CorotationalEnergyConstraint& c);
+glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, real volume, const NeoHookeanEnergyConstraint& c);
 
-glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const CorotationalEnergyConstraint& c);
-glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const NeoHookeanEnergyConstraint& c);
+glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, real volume, const ARAPEnergyConstraint& c);
+glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, real volume, const CorotationalEnergyConstraint& c);
+glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, real volume, const NeoHookeanEnergyConstraint& c);
 
 void soft_body_calc_deformation_field(const SoftBodyData& body, const glm::rvec3* x,
                                       OUT glm::rmat3* F);
@@ -177,18 +208,18 @@ void projective_dynamics_positional_constraint_update_b(
         INOUT real* b);
 
 template <class Constraint>
-void admm_vel_volume_constraint_local_solve(
+void admm_volume_constraint_local_solve(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
         const glm::tmat3x3<real>* F, const glmx::SVD_mats<real>* F_svd,
         OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u);
 
 template <class Constraint>
-void admm_vel_volume_constraint_update_b(
+void admm_volume_constraint_update_b(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints, real dt,
         const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0, INOUT real* b);
 
 template <class Constraint>
-void admm_vel_volume_constraint_update_residuals(
+void admm_volume_constraint_update_residuals(
         const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
         const glm::tmat3x3<real>* z_prev, const glm::tmat3x3<real>* z_next, const glm::tvec3<real>* x,
         INOUT real& primal_res_sq, INOUT real& dual_res_sq);
@@ -202,8 +233,8 @@ void projective_dynamics_quasistatic(const SoftBodyData& body, const SoftBodyPre
                                      INOUT real* pos);
 
 void admm_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
-                   const ADMMConstraints& constraints, real dt, int num_iters, const real* f,
-                   INOUT real* pos, INOUT real* vel);
+                       const ADMMConstraints& constraints, real dt, int num_iters, const real* f,
+                       INOUT real* pos, INOUT real* vel);
 
 void quasinewton_dynamics(const SoftBodyData& body, const SoftBodyPrecalcData& precalc,
                           const ADMMConstraints& constraints, real dt, int num_iters, const real* f,

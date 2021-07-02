@@ -18,14 +18,7 @@ struct trect {
     }
 };
 
-template <class T>
-struct tbox {
-    glm::tvec3<T> min;
-    glm::tvec3<T> max;
-};
-
 using rect = trect<float>;
-using box = tbox<float>;
 }
 
 #endif //GENGINE_RECT_H

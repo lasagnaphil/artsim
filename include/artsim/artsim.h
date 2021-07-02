@@ -690,6 +690,10 @@ public:
 
     void simulate(real dt);
 
+    btCollisionWorld* get_bullet_collision_world() {
+        return bt_collision_world;
+    }
+
 private:
     void integrate_with_contacts();
 };

@@ -5,6 +5,7 @@
 #include "artsim/obj_file.h"
 #include "artsim/utils/pymesh/MshLoader.h"
 
+#include <fmt/core.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -124,9 +125,9 @@ void OBJFile::save_obj(const char* filename) {
     }
     if (!triangle_vertices.empty() && !triangle_uvs.empty() && !triangle_normals.empty() ) {
         for (int i = 0; i < triangle_vertices.size(); i++) {
-            auto fi = triangle_vertices[i];
-            auto ft = triangle_uvs[i];
-            auto fn = triangle_normals[i];
+            auto fi = triangle_vertices[i]+1;
+            auto ft = triangle_uvs[i]+1;
+            auto fn = triangle_normals[i]+1;
             ofs << "f " << fi[0] << "/" << ft[0] << "/" << fn[0] << " "
                         << fi[1] << "/" << ft[1] << "/" << fn[1] << " "
                         << fi[2] << "/" << ft[2] << "/" << fn[2] << std::endl;
@@ -134,8 +135,8 @@ void OBJFile::save_obj(const char* filename) {
     }
     else if (!triangle_vertices.empty() && !triangle_normals.empty()) {
         for (int i = 0; i < triangle_vertices.size(); i++) {
-            auto fi = triangle_vertices[i];
-            auto fn = triangle_normals[i];
+            auto fi = triangle_vertices[i]+1;
+            auto fn = triangle_normals[i]+1;
             ofs << "f " << fi[0] << "//" << fn[0] << " "
                         << fi[1] << "//" << fn[1] << " "
                         << fi[2] << "//" << fn[2] << std::endl;
@@ -143,7 +144,7 @@ void OBJFile::save_obj(const char* filename) {
     }
     else if (!triangle_vertices.empty()) {
         for (int i = 0; i < triangle_vertices.size(); i++) {
-            auto fi = triangle_vertices[i];
+            auto fi = triangle_vertices[i]+1;
             ofs << "f " << fi[0] << " " << fi[1] << " " << fi[2] << std::endl;
         }
     }
@@ -156,7 +157,6 @@ void OBJFile::load_msh(const char* filename) {
     PyMesh::MshLoader msh(filename);
     auto& nodes = msh.get_nodes();
     auto& elems = msh.get_elements();
-    std::cout << "nodes=" << nodes.size() << ", elems=" << elems.size() << std::endl;
     int num_nodes = nodes.rows() / 3;
     int num_elems = elems.rows() / 4;
     vertices.resize(num_nodes);
@@ -167,6 +167,7 @@ void OBJFile::load_msh(const char* filename) {
     for (int i = 0; i < num_elems; i++) {
         tetrahedrons[i] = {elems[4*i+0], elems[4*i+1], elems[4*i+2], elems[4*i+3]};
     }
+    fmt::print("Loading msh {}: nodes = {}, elems = {}\n", filename, num_nodes, num_elems);
 }
 
 }

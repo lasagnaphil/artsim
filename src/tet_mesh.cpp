@@ -5,6 +5,7 @@
 #include "artsim/tet_mesh.h"
 #include "artsim/utils/pymesh/MshLoader.h"
 
+#include <fmt/core.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -86,9 +87,9 @@ void TetMesh::load_msh(const char* filename) {
     PyMesh::MshLoader msh(filename);
     auto& nodes = msh.get_nodes();
     auto& elems = msh.get_elements();
-    std::cout << "nodes =" << nodes.size() << ", elems=" << elems.size() << std::endl;
     int num_nodes = nodes.rows() / 3;
     int num_elems = elems.rows() / 4;
+    fmt::print("Loading msh {}: nodes = {}, elems = {}\n", filename, num_nodes, num_elems);
     vertices.resize(num_nodes);
     for (int i = 0; i < num_nodes; i++) {
         vertices[i] = {nodes[3*i+0], nodes[3*i+1], nodes[3*i+2]};
