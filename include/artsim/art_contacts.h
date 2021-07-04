@@ -5,12 +5,22 @@
 #ifndef ARTSIM_ART_CONTACTS_H
 #define ARTSIM_ART_CONTACTS_H
 
-#include "artsim/artsim.h"
-#include "artsim/math/dynmat.h"
+#include <artsim/artsim.h>
+#include <artsim/types.h>
+#include <artsim/math/dynmat.h>
 
 #include <glm/vec3.hpp>
 
 namespace artsim {
+
+glm::rvec3 contact_projection_solver(glm::rvec3 lambda, const glmx::rsmat3x3& Minv, glm::rvec3 c, real mu);
+
+glm::rvec3 contact_bisection_solver(
+        const glm::rvec3& lambda_v0, const glmx::rsmat3x3& Minv, const glm::rvec3& c, real mu);
+
+std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(const glm::rvec3& lambda_v0,
+                                                            const glmx::rsmat3x3& Minv,
+                                                            const glm::rvec3& c, real mu, real r);
 
 void solve_collision(
         ContactSolverType type, uint32_t max_iters,

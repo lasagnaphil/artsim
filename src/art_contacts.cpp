@@ -29,7 +29,7 @@ inline real bisection_gradient(const rsmat3x3& Minv, const rvec3& c, rvec3 lambd
     return glm::dot(Minv * lambda + real(0.5)*c, eta);
 }
 
-static glm::rvec3 contact_bisection_solver(
+glm::rvec3 contact_bisection_solver(
         const rvec3& lambda_v0, const rsmat3x3& Minv, const rvec3& c, real mu) {
     const real gamma = 1e-4;
     real theta = glm::atan(lambda_v0.y, lambda_v0.x);
@@ -70,7 +70,7 @@ static glm::rvec3 contact_bisection_solver(
     return lambda_b;
 }
 
-static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tsmat3x3<real>& Minv, tvec3<real> c, real mu) {
+tvec3<real> contact_projection_solver(tvec3<real> lambda, const tsmat3x3<real>& Minv, tvec3<real> c, real mu) {
     const real alpha = 1.0f;
     real r_z = alpha / Minv.zz;
     real r_t = alpha / max(Minv.xx, Minv.yy);
@@ -85,14 +85,9 @@ static tvec3<real> contact_projection_solver(tvec3<real> lambda, const tsmat3x3<
     return tvec3<real>(lambda_t.x, lambda_t.y, lambda_z);
 }
 
-static void calc_phi_and_jacobian(tvec3<real> lambda, const tsmat3x3<real>& Minv, tvec3<real> c, real mu,
-                                  OUT rvec3& phi, OUT tsmat3x3<real>& J) {
-
-}
-
-static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(const tvec3<real>& lambda_v0,
-                                                                   const tsmat3x3<real>& Minv,
-                                                                   const tvec3<real>& c, real mu, real r) {
+std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(const tvec3<real>& lambda_v0,
+                                                            const tsmat3x3<real>& Minv,
+                                                            const tvec3<real>& c, real mu, real r) {
     // Initial value for lambda
     tvec3<real> lambda = lambda_v0;
     tvec3<real> lambda_prev = lambda;
@@ -162,15 +157,6 @@ static std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(const tvec3<r
     }
 
     return {lambda, ncp_error_sq, success};
-}
-
-// TODO: handle coefficient of restitution and restitution threshold...
-void solve_collision(ContactSolverType type, uint32_t max_iters,
-                     const ArticulatedBodySpec& art, const Material* mat, glm::tvec3<real> gravity, real dt,
-                     const real* q, const real* u, const real* udot_orig, const real* tau, const tscrew<real>* f_ext,
-                     const ContactPoint* contact_points, uint32_t num_contact_points,
-                     OUT glm::tvec3<real>* out_lambda) {
-
 }
 
 void iterative_contact_solver(

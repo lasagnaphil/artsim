@@ -604,7 +604,7 @@ private:
     Arena<ArticulatedBody> articulated_bodies;
     MaterialDB material_db;
 
-    Arena<ContactPoint> contact_points;
+    std::vector<ContactPoint> contact_points;
     btCollisionWorld* bt_collision_world = nullptr;
     btCollisionObject* bt_plane_col = nullptr;
 
