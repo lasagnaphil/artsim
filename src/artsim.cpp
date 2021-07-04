@@ -725,9 +725,6 @@ void World::integrate_with_contacts() {
                 BodyId body1_id = body1_is_art1? cp->body1_id : cp->body2_id;
                 BodyId body2_id = body1_is_art1? cp->body2_id : cp->body1_id;
                 auto [_, art1_lidx] = body1_id.get_articulation_id();
-                // auto tangent_u = Ez<real>();
-                // auto tangent_v = glm::cross(cp->normal, tangent_u);
-                // auto contact_T = ttransform<real>(cp->pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp->normal));
                 auto contact_T = rtransform(cp->pos, mat3_cast(rotation(Ez<real>(), cp->normal)));
                 auto contact_rel_T = contact_T / art1.get_global_joint_trans(art1_lidx);
                 rtransform* T_joint_global = art1.get_global_joint_trans_buf();
@@ -827,9 +824,9 @@ void World::integrate_with_contacts() {
                     auto contact_T = rtransform(cp->pos, mat3_cast(rotation(Ez<real>(), cp->normal)));
                     auto contact_rel_T = art.get_global_joint_trans(art_lidx) / contact_T;
                     f_ext_tot[art_lidx] += AdT(contact_rel_T, rscrew(rvec3(0), lambda[cidx] / cfg.dt));
-                    cp->bt_manifold_point->m_appliedImpulseLateral1 = lambda[cidx].x;
-                    cp->bt_manifold_point->m_appliedImpulseLateral2 = lambda[cidx].y;
-                    cp->bt_manifold_point->m_appliedImpulse = lambda[cidx].z;
+                    // cp->bt_manifold_point->m_appliedImpulseLateral1 = lambda[cidx].x;
+                    // cp->bt_manifold_point->m_appliedImpulseLateral2 = lambda[cidx].y;
+                    // cp->bt_manifold_point->m_appliedImpulse = lambda[cidx].z;
                 }
             }
 

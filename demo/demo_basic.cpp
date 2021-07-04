@@ -174,7 +174,7 @@ private:
     std::vector<ArticulationRender> art_renderers;
 
     DemoType demo_type = DemoType::Contacts;
-    int art_type = 5;
+    int art_type = 1;
 };
 
 int main(int argc, char** argv)

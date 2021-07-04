@@ -205,8 +205,9 @@ void iterative_contact_solver(
             break;
     }
 
-    real lambda_err_sq;
     std::vector<tvec3<real>> lambda_old(num_contact_points);
+    bool converged = false;
+    real lambda_err_sq;
     int iter;
     for (iter = 0; iter < max_iters; iter++) {
         std::copy(lambda, lambda + num_contact_points, lambda_old.begin());
@@ -261,16 +262,23 @@ void iterative_contact_solver(
         for (int i = 0; i < num_contact_points; i++) {
             lambda_norm2 += length2(lambda[i]);
         }
-        lambda_err_sq = lambda_diff_norm2 / lambda_norm2;
+        if (lambda_norm2 < 1e-12) {
+            lambda_err_sq = 0;
+        }
+        else {
+            lambda_err_sq = lambda_diff_norm2 / lambda_norm2;
+        }
         if (lambda_err_sq < lambda_err_tol * lambda_err_tol) {
+            converged = true;
             iter++; break;
         }
     }
-    if (iter == max_iters) {
-        output_log("Contact solver did not converge! (error = %f)\n", sqrt(lambda_err_sq));
+    real lambda_err = sqrt(lambda_err_sq);
+    if (converged) {
+        output_log("Contact solver converged in %d iters (error = %f)\n", iter, lambda_err);
     }
     else {
-        output_log("Contact solver converged in %d iters (error = %f)\n", iter, sqrt(lambda_err_sq));
+        output_log("Contact solver did not converge! (error = %f)\n", lambda_err);
     }
 
 }
