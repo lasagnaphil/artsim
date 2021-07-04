@@ -17,6 +17,13 @@ struct AABBTreeVisitor {
     virtual bool check_left_first(const AABB& left, const AABB& right) = 0;
 };
 
+template <class T>
+struct AABBTreePairVisitor {
+    using AABB = glmx::tbox<3, T>;
+
+    virtual bool hit_prim_pair(int prim1_id, int prim2_id) = 0;
+};
+
 // Point in tet
 template <class T>
 struct PointInTet : public AABBTreeVisitor<T> {

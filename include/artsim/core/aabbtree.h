@@ -37,12 +37,21 @@ public:
     bool traverse(AABBTreeVisitor<T>& visitor) {
         return traverse_children(0, visitor);
     }
+
+    template <class PairVisitor>
+    static bool find_collisions(const AABBTree& tree1, const AABBTree& tree2, PairVisitor&& visitor);
+
 private:
     void create_children(int node_id, std::vector<int>& queue,
                          const std::vector<AABB>& leaves, const std::vector<glm::rvec3>& centroids);
 
     bool traverse_children(int node_id, AABBTreeVisitor<T>& visitor);
+
+    template <class PairVisitor>
+    static bool find_collisions(const AABBTree& tree1, const AABBTree& tree2, int node1_id, int node2_id,
+                                PairVisitor&& visitor);
 };
+
 
 template <class T>
 template <int PDIM>
@@ -221,6 +230,46 @@ bool AABBTree<T>::traverse_children(int node_id, AABBTreeVisitor<T>& visitor) {
         exit(EXIT_FAILURE);
     }
     return visitor.hit_prim(node.prim_id);
+}
+
+template <class T>
+template <class PairVisitor>
+bool AABBTree<T>::find_collisions(const AABBTree& tree1, const AABBTree& tree2, PairVisitor&& visitor) {
+    return find_collisions(tree1, tree2, 0, 0, visitor);
+}
+
+template <class T>
+template <class PairVisitor>
+bool AABBTree<T>::find_collisions(const AABBTree& tree1, const AABBTree& tree2, int node1_id, int node2_id,
+                                  PairVisitor&& visitor) {
+    auto& node1 = tree1.nodes[node1_id];
+    auto& node2 = tree2.nodes[node2_id];
+    if (node1.aabb.collides_with(node2.aabb)) {
+        bool node1_leaf = node1.left_id == -1 && node1.right_id == -1;
+        bool node2_leaf = node2.left_id == -1 && node2.right_id == -1;
+        if (node1_leaf && node2_leaf) {
+            if (node1.prim_id == -1 || node2.prim_id == -1) {
+                fmt::print("AABBTree::find_collisions() error: leaf has no primitive\n");
+                exit(EXIT_FAILURE);
+            }
+            return visitor(node1.prim_id, node2.prim_id);
+        }
+        real volume1 = node1.aabb.volume();
+        real volume2 = node2.aabb.volume();
+        bool found = false;
+        if (node1_leaf || volume1 < volume2) {
+            found |= find_collisions(tree1, tree2, node1_id, node2.left_id, visitor);
+            found |= find_collisions(tree1, tree2, node1_id, node2.right_id, visitor);
+        }
+        else if (node2_leaf || volume1 >= volume2) {
+            found |= find_collisions(tree1, tree2, node1.left_id, node2_id, visitor);
+            found |= find_collisions(tree1, tree2, node1.right_id, node2_id, visitor);
+        }
+        return found;
+    }
+    else {
+        return false;
+    }
 }
 
 }

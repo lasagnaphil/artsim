@@ -18,23 +18,11 @@ struct tbox {
     void extend(const glm::vec<Dim, T>& p) {
         lo = glm::min(lo, p);
         hi = glm::max(hi, p);
-        /*
-        for (int i = 0; i < Dim; i++) {
-            if (p[i] < lo[i]) lo[i] = p[i];
-            if (p[i] > hi[i]) hi[i] = p[i];
-        }
-         */
     }
 
     void extend(const glmx::tbox<Dim, T>& box) {
         lo = glm::min(lo, box.lo);
         hi = glm::max(hi, box.hi);
-        /*
-        for (int i = 0; i < Dim; i++) {
-            if (box.lo[i] < lo[i]) lo[i] = box.lo[i];
-            if (box.hi[i] > hi[i]) hi[i] = box.hi[i];
-        }
-         */
     }
 
     glm::vec<Dim, T> center() const {
@@ -46,6 +34,19 @@ struct tbox {
     T volume() const {
         auto s = size();
         return s[0] * s[1] * s[2];
+    }
+
+    bool contains(const glm::vec<Dim, T>& p) const {
+        for (int i = 0; i < Dim; i++) {
+            if (p[i] < lo[i]) return false;
+            if (p[i] > hi[i]) return false;
+        }
+        return true;
+    }
+
+    bool collides_with(const tbox<Dim, T>& other) const {
+        tbox<Dim, T> min_diff = *this - other;
+        return min_diff.contains(glm::vec<Dim, T>(0));
     }
 };
 
