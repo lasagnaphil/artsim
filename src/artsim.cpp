@@ -592,7 +592,7 @@ Eigen::Matrix<real, 3, 1> glm_to_eigen(const glm::rvec3& v) {
 void World::integrate_with_contacts() {
     ZoneScoped
 
-    contact_points.clear();
+    std::vector<ContactPoint> contact_points;
     {
         ZoneNamedN(GatherContacts, "GatherContacts", true);
 
@@ -612,7 +612,7 @@ void World::integrate_with_contacts() {
             body1_id.generation = body1->getUserIndex2();
             body2_id.index = body2->getUserIndex();
             body2_id.generation = body2->getUserIndex2();
-            if (body1_id.index < body2_id.index) std::swap(body1_id, body2_id);
+            // if (body1_id.index < body2_id.index) std::swap(body1_id, body2_id);
             for (int j = 0; j < num_contacts; j++) {
                 auto& pt = manifold->getContactPoint(j);
                 int cp_id = contact_points.size();
@@ -837,6 +837,7 @@ void World::integrate_with_contacts() {
                  */
                 auto& cp = contact_points[i];
                 auto& cidx_list1 = body_contact_points_map[cp.body1_id];
+                assert(cidx_list1.size() == contact_points.size()); // TODO: why is this not true (for one art / ground?)
                 for (int cidx : cidx_list1) {
                     if (cidx == i) continue;
                     c[cidx] += M_delassus(cidx, i)*(lambda[i] - lambda_old[i]);

@@ -123,7 +123,7 @@ public:
         world = World();
         WorldConfig world_cfg;
         world_cfg.dt = sim_dt;
-        world_cfg.max_iters = 8;
+        world_cfg.max_iters = 32;
         world_cfg.contact_solver_type = ContactSolverType::PGS;
         world.init(world_cfg);
 
@@ -174,7 +174,7 @@ private:
     std::vector<ArticulationRender> art_renderers;
 
     DemoType demo_type = DemoType::Contacts;
-    int art_type = 1;
+    int art_type = 5;
 };
 
 int main(int argc, char** argv)

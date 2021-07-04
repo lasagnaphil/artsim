@@ -512,9 +512,6 @@ struct BodyId {
     bool is_articulation() const {
         return (index & 0x80000000) != 0;
     }
-    bool is_ground() const {
-        return index == 0 && generation == 0;
-    }
 };
 
 inline bool operator==(BodyId id1, BodyId id2) {
@@ -604,7 +601,6 @@ private:
     Arena<ArticulatedBody> articulated_bodies;
     MaterialDB material_db;
 
-    std::vector<ContactPoint> contact_points;
     btCollisionWorld* bt_collision_world = nullptr;
     btCollisionObject* bt_plane_col = nullptr;
 
