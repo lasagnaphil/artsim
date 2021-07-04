@@ -107,7 +107,6 @@ void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, cons
         int joint_vel_dofs = art.joint_vel_dofs[i];
         auto& joint = art.joints[i];
         auto T = T_joint_global[i] / T_m;
-        // TODO: inline this further (create specialized Ad functions)
         switch (joint.type) {
             case JOINT_TYPE_REVOLUTE_X:  J_b[joint_vel_dof_start] = {T.R[0], glm::cross(T.v, T.R[0])}; break;
             case JOINT_TYPE_REVOLUTE_Y:  J_b[joint_vel_dof_start] = {T.R[1], glm::cross(T.v, T.R[1])}; break;
@@ -564,7 +563,7 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                     JOINT_DOF_1_CASE {
                         real kd_force = -joint.kd * u[cur_vel_dof];
                         data[i].tau[0] = tau[cur_vel_dof] + kd_force;
-                        if (joint.kp != 0.0) {
+                        if (joint.kp != 0.0 && q_target) {
                             real kp_force = -joint.kp * (q[cur_pos_dof] + u[cur_vel_dof]*dt - q_target[cur_pos_dof]);
                             data[i].tau[0] += kp_force;
                         }
@@ -572,7 +571,7 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                     case JOINT_TYPE_SPHERICAL: {
                         rvec3 kd_force = -joint.kd * glm::make_vec3(u + cur_vel_dof);
                         data[i].tau = glm::make_vec3(tau + cur_vel_dof) + kd_force;
-                        if (joint.kp != 0.0) {
+                        if (joint.kp != 0.0 && q_target) {
                             glm::rquat qi = glm::make_quat(q + cur_pos_dof);
                             const real* qdi = u + cur_vel_dof;
                             qi[0] += real(0.5)*dt*(qi[3]*qdi[0] + qi[1]*qdi[2] - qi[2]*qdi[1]);
@@ -817,11 +816,11 @@ void mass_matrix_using_rnea(const ArticulatedBodySpec& art, real dt, const real*
     std::vector<real> tau(dof, 0);
 
     udot[0] = 1;
-    rne_inverse_dynamics(art, glm::tvec3<real>(0), dt, q, u.data(), udot.data(), f_ext.data(), M.data());
+    rne_inverse_dynamics(art, glm::tvec3<real>(0), dt, q, u.data(), udot.data(), f_ext.data(), OUT M.data());
     for (int i = 1; i < dof; i++) {
         udot[i-1] = 0;
         udot[i] = 1;
-        rne_inverse_dynamics(art, glm::tvec3<real>(0), dt, q, u.data(), udot.data(), f_ext.data(), M.data() + i*dof);
+        rne_inverse_dynamics(art, glm::tvec3<real>(0), dt, q, u.data(), udot.data(), f_ext.data(), OUT M.data() + i*dof);
     }
 }
 
@@ -829,7 +828,7 @@ void all_forces(const ArticulatedBodySpec& art, glm::tvec3<real> gravity, real d
                 const real* u, real* tau) {
     int dof = art.get_num_vel_dofs();
     std::vector<real> udot(dof, 0);
-    rne_inverse_dynamics(art, gravity, dt, q, u, udot.data(), f_ext, tau);
+    rne_inverse_dynamics(art, gravity, dt, q, u, udot.data(), f_ext, OUT tau);
 }
 
 void forward_dynamics_using_rnea(const ArticulatedBodySpec& art, glm::tvec3<real> gravity, real dt, const tscrew<real>* f_ext,

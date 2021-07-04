@@ -107,7 +107,8 @@ public:
         imRenderer.render();
 
         auto art = world.get_articulated_body(art_id);
-        articulated_body_imgui(*art);
+        bool pos_edited, vel_edited, force_edited;
+        articulated_body_imgui(*art, pos_edited, vel_edited, force_edited);
     }
 
     void release() override {

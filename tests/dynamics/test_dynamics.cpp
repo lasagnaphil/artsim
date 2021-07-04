@@ -78,7 +78,7 @@ TEST_CASE("Double pendulum") {
                              f_ext, OUT h.data());
         check_dp_b(h[0], h[1], q[0], q[1], u[0], u[1]);
 
-        featherstone_forward_dynamics(spec, gravity, dt, f_ext, q, u, tau, OUT q2dot_1.data());
+        featherstone_forward_dynamics(spec, gravity, dt, f_ext, q, u, tau, nullptr, OUT q2dot_1.data());
         forward_dynamics_using_rnea(spec, gravity, dt, f_ext, q, u, tau, OUT q2dot_2.data());
 
         // TODO: check the Featherstone method by plugging it into the Newton eq: M(q) * q2dot + C(q, qdot) = tau.
@@ -158,7 +158,7 @@ TEST_CASE("Various kinds of pendulums") {
             {
                 auto t1 = std::chrono::high_resolution_clock::now();
                 for (int i = 0; i < num_iters; i++) {
-                    featherstone_forward_dynamics(spec, glm::tvec3<real>(0, -g, 0), dt, f_ext, q, u, tau, OUT q2dot_1.data());
+                    featherstone_forward_dynamics(spec, glm::tvec3<real>(0, -g, 0), dt, f_ext, q, u, tau, nullptr, OUT q2dot_1.data());
                 }
                 auto t2 = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
@@ -188,7 +188,7 @@ TEST_CASE("Various kinds of pendulums") {
                                          f_ext, OUT h.data());
 
                     // Perform one step of forward dynamics using Featherstone and RNEA
-                    featherstone_forward_dynamics(spec, gravity, dt, f_ext, q, u, tau, OUT q2dot_1.data());
+                    featherstone_forward_dynamics(spec, gravity, dt, f_ext, q, u, tau, nullptr, OUT q2dot_1.data());
                     forward_dynamics_using_rnea(spec, gravity, dt, f_ext, q, u, tau, OUT q2dot_2.data());
 
                     // Compare forward dynamics result between Featherstone and RNEA results
@@ -208,13 +208,13 @@ TEST_CASE("Various kinds of pendulums") {
 
                 tau_trial[0] = 1;
                 featherstone_forward_dynamics(spec, tvec3<real>(0), dt,
-                                              empty_f_ext.data(), q, empty_vec.data(), tau_trial.data(),
+                                              empty_f_ext.data(), q, empty_vec.data(), tau_trial.data(), nullptr,
                                               OUT Minv_using_fs.data());
                 for (int d = 1; d < num_vel_dofs; d++) {
                     tau_trial[d-1] = 0;
                     tau_trial[d] = 1;
                     featherstone_forward_dynamics(spec, tvec3<real>(0), dt,
-                                                  empty_f_ext.data(), q, empty_vec.data(), tau_trial.data(),
+                                                  empty_f_ext.data(), q, empty_vec.data(), tau_trial.data(), nullptr,
                                                   OUT Minv_using_fs.data() + d * num_vel_dofs);
                 }
 

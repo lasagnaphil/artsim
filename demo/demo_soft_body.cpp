@@ -161,8 +161,8 @@ public:
             real* pos1 = (real*)&constraints.positional[0].target_pos;
             real* pos2 = (real*)&constraints.positional[1].target_pos;
             real p_min = -10.0, p_max = 10.0;
-            ImGui::SliderScalarN("Target pos 1", ImGuiDataType_Double, pos1, 3, &p_min, &p_max);
-            ImGui::SliderScalarN("Target pos 2", ImGuiDataType_Double, pos2, 3, &p_min, &p_max);
+            ImGui::SliderScalarN("Target pos 1", ImGuiDataType_Real, pos1, 3, &p_min, &p_max);
+            ImGui::SliderScalarN("Target pos 2", ImGuiDataType_Real, pos2, 3, &p_min, &p_max);
         }
         ImGui::End();
     }
