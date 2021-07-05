@@ -612,7 +612,7 @@ void World::integrate_with_contacts() {
             body1_id.generation = body1->getUserIndex2();
             body2_id.index = body2->getUserIndex();
             body2_id.generation = body2->getUserIndex2();
-            // if (body1_id.index < body2_id.index) std::swap(body1_id, body2_id);
+            if (body1_id.index < body2_id.index) std::swap(body1_id, body2_id);
             for (int j = 0; j < num_contacts; j++) {
                 auto& pt = manifold->getContactPoint(j);
                 int cp_id = contact_points.size();
@@ -649,36 +649,29 @@ void World::integrate_with_contacts() {
     std::unordered_map<Id<ArticulatedBody>, std::vector<int>> art_contact_points_map;
     std::unordered_map<Id<RigidBody>, std::vector<int>> rb_contact_points_map;
 
+    articulated_bodies.foreach_id([&](Id<ArticulatedBody> art_id) {
+        art_contact_points_map.insert({art_id, {}});
+        // body_contact_points_map.insert({BodyId::from_articulation_link(art_id, 0), {}});
+    });
+
+    rigid_bodies.foreach_id([&](Id<RigidBody> rb_id) {
+        rb_contact_points_map.insert({rb_id, {}});
+        // body_contact_points_map.insert({BodyId::from_rigid_body(rb_id), {}});
+    });
+
     auto insert_contact_info = [&](BodyId bid, int cidx) {
         if (bid.is_articulation()) {
             auto [art_id, art_lidx] = bid.get_articulation_id();
-            auto it = art_contact_points_map.find(art_id);
-            if (it == art_contact_points_map.end()) {
-                art_contact_points_map.insert({art_id, {cidx}});
-            }
-            else {
-                it->second.push_back(cidx);
-            }
+            art_contact_points_map[art_id].push_back(cidx);
+            // bid = BodyId::from_articulation_link(art_id, 0);
         }
         else {
             auto rb_id = bid.get_rigid_body_id();
             auto rb = rigid_bodies.get(rb_id);
             if (rb->spec.is_static) return; // Don't calculate contacts if rigid body is static!
-            auto it = rb_contact_points_map.find(rb_id);
-            if (it == rb_contact_points_map.end()) {
-                rb_contact_points_map.insert({rb_id, {cidx}});
-            }
-            else {
-                it->second.push_back(cidx);
-            }
+            rb_contact_points_map[rb_id].push_back(cidx);
         }
-        auto it = body_contact_points_map.find(bid);
-        if (it == body_contact_points_map.end()) {
-            body_contact_points_map.insert({bid, {cidx}});
-        }
-        else {
-            it->second.push_back(cidx);
-        }
+        // body_contact_points_map[bid].push_back(cidx);
     };
 
     {
@@ -836,14 +829,24 @@ void World::integrate_with_contacts() {
                 }
                  */
                 auto& cp = contact_points[i];
-                auto& cidx_list1 = body_contact_points_map[cp.body1_id];
-                assert(cidx_list1.size() == contact_points.size()); // TODO: why is this not true (for one art / ground?)
-                for (int cidx : cidx_list1) {
+                std::vector<int> *cidx_list1, *cidx_list2;
+                if (cp.body1_id.is_articulation()) {
+                    cidx_list1 = &art_contact_points_map[cp.body1_id.get_articulation_id().first];
+                }
+                else {
+                    cidx_list1 = &rb_contact_points_map[cp.body1_id.get_rigid_body_id()];
+                }
+                if (cp.body2_id.is_articulation()) {
+                    cidx_list2 = &art_contact_points_map[cp.body2_id.get_articulation_id().first];
+                }
+                else {
+                    cidx_list2 = &rb_contact_points_map[cp.body2_id.get_rigid_body_id()];
+                }
+                for (int cidx : *cidx_list1) {
                     if (cidx == i) continue;
                     c[cidx] += M_delassus(cidx, i)*(lambda[i] - lambda_old[i]);
                 }
-                auto& cidx_list2 = body_contact_points_map[cp.body2_id];
-                for (int cidx : cidx_list2) {
+                for (int cidx : *cidx_list2) {
                     if (cidx == i) continue;
                     c[cidx] -= M_delassus(cidx, i)*(lambda[i] - lambda_old[i]);
                 }
