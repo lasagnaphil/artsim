@@ -101,7 +101,7 @@ NearestTriangle<T>::NearestTriangle( glm::tvec3<T> point_, const T *verts_, cons
 
 template <class T>
 bool NearestTriangle<T>::hit_aabb( const AABB &aabb ){
-    return aabb.squaredExteriorDistance(point) < curr_nearest;
+    return glmx::distance(aabb, point) < curr_nearest;
 }
 
 template <class T>
@@ -118,7 +118,7 @@ bool NearestTriangle<T>::hit_prim( int prim ){
     glm::tvec3<T> v2( verts[tri[2]*3+0], verts[tri[2]*3+1], verts[tri[2]*3+2] );
 
     glm::tvec3<T> p = glmx::point_on_triangle( point, v0, v1, v2 );
-    T dist = (p-point).squaredNorm();
+    T dist = glm::distance2(p, point);
     if( dist > curr_nearest ){ return false; }
 
     curr_nearest = dist;
@@ -129,8 +129,40 @@ bool NearestTriangle<T>::hit_prim( int prim ){
 
 template <class T>
 bool NearestTriangle<T>::check_left_first( const AABB &left, const AABB &right ){
-    T left_ed = left.squaredExteriorDistance( point );
-    return left_ed < right.squaredExteriorDistance( point );
+    return glmx::distance2(left, point) < glmx::distance2(right, point);
 }
+
+/*
+template <class T>
+struct RayCast : public AABBTreeVisitor<T> {
+    using AABB = glmx::tbox<3, T>;
+
+    glm::tvec3<T> pos;
+    glm::tvec3<T> dir;
+
+    T hit_t;
+    int hit_tri;
+
+    RayCast(glm::tvec3<T> pos, glm::tvec3<T> dir) : pos(pos), dir(dir) {}
+    bool hit_aabb(const AABB &aabb);
+    bool hit_prim(int prim);
+    bool check_left_first(const AABB &left, const AABB &right);
+};
+
+template <class T>
+bool RayCast<T>::hit_aabb(const RayCast::AABB &aabb) {
+    return false;
+}
+
+template <class T>
+bool RayCast<T>::hit_prim(int prim) {
+    return false;
+}
+
+template <class T>
+bool RayCast<T>::check_left_first(const RayCast::AABB &left, const RayCast::AABB &right) {
+    return false;
+}
+ */
 
 #endif //EOS_SCAN_TO_HUMAN_AABBTREE_VISITOR_H

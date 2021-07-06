@@ -7,6 +7,8 @@
 
 namespace glmx {
 
+template <typename T> static T myclamp( const T &val ){ return val < 0 ? 0 : (val > 1 ? 1 : val); }
+
 template <class T>
 glm::tvec3<T> point_on_triangle( const glm::tvec3<T> &point, const glm::tvec3<T> &p1, const glm::tvec3<T> &p2, const glm::tvec3<T> &p3 ){
 
@@ -14,11 +16,11 @@ glm::tvec3<T> point_on_triangle( const glm::tvec3<T> &point, const glm::tvec3<T>
     glm::tvec3<T> edge1 = p3 - p1;
     glm::tvec3<T> v0 = p1 - point;
 
-    T a = edge0.dot( edge0 );
-    T b = edge0.dot( edge1 );
-    T c = edge1.dot( edge1 );
-    T d = edge0.dot( v0 );
-    T e = edge1.dot( v0 );
+    T a = glm::dot(edge0, edge0);
+    T b = glm::dot(edge0, edge1);
+    T c = glm::dot(edge1, edge1);
+    T d = glm::dot(edge0, v0);
+    T e = glm::dot(edge1, v0);
     T det = a*c - b*b;
     T s = b*e - c*d;
     T t = b*d - a*e;

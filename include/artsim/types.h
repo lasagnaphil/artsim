@@ -24,10 +24,12 @@ namespace artsim {
 using real = double;
 constexpr real REAL_MAX = DBL_MAX;
 #define ImGuiDataType_Real ImGuiDataType_Double
+#define InputReal InputDouble
 #else
 using real = float;
 constexpr real REAL_MAX = FLT_MAX;
 #define ImGuiDataType_Real ImGuiDataType_Float
+#define InputReal InputFloat
 #endif
 
 }

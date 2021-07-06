@@ -99,6 +99,13 @@ struct SoftRigidCollisionConstraint {
     glm::rvec3 normal;
 };
 
+struct SoftSoftCollisionConstraint {
+    int vert_id;
+    glm::ivec3 tri;
+    real k;
+    glm::rvec3 betas;
+    glm::rvec3 normal;
+};
 
 struct PDConstraints {
     std::vector<LinearStrainEnergyConstraint> linear_strain_energy;

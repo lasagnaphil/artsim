@@ -61,25 +61,25 @@ tbox<Dim, T> operator-(const tbox<Dim, T>& box1, const tbox<Dim, T>& box2) {
 }
 
 template <int Dim, class T>
-void distance2(const tbox<Dim, T>& box, const glm::vec<Dim, T>& p) {
+T distance2(const tbox<Dim, T>& box, const glm::vec<Dim, T>& p) {
     glm::vec<Dim, T> p0 = glm::clamp(p, box.lo, box.hi);
     return glm::distance2(p, p0);
 }
 
 template <int Dim, class T>
-void distance(const tbox<Dim, T>& box, const glm::vec<Dim, T>& p) {
+T distance(const tbox<Dim, T>& box, const glm::vec<Dim, T>& p) {
     return glm::sqrt(distance2(box, p));
 }
 
 template <int Dim, class T>
-void distance2(const tbox<Dim, T>& box1, const tbox<Dim, T>& box2) {
+T distance2(const tbox<Dim, T>& box1, const tbox<Dim, T>& box2) {
     auto min_diff = box1 - box2;
     glm::vec<Dim, T> p0 = glm::clamp(glm::vec<Dim, T>(0), min_diff.lo, min_diff.hi);
     return glm::length2(p0);
 }
 
 template <int Dim, class T>
-void distance(const tbox<Dim, T>& box1, const tbox<Dim, T>& box2) {
+T distance(const tbox<Dim, T>& box1, const tbox<Dim, T>& box2) {
     return glm::sqrt(distance2(box1, box2));
 }
 
