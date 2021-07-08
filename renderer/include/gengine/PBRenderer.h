@@ -18,12 +18,21 @@
 #include <array>
 #include "artsim/math/rect.h"
 
+
 // TODO: Add normal texture (needed for normal mapping)
 struct PBRMaterial {
-    Ref<Texture> texAlbedo;
-    Ref<Texture> texMetallic;
-    Ref<Texture> texRoughness;
-    Ref<Texture> texAO;
+    static Ref<Texture> defaultTexture;
+
+    Ref<Texture> texAlbedo = {};
+    Ref<Texture> texMetallic = {};
+    Ref<Texture> texRoughness = {};
+    Ref<Texture> texAO = {};
+
+    glm::vec3 albedo = glm::vec3(1, 1, 1);
+    float metallic = 0.0f;
+    float roughness = 0.0f;
+    float ao = 1.0f;
+
     bool transparent = false;
     float alpha = 1.0f;
 
@@ -34,24 +43,12 @@ struct PBRMaterial {
             const std::string& ao);
 
     static Ref<PBRMaterial> quick(glm::vec3 color) {
-        static Ref<Texture> defaultAO = {};
-        static Ref<Texture> defaultMetallic = {};
-        static Ref<Texture> defaultRoughness = {};
-        if (!defaultAO) {
-            defaultAO = Texture::fromSingleColor({1.0f, 0.0f, 0.0f});
-        }
-        if (!defaultMetallic) {
-            defaultMetallic = Texture::fromSingleColor({0.0f, 0.0f, 0.0f});
-        }
-        if (!defaultRoughness) {
-            defaultRoughness = Texture::fromSingleColor({0.0f, 0.0f, 0.0f});
-        }
         Ref<PBRMaterial> material = Resources::make<PBRMaterial>();
-        material->texAlbedo = Texture::fromSingleColor(color);
-        material->texAO = defaultAO;
-        material->texMetallic = defaultMetallic;
-        material->texRoughness = defaultRoughness;
-        material->alpha = 1.0f;
+        material->texAlbedo = defaultTexture;
+        material->texMetallic = defaultTexture;
+        material->texRoughness = defaultTexture;
+        material->texAO = defaultTexture;
+        material->albedo = color;
         return material;
     }
 };
@@ -93,7 +90,6 @@ struct PBRCommand {
 
 class PBRenderer {
 public:
-
     PBRenderer(Camera* camera = nullptr);
 
     void setCamera(Camera* camera) {

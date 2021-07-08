@@ -10,10 +10,10 @@ void main() {
     vec3 V = normalize(viewPos - fs_in.fragPos);
 
     PBRMatParams params;
-    params.albedo = texture(mat.texAlbedo, fs_in.texCoord).rgb;
-    params.metallic = texture(mat.texMetallic, fs_in.texCoord).r;
-    params.roughness = texture(mat.texRoughness, fs_in.texCoord).r;
-    params.ao = texture(mat.texAO, fs_in.texCoord).r;
+    params.albedo = mat.albedo * texture(mat.texAlbedo, fs_in.texCoord).rgb;
+    params.metallic = mat.metallic * texture(mat.texMetallic, fs_in.texCoord).r;
+    params.roughness = mat.roughness * texture(mat.texRoughness, fs_in.texCoord).r;
+    params.ao = mat.ao * texture(mat.texAO, fs_in.texCoord).r;
 
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, params.albedo, params.metallic);

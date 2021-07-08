@@ -8,6 +8,12 @@ struct PBRMaterial {
     sampler2D texMetallic;
     sampler2D texRoughness;
     sampler2D texAO;
+
+    vec3 albedo;
+    float metallic;
+    float roughness;
+    float ao;
+
     float alpha;
 };
 

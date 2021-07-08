@@ -200,6 +200,12 @@ void Shader::setPBRMaterial(const PBRMaterial &material) const {
     setInt("mat.texMetallic", 1);
     setInt("mat.texRoughness", 2);
     setInt("mat.texAO", 3);
+
+    setVec3("mat.albedo", material.albedo);
+    setFloat("mat.metallic", material.metallic);
+    setFloat("mat.roughness", material.roughness);
+    setFloat("mat.ao", material.ao);
+
     setFloat("mat.alpha", material.alpha);
 }
 

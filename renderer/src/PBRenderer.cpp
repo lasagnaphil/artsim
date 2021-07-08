@@ -29,6 +29,8 @@ static float quadVertices[] = {
         -1.0f, -1.0f, 0.0f, 0.0f, 0.0f
 };
 
+Ref<Texture> PBRMaterial::defaultTexture = {};
+
 Ref<PBRMaterial>
 PBRMaterial::quick(const std::string &albedo, const std::string &metallic, const std::string &roughness,
                    const std::string &ao) {
@@ -64,6 +66,8 @@ void PBRenderer::init() {
     pbrTransparentShader = Shader::fromString("pbr_transparent", pbr_vert_shader, pbr_transparent_frag_shader);
     compositeShader = Shader::fromString("composite", solid_transparent_composite_vert_shader, solid_transparent_composite_frag_shader);
     screenShader = Shader::fromString("screen", screen_vert_shader, screen_frag_shader);
+
+    PBRMaterial::defaultTexture = Texture::fromSingleColor(glm::vec3(1, 1, 1));
 
     // Create VAO and VBO for screen quad
     glGenVertexArrays(1, &quadVAO);
