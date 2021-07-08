@@ -127,13 +127,7 @@ bool artsim::load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT Articulated
         T_global_body_map[name] = T_global_body;
         T_global_joint_map[name] = T_global_joint;
 
-        ttransform<real> local_joint_pose;
-        if (parent_name != "None") {
-            local_joint_pose = T_global_joint / T_global_joint_map[parent_name];
-        }
-        else {
-            local_joint_pose = ttransform<real>(IDENTITY);
-        }
+        ttransform<real> local_joint_pose = T_global_joint / T_global_joint_map[parent_name];
         ttransform<real> local_link_pose = T_global_body / T_global_joint;
 
         link = Link::create(inertia, mass, shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
@@ -451,7 +445,8 @@ tinyxml2::XMLElement* artsim::save_to_xml(tinyxml2::XMLDocument& doc, Articulate
                 el_joint->SetAttribute("type", "spherical");
             } break;
         }
-        el_joint->SetAttribute("damping", joint.kd);
+        el_joint->SetAttribute("kp", joint.kp);
+        el_joint->SetAttribute("kd", joint.kd);
         auto joint_pos_str = to_string(art.get_global_joint_trans(i).v);
         el_joint->SetAttribute("pos", joint_pos_str.c_str());
         auto joint_rot_str = to_string(glmx::log_mat(art.get_global_joint_trans(i).R));

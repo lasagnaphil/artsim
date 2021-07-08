@@ -31,8 +31,7 @@ real CollisionShape::mass(real density) {
             return real(1);
             // TODO: calculate proper mass
             /*
-            real V = 0;
-            auto& obj = *mesh.ob;
+            auto& obj = *mesh.sh;
             for (auto tri : obj.triangle_vertices) {
                 auto v0 = obj.vertices[tri[0]];
                 auto v1 = obj.vertices[tri[1]];

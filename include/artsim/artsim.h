@@ -549,6 +549,11 @@ struct MaterialDB {
     Arena<Material> materials;
     std::unordered_map<std::pair<Id<Material>, Id<Material>>, Material, pair_hash> material_pairs;
 
+    void clear() {
+        materials.clear();
+        material_pairs.clear();
+    }
+
     Id<Material> add_material(real default_friction = 1.0f,
                               real default_restitution = 0.0f,
                               real default_restitution_threshold = 0.01f) {
@@ -608,6 +613,12 @@ private:
 
 public:
     void init(WorldConfig world_cfg);
+    void destroy() {
+        delete bt_collision_world;
+        rigid_bodies.clear();
+        articulated_bodies.clear();
+        material_db.clear();
+    }
 
     glm::rvec3 get_gravity() const { return cfg.gravity; }
     void set_gravity(const glm::rvec3& gravity) { cfg.gravity = gravity; }
