@@ -5,7 +5,7 @@
 #ifndef ARTSIM_ARTICULATION_RENDER_H
 #define ARTSIM_ARTICULATION_RENDER_H
 
-#include <artsim/artsim.h>
+#include <artsim/world.h>
 #include <artsim/utils/example_articulations.h>
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
@@ -39,7 +39,8 @@ public:
                     link_meshes[i] = Mesh::makeCube();
                 } break;
                 case artsim::CollisionShape::Type::Mesh: {
-                    link_meshes[i] = Mesh::fromOBJ(*shape.mesh.attrib, shape.mesh.shapes, shape.mesh.num_shapes);
+                    auto mesh = world->get_collision_mesh(shape.mesh.id);
+                    link_meshes[i] = Mesh::fromOBJ(&mesh->objfile);
                 } break;
                 default: {}
             }
@@ -68,7 +69,7 @@ public:
         for (int i = 0; i < num_joints; i++) {
             auto& spec = art->get_spec();
             glm::mat4 link_trans = glmx::mat4_cast(art->get_global_link_trans(i));
-            link_trans = glm::scale(link_trans, spec.links[i].render_shape.scale);
+            link_trans = glm::scale(link_trans, spec.links[i].col_shape.scale);
             glm::mat4 joint_trans = glmx::mat4_cast(art->get_global_joint_trans(i));
             renderer.queueRender(PBRCommand {link_meshes[i], link_mat, link_trans});
             if (i == 0 && art->get_spec().floating) continue;
@@ -121,7 +122,8 @@ public:
                     link_meshes[i] = Mesh::makeCube();
                 } break;
                 case artsim::CollisionShape::Type::Mesh: {
-                    link_meshes[i] = Mesh::fromOBJ(*shape.mesh.attrib, shape.mesh.shapes, shape.mesh.num_shapes);
+                    printf("Unimplemented!\n");
+                    exit(EXIT_FAILURE);
                 } break;
                 default: {}
             }
@@ -150,7 +152,7 @@ public:
         calc_transforms(*spec, q, T_joint_global.data(), T_link_global.data());
         for (int i = 0; i < num_joints; i++) {
             glm::mat4 link_trans = glmx::mat4_cast(T_link_global[i]);
-            link_trans = glm::scale(link_trans, spec->links[i].render_shape.scale);
+            link_trans = glm::scale(link_trans, spec->links[i].col_shape.scale);
             glm::mat4 joint_trans = glmx::mat4_cast(T_joint_global[i]);
             renderer.queueRender(PBRCommand {link_meshes[i], link_mat, link_trans});
             if (i == 0 && spec->floating) continue;

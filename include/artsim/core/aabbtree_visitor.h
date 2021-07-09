@@ -5,6 +5,8 @@
 #ifndef EOS_SCAN_TO_HUMAN_AABBTREE_VISITOR_H
 #define EOS_SCAN_TO_HUMAN_AABBTREE_VISITOR_H
 
+#include <vector>
+#include <cstdio>
 #include <artsim/math/box.h>
 #include <artsim/math/projection.h>
 
@@ -46,7 +48,10 @@ PointInTet<T>::PointInTet( glm::tvec3<T> point_, const T *verts_, const int *ind
 
 template <class T>
 bool PointInTet<T>::hit_aabb( const AABB &aabb ){
-    if( aabb.isEmpty() ){ throw std::runtime_error("PointInTet Error: Empty AABB"); }
+    if( aabb.isEmpty() ){
+        printf("PointInTet Error: Empty AABB\n");
+        exit(EXIT_FAILURE);
+    }
     return aabb.contains(point);
 }
 

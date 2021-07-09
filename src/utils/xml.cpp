@@ -10,7 +10,6 @@
 #include <filesystem>
 
 using namespace tinyxml2;
-using namespace artsim;
 using namespace glmx;
 namespace fs = std::filesystem;
 
@@ -25,22 +24,17 @@ static std::vector<double> split_to_double(const std::string& input, int num)
     return result;
 }
 
-static glm::tvec1<real> string_to_vector1d(const std::string& input) {
-    std::vector<double> v = split_to_double(input, 1);
-    return glm::tvec1<real>(v[0]);
-}
-
-static glm::tvec3<real> string_to_vector3d(const std::string& input) {
+static glm::rvec3 string_to_vector3d(const std::string& input) {
     std::vector<double> v = split_to_double(input, 3);
     return {v[0], v[1], v[2]};
 }
 
-static glm::tvec4<real> string_to_vector4d(const std::string& input) {
+static glm::rvec4 string_to_vector4d(const std::string& input) {
     std::vector<double> v = split_to_double(input, 4);
     return {v[0], v[1], v[2], v[3]};
 }
 
-static glm::tmat3x3<real> string_to_matrix3d(const std::string& input) {
+static glm::rmat3 string_to_matrix3d(const std::string& input) {
     std::vector<double> v = split_to_double(input, 9);
     auto M = glm::transpose(glm::make_mat3x3(v.data()));
     return M;
@@ -58,7 +52,9 @@ static std::string to_string(artsim::real v) {
     return s;
 }
 
-bool artsim::load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT ArticulatedBodySpec& art) {
+namespace artsim {
+
+bool load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT ArticulatedBodySpec& art) {
     std::unordered_map<std::string, ttransform<real>> T_global_body_map;
     std::unordered_map<std::string, ttransform<real>> T_global_joint_map;
     std::unordered_map<std::string, int> idx_map;
@@ -90,7 +86,7 @@ bool artsim::load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT Articulated
         std::string body_type = body_elem->Attribute("type");
         CollisionShape shape;
         if (body_type == "Box") {
-            glm::tvec3<real> size = string_to_vector3d(body_elem->Attribute("size"));
+            glm::rvec3 size = string_to_vector3d(body_elem->Attribute("size"));
             shape = CollisionShape::make_box(size);
         }
         else if (body_type == "Sphere") {
@@ -153,7 +149,7 @@ bool artsim::load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT Articulated
         }
         else if(joint_type == "Revolute")
         {
-            glm::tvec3<real> axis = string_to_vector3d(joint_elem->Attribute("axis"));
+            glm::rvec3 axis = string_to_vector3d(joint_elem->Attribute("axis"));
             if (glm::epsilonEqual<real>(axis.x, 1.0, 1e-8)) {
                 joint = Joint::revolute_x(kp, kd);
             }
@@ -174,7 +170,7 @@ bool artsim::load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT Articulated
     return true;
 }
 
-XMLError artsim::load_from_xml_legacy(const char* filename, OUT ArticulatedBodySpec& art) {
+XMLError load_from_xml_legacy(const char* filename, OUT ArticulatedBodySpec& art) {
     XMLDocument doc;
     XMLError err = doc.LoadFile(filename);
     if (err != XMLError::XML_SUCCESS) {
@@ -190,7 +186,7 @@ XMLError artsim::load_from_xml_legacy(const char* filename, OUT ArticulatedBodyS
     }
 }
 
-bool artsim::load_from_xml(XMLElement* art_elem, const char* current_dir, OUT ArticulatedBodySpec& spec) {
+bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT ArticulatedBodySpec& spec) {
     std::unordered_map<std::string, ttransform<real>> T_global_body_map;
     std::unordered_map<std::string, ttransform<real>> T_global_joint_map;
     std::unordered_map<std::string, int> idx_map;
@@ -220,31 +216,25 @@ bool artsim::load_from_xml(XMLElement* art_elem, const char* current_dir, OUT Ar
 
         std::string body_type = link_elem->Attribute("type");
         CollisionShape col_shape;
-        RenderShape render_shape;
         if (body_type == "box") {
-            glm::tvec3<real> size = string_to_vector3d(link_elem->Attribute("size"));
+            glm::rvec3 size = string_to_vector3d(link_elem->Attribute("size"));
             col_shape = CollisionShape::make_box(size);
-            render_shape = RenderShape::make_box(size);
         }
         else if (body_type == "sphere") {
             double radius = std::stod(link_elem->Attribute("radius"));
             col_shape = CollisionShape::make_sphere(radius);
-            render_shape = RenderShape::make_sphere(radius);
         }
         else if (body_type == "mesh") {
-            fs::path filepath = fs::path(current_dir) / link_elem->Attribute("obj");
-            tinyobj::ObjReader reader;
-            reader.ParseFromFile(filepath);
-            if (reader.Valid()) {
-                auto& shapes = reader.GetShapes();
-                col_shape = CollisionShape::make_mesh(&reader.GetAttrib(), shapes.data(), shapes.size());
-                render_shape = RenderShape::make_mesh(&reader.GetAttrib(), shapes.data(), shapes.size());
+            auto sdf_res_str = link_elem->Attribute("sdf_res");
+            glm::ivec3 sdf_res;
+            if (sdf_res_str) {
+                sdf_res = glm::ivec3(string_to_vector3d(sdf_res_str));
             }
             else {
-                fprintf(stderr, "Invalid OBJ file %s!\n", filepath.c_str());
-                fprintf(stderr, "Message: %s\n", reader.Error().c_str());
-                return false;
+                sdf_res = {10, 10, 10};
             }
+            fs::path filepath = fs::path(current_dir) / link_elem->Attribute("obj");
+            col_shape = CollisionShape::make_mesh(filepath.c_str(), sdf_res);
         }
         else if (body_type == "capsule") {
             double radius = std::stod(link_elem->Attribute("radius"));
@@ -290,7 +280,7 @@ bool artsim::load_from_xml(XMLElement* art_elem, const char* current_dir, OUT Ar
         }
         ttransform<real> local_link_pose = T_global_body / T_global_joint;
 
-        link = Link::create(inertia, mass, col_shape, render_shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
+        link = Link::create(inertia, mass, col_shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
 
         real kp = 0.0;
         real kd = 0.0;
@@ -313,7 +303,7 @@ bool artsim::load_from_xml(XMLElement* art_elem, const char* current_dir, OUT Ar
         }
         else if(joint_type == "revolute")
         {
-            glm::tvec3<real> axis = string_to_vector3d(joint_elem->Attribute("axis"));
+            glm::rvec3 axis = string_to_vector3d(joint_elem->Attribute("axis"));
             if (glm::epsilonEqual<real>(axis.x, 1.0, 1e-8)) {
                 joint = Joint::revolute_x(kp, kd);
             }
@@ -338,7 +328,7 @@ bool artsim::load_from_xml(XMLElement* art_elem, const char* current_dir, OUT Ar
     return true;
 }
 
-tinyxml2::XMLError artsim::load_from_xml(const char* filename, OUT ArticulatedBodySpec& spec) {
+tinyxml2::XMLError load_from_xml(const char* filename, OUT ArticulatedBodySpec& spec) {
     XMLDocument doc;
     XMLError err = doc.LoadFile(filename);
     if (err != XMLError::XML_SUCCESS) {
@@ -355,7 +345,7 @@ tinyxml2::XMLError artsim::load_from_xml(const char* filename, OUT ArticulatedBo
     }
 }
 
-tinyxml2::XMLElement* artsim::save_to_xml(tinyxml2::XMLDocument& doc, ArticulatedBodySpec& spec) {
+tinyxml2::XMLElement* save_to_xml(tinyxml2::XMLDocument& doc, ArticulatedBodySpec& spec) {
     auto el_art = doc.NewElement("articulation");
     el_art->SetAttribute("name", "default");
     el_art->SetAttribute("xform_mode", "global");
@@ -455,9 +445,11 @@ tinyxml2::XMLElement* artsim::save_to_xml(tinyxml2::XMLDocument& doc, Articulate
     return el_art;
 }
 
-XMLError artsim::save_to_xml(const char* filename, ArticulatedBodySpec& art) {
+XMLError save_to_xml(const char* filename, ArticulatedBodySpec& art) {
     XMLDocument doc;
     XMLElement* el_art = save_to_xml(doc, art);
     doc.InsertEndChild(el_art);
     return doc.SaveFile(filename);
+}
+
 }

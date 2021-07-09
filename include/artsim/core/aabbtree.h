@@ -26,8 +26,9 @@ private:
     std::vector<Node> nodes;
 
 public:
-    AABBTree() {
-    }
+    AABBTree() {}
+
+    bool empty() { return nodes.empty(); }
 
     template <int PDIM>
     void init(const glm::rvec3* vertices, const glm::vec<PDIM, int>* indices, int num_prims);

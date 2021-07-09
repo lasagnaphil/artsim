@@ -19,9 +19,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <vector>
+#include <memory>
 #include <unordered_map>
 #include <string>
 #include <tiny_obj_loader.h>
+#include <Discregrid/cubic_lagrange_discrete_grid.hpp>
 
 namespace artsim {
 
@@ -149,12 +151,20 @@ struct Joint {
     }
 };
 
+struct CollisionMesh {
+    OBJFile objfile;
+    Discregrid::CubicLagrangeDiscreteGrid sdf_grid;
+
+    void init_from_obj(const char* objfile, glm::uvec3 sdf_grid_resolution);
+};
+
 struct CollisionShape {
     enum class Type {
         Ground, Box, Sphere, Mesh
     };
     Type type;
-    glm::tvec3<real> scale;
+    glm::rvec3 scale;
+    glm::rvec3 color; // For debug rendering purposes
 
     union {
         struct {
@@ -164,46 +174,22 @@ struct CollisionShape {
         struct {
         } sphere;
         struct {
-            tinyobj::attrib_t* attrib;
-            tinyobj::shape_t* shapes;
-            int num_shapes;
+            Id<CollisionMesh> id;
+            glm::uvec3 sdf_res;
         } mesh;
     };
+    std::string obj_filename;
+
     btCollisionShape* bt_shape;
 
     static CollisionShape make_ground();
     static CollisionShape make_box(glm::vec3 size);
     static CollisionShape make_sphere(real radius);
-    static CollisionShape make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes, glm::rvec3 scale = glm::rvec3(1));
+    static CollisionShape make_mesh(const char* filename, glm::uvec3 sdf_res, glm::rvec3 scale = glm::rvec3(1));
+    static CollisionShape make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 scale = glm::rvec3(1));
 
     real mass(real density);
     glmx::tsmat3x3<real> inertia(real density);
-};
-
-struct RenderShape {
-    enum class Type {
-        Box, Sphere, Mesh
-    };
-    Type type;
-    glm::vec3 scale = glm::vec3(1);
-    glm::vec3 color = glm::vec3(1, 0, 0);
-
-    union {
-        struct {
-        } box;
-        struct {
-        } sphere;
-        struct {
-            tinyobj::attrib_t* attrib;
-            tinyobj::shape_t* shapes;
-            int num_shapes;
-        } mesh;
-    };
-
-    static RenderShape make_from_collision_shape(const CollisionShape& col);
-    static RenderShape make_box(glm::vec3 size);
-    static RenderShape make_sphere(float radius);
-    static RenderShape make_mesh(const tinyobj::attrib_t* attrib, const tinyobj::shape_t* shapes, int num_shapes, glm::vec3 scale = glm::vec3(1));
 };
 
 struct Material {
@@ -216,7 +202,6 @@ struct RigidBodySpec {
     glmx::tsmat3x3<real> inertia;
     real mass;
     CollisionShape col_shape;
-    RenderShape render_shape;
     glmx::ttransform<real> global_trans;
     bool is_static = false;
 };
@@ -243,7 +228,6 @@ struct Link {
     glmx::tspmat<real> I_j; // Spatial mass matrix from joint frame
     real mass;
     CollisionShape col_shape;
-    RenderShape render_shape;
     glmx::ttransform<real> local_joint_pose;
     glmx::ttransform<real> local_link_pose;
     int parent_idx;
@@ -251,11 +235,6 @@ struct Link {
 
     static Link create(const glmx::tsmat3x3<real>& inertia, real mass,
                        CollisionShape col_shape,
-                       glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
-                       int parent_idx, Id<Material> mat_id);
-
-    static Link create(const glmx::tsmat3x3<real>& inertia, real mass,
-                       CollisionShape col_shape, RenderShape render_shape,
                        glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
                        int parent_idx, Id<Material> mat_id);
 
@@ -336,7 +315,6 @@ struct ArticulatedBodySpec {
     void scale_link(int link_idx, const glm::rvec3& scale, bool scale_shapes) {
         auto& link = links[link_idx];
         if (scale_shapes) {
-            link.render_shape.scale *= scale;
             link.col_shape.scale *= scale;
         }
         link.local_link_pose.v = glm::rvec3(scale) * link.local_link_pose.v;
@@ -542,172 +520,17 @@ struct Frame {
     }
 };
 
-#define METHOD_GET_ID(TYPE, NAME, MEMBER) TYPE* get_##NAME(Id<TYPE> id) { return MEMBER.get(id); }
-#define METHOD_REMOVE_ID(TYPE, NAME, MEMBER) void remove_##NAME(Id<TYPE> id) { MEMBER.release(id); }
-
-struct MaterialDB {
-    Arena<Material> materials;
-    std::unordered_map<std::pair<Id<Material>, Id<Material>>, Material, pair_hash> material_pairs;
-
-    void clear() {
-        materials.clear();
-        material_pairs.clear();
-    }
-
-    Id<Material> add_material(real default_friction = 1.0f,
-                              real default_restitution = 0.0f,
-                              real default_restitution_threshold = 0.01f) {
-        auto id = materials.make();
-        auto ptr = materials.get(id);
-        ptr->friction = default_friction;
-        ptr->restitution = default_restitution;
-        ptr->restitution_threshold = default_restitution_threshold;
-        return id;
-    }
-    METHOD_GET_ID(Material, material, materials)
-    METHOD_REMOVE_ID(Material, material, materials)
-
-    void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
-                           real friction, real restitution, real restitution_threshold) {
-        material_pairs[std::make_pair(mat1_id, mat2_id)] = Material{friction, restitution, restitution_threshold};
-    }
-
-    Material get_material_pair(Id<Material> mat1_id, Id<Material> mat2_id) {
-        auto it = material_pairs.find({mat1_id, mat2_id});
-        if (it == material_pairs.end()) {
-            Material* mat1 = materials.get(mat1_id);
-            Material* mat2 = materials.get(mat2_id);
-            Material mat;
-            mat.friction = glm::max(mat1->friction, mat2->friction);
-            mat.restitution = glm::min(mat1->restitution, mat2->restitution);
-            mat.restitution_threshold = glm::max(mat1->restitution_threshold, mat2->restitution_threshold);
-            return mat;
-        }
-        else {
-            return it->second;
-        }
-    }
-};
-
-enum class ContactSolverType {
-    PGS, Bisection, NCP
-};
-
-struct WorldConfig {
-    glm::rvec3 gravity = {0.0, -9.8, 0.0};
-    real dt = 1.0 / 240.0;
-    ContactSolverType contact_solver_type = ContactSolverType::PGS;
-    int max_iters = 4;
-};
-
-class World {
-private:
-    Arena<RigidBody> rigid_bodies;
-    Arena<ArticulatedBody> articulated_bodies;
-    MaterialDB material_db;
-
-    btCollisionWorld* bt_collision_world = nullptr;
-    btCollisionObject* bt_plane_col = nullptr;
-
-    WorldConfig cfg;
-
-public:
-    void init(WorldConfig world_cfg);
-    void destroy() {
-        delete bt_collision_world;
-        rigid_bodies.clear();
-        articulated_bodies.clear();
-        material_db.clear();
-    }
-
-    glm::rvec3 get_gravity() const { return cfg.gravity; }
-    void set_gravity(const glm::rvec3& gravity) { cfg.gravity = gravity; }
-
-    real get_timestep() const { return cfg.dt; }
-    void set_timestep(real dt) { cfg.dt = dt; }
-
-    Id<RigidBody> add_rigid_body(const RigidBodySpec& spec, Id<Material> mat_id) {
-        auto id = rigid_bodies.make();
-        auto ptr = rigid_bodies.get(id);
-        ptr->init(id, spec, mat_id, bt_collision_world);
-        return id;
-    }
-
-    RigidBody* get_rigid_body(Id<RigidBody> id) {
-        return rigid_bodies.get(id);
-    }
-
-    bool remove_rigid_body(Id<RigidBody> id) {
-        auto ptr = rigid_bodies.try_get(id);
-        if (!ptr) return false;
-        ptr->release(bt_collision_world);
-        rigid_bodies.release(id);
-        return true;
-    }
-
-    Id<ArticulatedBody> add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id) {
-        auto id = articulated_bodies.make();
-        auto ptr = articulated_bodies.get(id);
-        ptr->init(id, spec, mat_id, bt_collision_world);
-        return id;
-    }
-
-    ArticulatedBody* get_articulated_body(Id<ArticulatedBody> id) {
-        return articulated_bodies.get(id);
-    }
-
-    bool remove_articulated_body(Id<ArticulatedBody> id) {
-        auto ptr = articulated_bodies.try_get(id);
-        if (!ptr) return false;
-        ptr->release(bt_collision_world);
-        articulated_bodies.release(id);
-        return true;
-    }
-
-    Id<Material> add_material(real default_friction = 1.0f,
-                              real default_restitution = 0.0f,
-                              real default_restitution_threshold = 0.01f) {
-        return material_db.add_material(default_friction, default_restitution, default_restitution_threshold);
-    }
-
-    Material* get_material(Id<Material> id) {
-        return material_db.get_material(id);
-    }
-
-    void remove_material(Id<Material> id) {
-        return material_db.remove_material(id);
-    }
-
-    void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
-                           real friction, real restitution, real restitution_threshold) {
-        material_db.set_material_pair(mat1_id, mat2_id, friction, restitution, restitution_threshold);
-    }
-
-    Id<RigidBody> add_plane(Id<Material> mat_id) {
-        RigidBodySpec spec;
-        const real inf = std::numeric_limits<real>::infinity();
-        spec.mass = inf;
-        spec.inertia = glmx::rsmat3x3(inf);
-        spec.col_shape = CollisionShape::make_ground();
-        // spec.render_shape = RenderShape::make_from_collision_shape(spec.col_shape);
-        spec.global_trans = glmx::rtransform(glmx::IDENTITY);
-        spec.is_static = true;
-        return add_rigid_body(spec, mat_id);
-    }
-
-    void simulate(real dt);
-
-    btCollisionWorld* get_bullet_collision_world() {
-        return bt_collision_world;
-    }
-
-private:
-    void integrate_with_contacts();
-};
-
-#undef METHOD_GET_ID
-#undef METHOD_DELETE_ID
-
 }
+
+namespace std {
+    template<>
+    struct hash<artsim::BodyId> {
+        std::size_t operator()(const artsim::BodyId& id) const {
+            using std::hash;
+            return hash<uint32_t>()(id.index) ^ (hash<uint32_t>()(id.generation) << 1);
+        }
+    };
+}
+
 
 #endif //ARTSIM_ARTSIM_H

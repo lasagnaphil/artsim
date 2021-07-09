@@ -78,7 +78,7 @@ void OBJFile::load_obj(const char* filename) {
             int res;
             res = sscanf(str.c_str(), "f %d %d %d", &fi.x, &fi.y, &fi.z);
             if (res == 3) {
-                triangle_vertices.push_back(fi);
+                triangle_vertices.push_back(fi-1);
                 continue;
             }
             res = sscanf(str.c_str(), "f %d//%d %d//%d %d//%d",
@@ -86,8 +86,8 @@ void OBJFile::load_obj(const char* filename) {
                          &fi.y,&fn.y,
                          &fi.z,&fn.z);
             if (res == 6) {
-                triangle_vertices.push_back(fi);
-                triangle_normals.push_back(fn);
+                triangle_vertices.push_back(fi-1);
+                triangle_normals.push_back(fn-1);
                 continue;
             }
             res = sscanf(str.c_str(), "f %d/%d/%d %d/%d/%d %d/%d/%d",
@@ -95,9 +95,9 @@ void OBJFile::load_obj(const char* filename) {
                          &fi.y,&ft.y,&fn.y,
                          &fi.z,&ft.z,&fn.z);
             if (res == 9) {
-                triangle_vertices.push_back(fi);
-                triangle_uvs.push_back(ft);
-                triangle_normals.push_back(fn);
+                triangle_vertices.push_back(fi-1);
+                triangle_uvs.push_back(ft-1);
+                triangle_normals.push_back(fn-1);
                 continue;
             }
             fprintf(stderr, "Error while parsing OBJ file!\n");

@@ -13,6 +13,10 @@
 
 namespace artsim {
 
+enum class ContactSolverType {
+    PGS, Bisection, NCP
+};
+
 glm::rvec3 contact_projection_solver(glm::rvec3 lambda, const glmx::rsmat3x3& Minv, glm::rvec3 c, real mu);
 
 glm::rvec3 contact_bisection_solver(

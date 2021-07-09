@@ -17,7 +17,7 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
 tinyxml2::XMLError load_from_xml(const char* filename, OUT ArticulatedBodySpec& spec);
 
 tinyxml2::XMLElement* save_to_xml(tinyxml2::XMLDocument& doc, ArticulatedBodySpec& spec);
-tinyxml2::XMLError save_to_xml(const char* filename, OUT ArticulatedBodySpec& art);
+tinyxml2::XMLError save_to_xml(const char* filename, ArticulatedBodySpec& art);
 
 }
 

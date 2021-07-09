@@ -1,5 +1,6 @@
 add_subdirectory(bullet_collision)
 add_subdirectory(fastsvd)
+add_subdirectory(Discregrid)
 
 # tiny_obj_loader
 add_library(tinyobjloader STATIC ${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader/tiny_obj_loader.cc)

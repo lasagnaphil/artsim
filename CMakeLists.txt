@@ -12,6 +12,8 @@ find_package(Eigen3 REQUIRED)
 # For URDF exports
 find_package(TinyXML2 REQUIRED)
 
+find_package(TBB REQUIRED)
+
 option(ARTSIM_USE_LOGGING "Log simulation info to stdout" OFF)
 option(ARTSIM_USE_DOUBLE "Use double instead of float" ON)
 option(ARTSIM_USE_OPENMP "Use OpenMP" ON)
@@ -31,6 +33,7 @@ add_subdirectory(libs)
 
 add_library(artsim
         src/artsim.cpp
+        src/world.cpp
         src/art_dynamics.cpp
         src/art_contacts.cpp
         src/ik.cpp
@@ -45,7 +48,7 @@ add_library(artsim
         src/utils/pymesh/MshLoader.cpp src/utils/pymesh/MshSaver.cpp src/utils/pymesh/IOUtils.cpp)
 
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
-set(ARTSIM_LIB Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision fastsvd tinyobjloader std_simd stdc++fs tracy)
+set(ARTSIM_LIB tbb Eigen3::Eigen tinyxml2::tinyxml2 bullet_collision fastsvd Discregrid tinyobjloader std_simd stdc++fs tracy)
 if (ARTSIM_USE_OPENMP)
     set(ARTSIM_LIB ${ARTSIM_LIB} OpenMP::OpenMP_CXX)
 endif()

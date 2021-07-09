@@ -29,8 +29,8 @@ struct PBRMaterial {
     Ref<Texture> texAO = {};
 
     glm::vec3 albedo = glm::vec3(1, 1, 1);
-    float metallic = 0.0f;
-    float roughness = 0.0f;
+    float metallic = 1.0f;
+    float roughness = 1.0f;
     float ao = 1.0f;
 
     bool transparent = false;
@@ -49,6 +49,9 @@ struct PBRMaterial {
         material->texRoughness = defaultTexture;
         material->texAO = defaultTexture;
         material->albedo = color;
+        material->metallic = 0.0f;
+        material->roughness = 0.0f;
+        material->ao = 1.0f;
         return material;
     }
 };

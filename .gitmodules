@@ -1,3 +1,6 @@
 [submodule "libs/tracy"]
 	path = libs/tracy
 	url = https://github.com/wolfpld/tracy
+[submodule "libs/Discregrid"]
+	path = libs/Discregrid
+	url = https://github.com/InteractiveComputerGraphics/Discregrid
