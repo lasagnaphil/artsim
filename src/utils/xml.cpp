@@ -216,6 +216,7 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
 
         std::string body_type = link_elem->Attribute("type");
         CollisionShape col_shape;
+        std::string obj_filename = "";
         if (body_type == "box") {
             glm::rvec3 size = string_to_vector3d(link_elem->Attribute("size"));
             col_shape = CollisionShape::make_box(size);
@@ -234,7 +235,8 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
                 sdf_res = {10, 10, 10};
             }
             fs::path filepath = fs::path(current_dir) / link_elem->Attribute("obj");
-            col_shape = CollisionShape::make_mesh(filepath.c_str(), sdf_res);
+            obj_filename = filepath.string();
+            col_shape = CollisionShape::make_mesh(sdf_res);
         }
         else if (body_type == "capsule") {
             double radius = std::stod(link_elem->Attribute("radius"));
@@ -280,7 +282,7 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
         }
         ttransform<real> local_link_pose = T_global_body / T_global_joint;
 
-        link = Link::create(inertia, mass, col_shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
+        link = Link::create(inertia, mass, col_shape, local_joint_pose, local_link_pose, idx_map[parent_name], {}, obj_filename);
 
         real kp = 0.0;
         real kd = 0.0;

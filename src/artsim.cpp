@@ -68,7 +68,6 @@ real CollisionShape::mass(real density) {
         case Type::Box: return density * scale.x * scale.y * scale.z;
         case Type::Sphere: return real(4.0 / 3.0) * glm::pi<real>() * scale.x * scale.y * scale.z;
         case Type::Mesh: {
-            return real(1);
             // TODO: calculate proper mass
             /*
             auto& obj = *mesh.sh;
@@ -82,6 +81,7 @@ real CollisionShape::mass(real density) {
             V = glm::abs(V);
             return V;
              */
+            return 1;
         }
         default: return real(0);
     }
@@ -140,13 +140,12 @@ CollisionShape CollisionShape::make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 
     return shape;
 }
 
-CollisionShape CollisionShape::make_mesh(const char* filename, glm::uvec3 sdf_res, glm::rvec3 scale) {
+CollisionShape CollisionShape::make_mesh(glm::uvec3 sdf_res, glm::rvec3 scale) {
     CollisionShape shape;
     shape.type = CollisionShape::Type::Mesh;
     shape.scale = scale;
     shape.mesh.id = {};
     shape.mesh.sdf_res = sdf_res;
-    shape.obj_filename = filename;
     shape.bt_shape = nullptr;
     return shape;
 }
@@ -188,7 +187,7 @@ void RigidBody::release(btCollisionWorld* bt_world) {
 Link Link::create(const tsmat3x3<real>& inertia, real mass,
                   CollisionShape col_shape,
                   ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
-                  int parent_idx, Id<Material> mat_id) {
+                  int parent_idx, Id<Material> mat_id, std::string obj_filename) {
     Link link;
     link.inertia = inertia;
     link.mass = mass;
@@ -197,6 +196,8 @@ Link Link::create(const tsmat3x3<real>& inertia, real mass,
     link.local_link_pose = local_link_pose;
     link.parent_idx = parent_idx;
     link.mat_id = mat_id;
+    link.obj_filename = obj_filename;
+
     auto I0 = tspmat<real>(tsmat3x3<real>(link.inertia), glm::tvec3<real>(0), link.mass);
     link.I_j = inv_transform(I0, ttransform<real>(inverse(link.local_link_pose)));
     return link;

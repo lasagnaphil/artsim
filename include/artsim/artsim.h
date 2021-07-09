@@ -178,15 +178,14 @@ struct CollisionShape {
             glm::uvec3 sdf_res;
         } mesh;
     };
-    std::string obj_filename;
 
     btCollisionShape* bt_shape;
 
     static CollisionShape make_ground();
     static CollisionShape make_box(glm::vec3 size);
     static CollisionShape make_sphere(real radius);
-    static CollisionShape make_mesh(const char* filename, glm::uvec3 sdf_res, glm::rvec3 scale = glm::rvec3(1));
     static CollisionShape make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 scale = glm::rvec3(1));
+    static CollisionShape make_mesh(glm::uvec3 sdf_res, glm::rvec3 scale = glm::rvec3(1));
 
     real mass(real density);
     glmx::tsmat3x3<real> inertia(real density);
@@ -232,11 +231,12 @@ struct Link {
     glmx::ttransform<real> local_link_pose;
     int parent_idx;
     Id<Material> mat_id;
+    std::string obj_filename;
 
     static Link create(const glmx::tsmat3x3<real>& inertia, real mass,
                        CollisionShape col_shape,
                        glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
-                       int parent_idx, Id<Material> mat_id);
+                       int parent_idx, Id<Material> mat_id, std::string obj_filename = "");
 
 };
 

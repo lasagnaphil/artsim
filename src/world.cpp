@@ -438,7 +438,7 @@ void World::load_collision_meshes(ArticulatedBodySpec &spec) {
         auto& lidx = links_to_load[i];
         auto& link = spec.links[lidx];
         auto ptr = col_meshes.get(link.col_shape.mesh.id);
-        ptr->init_from_obj(link.col_shape.obj_filename.c_str(),
+        ptr->init_from_obj(link.obj_filename.c_str(),
                            link.col_shape.mesh.sdf_res);
     // }
     });
