@@ -35,7 +35,7 @@ static Eigen::Vector3i glm_to_eigen(const glm::ivec3& v) {
 using namespace artsim;
 using namespace glmx;
 
-void CollisionMesh::init_from_obj(const char *filename, glm::uvec3 sdf_grid_resolution) {
+void CollisionMesh::init_from_obj(const char *filename, real sdf_grid_size) {
     fmt::print("Loading mesh {}\n", filename);
     objfile.load_obj(filename);
     Discregrid::TriangleMesh mesh(filename);
@@ -52,13 +52,23 @@ void CollisionMesh::init_from_obj(const char *filename, glm::uvec3 sdf_grid_reso
     }
     domain.max() += 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3d::Ones();
     domain.min() -= 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3d::Ones();
+
     fmt::print("Done\n");
 
-    std::array<unsigned int, 3> res = {sdf_grid_resolution[0], sdf_grid_resolution[1], sdf_grid_resolution[2]};
+    Eigen::Vector3d size_cm = (domain.max() - domain.min()) / sdf_grid_size;
+    glm::uvec3 size_i = glm::round(glm::dvec3(size_cm[0], size_cm[1], size_cm[2]));
+    std::array<unsigned int, 3> res = {size_i[0], size_i[1], size_i[2]};
+
+    glm::rvec3 grid_bounds = sdf_grid_size * glm::rvec3(size_i);
+    Eigen::Vector3d domain_bounds = domain.max() - domain.min();
+    Eigen::Vector3d domain_extra = domain_bounds - Eigen::Vector3d(grid_bounds[0], grid_bounds[1], grid_bounds[2]);
+    domain_extra += 1e-6 * Eigen::Vector3d::Ones();
+    domain.max() += 0.5 * domain_extra;
+    domain.min() -= 0.5 * domain_extra;
+
+    fmt::print("Generating SDF of size ({}, {}, {})...\n", res[0], res[1], res[2]);
     sdf_grid = Discregrid::CubicLagrangeDiscreteGrid(domain, res);
     auto func = [&md](Eigen::Vector3d const& xi) {return md.signedDistanceCached(xi); };
-
-    fmt::print("Generating SDF...\n");
     sdf_grid.addFunction(func, true);
     fmt::print("Done\n");
 }
@@ -67,22 +77,6 @@ real CollisionShape::mass(real density) {
     switch (type) {
         case Type::Box: return density * scale.x * scale.y * scale.z;
         case Type::Sphere: return real(4.0 / 3.0) * glm::pi<real>() * scale.x * scale.y * scale.z;
-        case Type::Mesh: {
-            // TODO: calculate proper mass
-            /*
-            auto& obj = *mesh.sh;
-            for (auto tri : obj.triangle_vertices) {
-                auto v0 = obj.vertices[tri[0]];
-                auto v1 = obj.vertices[tri[1]];
-                auto v2 = obj.vertices[tri[2]];
-                V += glm::determinant(glm::mat3(v0, v1, v2));
-            }
-            V *= (density / 6);
-            V = glm::abs(V);
-            return V;
-             */
-            return 1;
-        }
         default: return real(0);
     }
 }
@@ -98,10 +92,6 @@ tsmat3x3<real> CollisionShape::inertia(real density) {
             real r = scale.x;
             glm::vec3 I = real(0.4) * mass(density) * glm::tvec3<real>(r*r);
             return tsmat3x3<real>(I.x, I.y, I.z, 0, 0, 0);
-        }
-        case Type::Mesh: {
-            // TODO: Calculate proper inertia (Resources: https://abhilashreddy.com/writing/6/mesh_props.html)
-            return tsmat3x3<real>(1, 1, 1, 0, 0, 0);
         }
         default: return tsmat3x3<real>(0, 0, 0, 0, 0, 0);
     }
@@ -140,12 +130,12 @@ CollisionShape CollisionShape::make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 
     return shape;
 }
 
-CollisionShape CollisionShape::make_mesh(glm::uvec3 sdf_res, glm::rvec3 scale) {
+CollisionShape CollisionShape::make_mesh(real grid_size, glm::rvec3 scale) {
     CollisionShape shape;
     shape.type = CollisionShape::Type::Mesh;
     shape.scale = scale;
     shape.mesh.id = {};
-    shape.mesh.sdf_res = sdf_res;
+    shape.mesh.grid_size = grid_size;
     shape.bt_shape = nullptr;
     return shape;
 }
@@ -184,13 +174,32 @@ void RigidBody::release(btCollisionWorld* bt_world) {
     delete bt_collision_object;
 }
 
-Link Link::create(const tsmat3x3<real>& inertia, real mass,
-                  CollisionShape col_shape,
+Link Link::create(CollisionShape col_shape, real density,
                   ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
                   int parent_idx, Id<Material> mat_id, std::string obj_filename) {
     Link link;
-    link.inertia = inertia;
+    link.density = density;
+    link.mass = col_shape.mass(density);
+    link.inertia = col_shape.inertia(density);
+    link.col_shape = col_shape;
+    link.local_joint_pose = local_joint_pose;
+    link.local_link_pose = local_link_pose;
+    link.parent_idx = parent_idx;
+    link.mat_id = mat_id;
+    link.obj_filename = obj_filename;
+
+    auto I0 = tspmat<real>(tsmat3x3<real>(link.inertia), glm::tvec3<real>(0), link.mass);
+    link.I_j = inv_transform(I0, ttransform<real>(inverse(link.local_link_pose)));
+    return link;
+}
+
+Link
+Link::create(CollisionShape col_shape, real mass, glmx::tsmat3x3<real> inertia, glmx::ttransform<real> local_joint_pose,
+             glmx::ttransform<real> local_link_pose, int parent_idx, Id<Material> mat_id, std::string obj_filename) {
+    Link link;
     link.mass = mass;
+    link.inertia = inertia;
+    link.density = link.mass / col_shape.mass(1);
     link.col_shape = col_shape;
     link.local_joint_pose = local_joint_pose;
     link.local_link_pose = local_link_pose;

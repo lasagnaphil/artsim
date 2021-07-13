@@ -15,6 +15,9 @@ struct tbox {
     glm::vec<Dim, T> lo = glm::vec<Dim, T>(std::numeric_limits<T>::max());
     glm::vec<Dim, T> hi = glm::vec<Dim, T>(-std::numeric_limits<T>::max());
 
+    tbox() = default;
+    tbox(glm::vec<Dim, T> lo, glm::vec<Dim, T> hi) : lo(lo), hi(hi) {}
+
     void extend(const glm::vec<Dim, T>& p) {
         lo = glm::min(lo, p);
         hi = glm::max(hi, p);

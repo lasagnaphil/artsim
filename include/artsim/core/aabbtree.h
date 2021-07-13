@@ -28,12 +28,14 @@ private:
 public:
     AABBTree() {}
 
-    bool empty() { return nodes.empty(); }
+    bool empty() const { return nodes.empty(); }
 
     template <int PDIM>
     void init(const glm::rvec3* vertices, const glm::vec<PDIM, int>* indices, int num_prims);
     void init(const AABB* aabbs, int num_aabbs);
-    AABB bounds() { return nodes[0].aabb; }
+    AABB bounds() const { return nodes[0].aabb; }
+
+    const std::vector<Node>& get_nodes() const { return nodes; }
 
     bool traverse(AABBTreeVisitor<T>& visitor) {
         return traverse_children(0, visitor);
@@ -253,7 +255,7 @@ void AABBTree<T>::find_collisions(const AABBTree& tree1, const AABBTree& tree2, 
                 fmt::print("AABBTree::find_collisions() error: leaf has no primitive\n");
                 exit(EXIT_FAILURE);
             }
-            visitor(node1.prim_id, node2.prim_id);
+            visitor(node1.aabb, node2.aabb, node1.prim_id, node2.prim_id);
             return;
         }
         real volume1 = node1.aabb.volume();

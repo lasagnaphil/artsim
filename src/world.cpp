@@ -435,11 +435,76 @@ void World::load_collision_meshes(ArticulatedBodySpec &spec) {
     }
     tbb::parallel_for(size_t(0), links_to_load.size(), [&](size_t i) {
     // for (int i = 0; i < links_to_load.size(); i++) {
+        // Load collision mesh and calculate its SDF
         auto& lidx = links_to_load[i];
         auto& link = spec.links[lidx];
-        auto ptr = col_meshes.get(link.col_shape.mesh.id);
-        ptr->init_from_obj(link.obj_filename.c_str(),
-                           link.col_shape.mesh.sdf_res);
+        auto col_mesh = col_meshes.get(link.col_shape.mesh.id);
+        col_mesh->init_from_obj(link.obj_filename.c_str(),
+                                link.col_shape.mesh.grid_size);
+
+        // Calculate mass and inertia
+        // Reference: https://abhilashreddy.com/writing/6/mesh_props.html
+        // fmt::print("Link {}: \n", spec.names[lidx]);
+        auto& obj = col_mesh->objfile;
+        int num_tris = obj.triangle_vertices.size();
+        auto verts = obj.vertices;
+        auto mean = glm::rvec3(0);
+        for (auto& v : verts) {
+            mean += v;
+        }
+        mean /= verts.size();
+        for (auto& v : verts) {
+            v -= mean;
+        }
+        std::vector<glm::rvec3> cent(num_tris);
+        std::vector<glm::rvec3> area_vec(num_tris);
+        std::vector<real> area(num_tris);
+        std::vector<glm::rvec3> c2f(num_tris);
+        real volume = 0;
+        for (int tidx = 0; tidx < num_tris; tidx++) {
+            auto tri = obj.triangle_vertices[tidx];
+            auto v0 = obj.vertices[tri[0]];
+            auto v1 = obj.vertices[tri[1]];
+            auto v2 = obj.vertices[tri[2]];
+            cent[tidx] = (v0 + v1 + v2) / real(3);
+            area_vec[tidx] = real(0.5) * glm::cross(v1 - v0, v2 - v0);
+            area[tidx] = glm::length(area_vec[tidx]);
+            c2f[tidx] = cent[tidx] * cent[tidx] * area_vec[tidx];
+            volume += glm::dot(cent[tidx], area_vec[tidx]) / real(3);
+        }
+        volume /= 6;
+        link.mass = glm::abs(volume) * link.density;
+        // fmt::print("mass = {}\n", link.mass);
+
+        auto cent_mean = glm::rvec3(0);
+        for (int tidx = 0; tidx < num_tris; tidx++) {
+            cent_mean += c2f[tidx];
+        }
+        cent_mean *= (real(0.5) / volume);
+        auto p = glmx::rsmat3x3(0);
+        p.xx = -volume * cent_mean.x * cent_mean.x;
+        p.yy = -volume * cent_mean.y * cent_mean.y;
+        p.zz = -volume * cent_mean.z * cent_mean.z;
+        p.yz = volume * cent_mean.y * cent_mean.z;
+        p.yy = volume * cent_mean.z * cent_mean.x;
+        p.zz = volume * cent_mean.x * cent_mean.y;
+        for (int tidx = 0; tidx < num_tris; tidx++) {
+            p.xx += real(1.0/3.0) * cent[tidx].x * c2f[tidx].x;
+            p.yy += real(1.0/3.0) * cent[tidx].y * c2f[tidx].y;
+            p.zz += real(1.0/3.0) * cent[tidx].z * c2f[tidx].z;
+            p.yz -= real(1.0/4.0) * (cent[tidx].y * c2f[tidx].z + cent[tidx].z * c2f[tidx].y);
+            p.zx -= real(1.0/4.0) * (cent[tidx].z * c2f[tidx].x + cent[tidx].x * c2f[tidx].z);
+            p.xy -= real(1.0/4.0) * (cent[tidx].x * c2f[tidx].y + cent[tidx].y * c2f[tidx].x);
+        }
+        link.inertia = link.density * p;
+        /*
+        fmt::print("inertia = {} {} {}\n"
+                   "          {} {} {}\n"
+                   "          {} {} {}\n",
+                   link.inertia.xx, link.inertia.xy, link.inertia.zx,
+                   link.inertia.xy, link.inertia.yy, link.inertia.yz,
+                   link.inertia.zx, link.inertia.yz, link.inertia.zz);
+                   */
     // }
     });
 

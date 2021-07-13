@@ -126,7 +126,7 @@ bool load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT ArticulatedBodySpec
         ttransform<real> local_joint_pose = T_global_joint / T_global_joint_map[parent_name];
         ttransform<real> local_link_pose = T_global_body / T_global_joint;
 
-        link = Link::create(inertia, mass, shape, local_joint_pose, local_link_pose, idx_map[parent_name], {});
+        link = Link::create(shape, mass, inertia, local_joint_pose, local_link_pose, idx_map[parent_name], {});
 
         real kp = 0.0;
         real kd = 0.0;
@@ -226,17 +226,18 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
             col_shape = CollisionShape::make_sphere(radius);
         }
         else if (body_type == "mesh") {
-            auto sdf_res_str = link_elem->Attribute("sdf_res");
-            glm::ivec3 sdf_res;
-            if (sdf_res_str) {
-                sdf_res = glm::ivec3(string_to_vector3d(sdf_res_str));
+            auto grid_size_str = link_elem->Attribute("sdf_grid_size");
+            real grid_size;
+            if (grid_size_str) {
+                grid_size = std::stod(grid_size_str);
             }
             else {
-                sdf_res = {10, 10, 10};
+                // Default to 0.5cm grid size
+                grid_size = 0.005;
             }
             fs::path filepath = fs::path(current_dir) / link_elem->Attribute("obj");
             obj_filename = filepath.string();
-            col_shape = CollisionShape::make_mesh(sdf_res);
+            col_shape = CollisionShape::make_mesh(grid_size);
         }
         else if (body_type == "capsule") {
             double radius = std::stod(link_elem->Attribute("radius"));
@@ -245,19 +246,16 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
             return false;
         }
 
-        real mass, density;
+        real density;
         if (link_elem->Attribute("density")) {
             density = std::stod(link_elem->Attribute("density"));
             real volume = col_shape.mass(real(1));
-            mass = density * volume;
         }
         else if (link_elem->Attribute("mass")) {
-            mass = std::stod(link_elem->Attribute("mass"));
+            real mass = std::stod(link_elem->Attribute("mass"));
             real volume = col_shape.mass(real(1));
             density = mass / volume;
         }
-
-        tsmat3x3<real> inertia = col_shape.inertia(density);
 
         ttransform<real> T_global_body;
         T_global_body.R = glmx::exp_mat(string_to_vector3d(link_elem->Attribute("rot")));
@@ -282,7 +280,7 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
         }
         ttransform<real> local_link_pose = T_global_body / T_global_joint;
 
-        link = Link::create(inertia, mass, col_shape, local_joint_pose, local_link_pose, idx_map[parent_name], {}, obj_filename);
+        link = Link::create(col_shape, density, local_joint_pose, local_link_pose, idx_map[parent_name], {}, obj_filename);
 
         real kp = 0.0;
         real kd = 0.0;

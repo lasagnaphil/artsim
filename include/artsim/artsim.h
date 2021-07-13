@@ -155,7 +155,7 @@ struct CollisionMesh {
     OBJFile objfile;
     Discregrid::CubicLagrangeDiscreteGrid sdf_grid;
 
-    void init_from_obj(const char* objfile, glm::uvec3 sdf_grid_resolution);
+    void init_from_obj(const char* objfile, real sdf_grid_size);
 };
 
 struct CollisionShape {
@@ -175,7 +175,7 @@ struct CollisionShape {
         } sphere;
         struct {
             Id<CollisionMesh> id;
-            glm::uvec3 sdf_res;
+            real grid_size;
         } mesh;
     };
 
@@ -185,7 +185,7 @@ struct CollisionShape {
     static CollisionShape make_box(glm::vec3 size);
     static CollisionShape make_sphere(real radius);
     static CollisionShape make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 scale = glm::rvec3(1));
-    static CollisionShape make_mesh(glm::uvec3 sdf_res, glm::rvec3 scale = glm::rvec3(1));
+    static CollisionShape make_mesh(real grid_size, glm::rvec3 scale = glm::rvec3(1));
 
     real mass(real density);
     glmx::tsmat3x3<real> inertia(real density);
@@ -225,6 +225,7 @@ struct RigidBody {
 struct Link {
     glmx::tsmat3x3<real> inertia; // inertia from link frame
     glmx::tspmat<real> I_j; // Spatial mass matrix from joint frame
+    real density;
     real mass;
     CollisionShape col_shape;
     glmx::ttransform<real> local_joint_pose;
@@ -233,11 +234,13 @@ struct Link {
     Id<Material> mat_id;
     std::string obj_filename;
 
-    static Link create(const glmx::tsmat3x3<real>& inertia, real mass,
-                       CollisionShape col_shape,
+    static Link create(CollisionShape col_shape, real density,
                        glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
                        int parent_idx, Id<Material> mat_id, std::string obj_filename = "");
 
+    static Link create(CollisionShape col_shape, real mass, glmx::tsmat3x3<real> inertia,
+                       glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
+                       int parent_idx, Id<Material> mat_id, std::string obj_filename = "");
 };
 
 struct ArticulatedBodySpec {
