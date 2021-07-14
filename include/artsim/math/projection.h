@@ -129,9 +129,9 @@ glm::tvec3<T> point_on_box( const glm::tvec3<T> &point, const glm::tvec3<T> &bmi
 template <class T>
 bool check_norm( const glm::tvec3<T> &point,
                  const glm::tvec3<T> &p0, const glm::tvec3<T> &p1, const glm::tvec3<T> &p2, const glm::tvec3<T> &p3 ){
-    const glm::tvec3<T> n = (p1 - p0).cross(p2 - p0);
-    const T dp3 = n.dot(p3 - p0);
-    const T dp = n.dot(point - p0);
+    const glm::tvec3<T> n = glm::cross(p1 - p0, p2 - p0);
+    const T dp3 = glm::dot(n, p3 - p0);
+    const T dp = glm::dot(n, point - p0);
     return (dp3*dp>0);
 }
 
