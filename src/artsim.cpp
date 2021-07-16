@@ -154,7 +154,7 @@ void RigidBody::init(Id<RigidBody> rb_id, RigidBodySpec rb_spec, Id<Material> ma
     this->mat_id = mat_id;
     auto col_shape = spec.col_shape;
     if (col_shape.type != CollisionShape::Type::Mesh) {
-        BodyId body_id = BodyId::from_rigid_body(rb_id);
+        BodyLinkId body_id = BodyLinkId::from_rigid_body(rb_id);
         bt_collision_object = new btCollisionObject;
         bt_collision_object->setCollisionShape(spec.col_shape.bt_shape);
         bt_collision_object->setWorldTransform(btTransform::getIdentity());
@@ -303,7 +303,7 @@ void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_s
     for (int i = 0; i < num_links; i++) {
         auto col_shape = spec.links[i].col_shape;
         if (col_shape.type != CollisionShape::Type::Mesh) {
-            BodyId body_id = BodyId::from_articulation_link(art_id, i);
+            BodyLinkId body_id = BodyLinkId::from_articulation_link(art_id, i);
             btCollisionObject* col_obj = new btCollisionObject;
             col_obj->setCollisionShape(spec.links[i].col_shape.bt_shape);
             col_obj->setUserIndex(body_id.index);

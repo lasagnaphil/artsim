@@ -104,13 +104,13 @@ void World::integrate_with_contacts() {
             int num_contacts = manifold->getNumContacts();
             if (num_contacts == 0) continue;
 
-            const btCollisionObject* body1 = manifold->getBody0();
-            const btCollisionObject* body2 = manifold->getBody1();
-            BodyId body1_id, body2_id;
-            body1_id.index = body1->getUserIndex();
-            body1_id.generation = body1->getUserIndex2();
-            body2_id.index = body2->getUserIndex();
-            body2_id.generation = body2->getUserIndex2();
+            const btCollisionObject* bt_body1 = manifold->getBody0();
+            const btCollisionObject* bt_body2 = manifold->getBody1();
+            BodyLinkId body1_id, body2_id;
+            body1_id.index = bt_body1->getUserIndex();
+            body1_id.generation = bt_body1->getUserIndex2();
+            body2_id.index = bt_body2->getUserIndex();
+            body2_id.generation = bt_body2->getUserIndex2();
             if (body1_id.index < body2_id.index) std::swap(body1_id, body2_id);
             for (int j = 0; j < num_contacts; j++) {
                 auto& pt = manifold->getContactPoint(j);
@@ -120,10 +120,42 @@ void World::integrate_with_contacts() {
                 cp.bt_manifold_point = &pt;
                 cp.pos = glmconv(pt.getPositionWorldOnB());
                 cp.normal = glmconv(pt.m_normalWorldOnB);
+                cp.tangent1 = glm::rvec3(1, 0, 0);
+                if (real(1) - cp.normal.x < real(1e-6)) {
+                    cp.tangent1 = glm::normalize(glm::rvec3(1, 0, 0) - cp.normal.x * cp.normal);
+                }
+                else {
+                    cp.tangent1 = glm::normalize(glm::rvec3(0, 1, 0) - cp.normal.y * cp.normal);
+                }
+                cp.tangent2 = glm::cross(cp.normal, cp.tangent1);
                 cp.depth = -pt.getDistance();
                 cp.area = 0;
                 cp.body1_id = body1_id;
                 cp.body2_id = body2_id;
+                if (body1_id.is_articulation()) {
+                    auto [art_id, lidx] = body1_id.get_articulation_id();
+                    auto art = articulated_bodies.get(art_id);
+                    auto joint_trans = art->get_global_joint_trans(lidx);
+                    cp.body1_rel_trans.R = glm::transpose(joint_trans.R);
+                    cp.body1_rel_trans.v = cp.body1_rel_trans.R * (cp.pos - joint_trans.v);
+                }
+                else {
+                    auto rb = rigid_bodies.get(body1_id.get_rigid_body_id());
+                    cp.body1_rel_trans.R = glm::mat3_cast(glm::conjugate(rb->rot));
+                    cp.body1_rel_trans.v = cp.body1_rel_trans.R * (cp.pos - rb->pos);
+                }
+                if (body2_id.is_articulation()) {
+                    auto [art_id, lidx] = body2_id.get_articulation_id();
+                    auto art = articulated_bodies.get(art_id);
+                    auto joint_trans = art->get_global_joint_trans(lidx);
+                    cp.body2_rel_trans.R = glm::transpose(joint_trans.R);
+                    cp.body2_rel_trans.v = cp.body2_rel_trans.R * (cp.pos - joint_trans.v);
+                }
+                else {
+                    auto rb = rigid_bodies.get(body2_id.get_rigid_body_id());
+                    cp.body2_rel_trans.R = glm::mat3_cast(glm::conjugate(rb->rot));
+                    cp.body2_rel_trans.v = cp.body2_rel_trans.R * (cp.pos - rb->pos);
+                }
                 contact_points.push_back(cp);
             }
         }
@@ -144,25 +176,25 @@ void World::integrate_with_contacts() {
     using MatrixXr = Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>;
     using VectorXr = Eigen::Matrix<real, Eigen::Dynamic, 1>;
 
-    std::unordered_map<BodyId, std::vector<int>> body_contact_points_map;
+    std::unordered_map<BodyLinkId, std::vector<int>> body_contact_points_map;
     std::unordered_map<Id<ArticulatedBody>, std::vector<int>> art_contact_points_map;
     std::unordered_map<Id<RigidBody>, std::vector<int>> rb_contact_points_map;
 
     articulated_bodies.foreach_id([&](Id<ArticulatedBody> art_id) {
         art_contact_points_map.insert({art_id, {}});
-        // body_contact_points_map.insert({BodyId::from_articulation_link(art_id, 0), {}});
+        // body_contact_points_map.insert({BodyLinkId::from_articulation_link(art_id, 0), {}});
     });
 
     rigid_bodies.foreach_id([&](Id<RigidBody> rb_id) {
         rb_contact_points_map.insert({rb_id, {}});
-        // body_contact_points_map.insert({BodyId::from_rigid_body(rb_id), {}});
+        // body_contact_points_map.insert({BodyLinkId::from_rigid_body(rb_id), {}});
     });
 
-    auto insert_contact_info = [&](BodyId bid, int cidx) {
+    auto insert_contact_info = [&](BodyLinkId bid, int cidx) {
         if (bid.is_articulation()) {
             auto [art_id, art_lidx] = bid.get_articulation_id();
             art_contact_points_map[art_id].push_back(cidx);
-            // bid = BodyId::from_articulation_link(art_id, 0);
+            // bid = BodyLinkId::from_articulation_link(art_id, 0);
         }
         else {
             auto rb_id = bid.get_rigid_body_id();
@@ -219,8 +251,8 @@ void World::integrate_with_contacts() {
                 int cidx = cidx_list[k];
                 ContactPoint& cp = contact_points[cidx];
                 bool body1_is_art1 = cp.body1_id.is_articulation() && cp.body1_id.get_articulation_id().first == art1_id;
-                BodyId body1_id = body1_is_art1? cp.body1_id : cp.body2_id;
-                BodyId body2_id = body1_is_art1? cp.body2_id : cp.body1_id;
+                BodyLinkId body1_id = body1_is_art1 ? cp.body1_id : cp.body2_id;
+                BodyLinkId body2_id = body1_is_art1 ? cp.body2_id : cp.body1_id;
                 auto [_, art1_lidx] = body1_id.get_articulation_id();
                 auto contact_T = rtransform(cp.pos, mat3_cast(rotation(Ez<real>(), cp.normal)));
                 auto contact_rel_T = contact_T / art1.get_global_joint_trans(art1_lidx);
@@ -242,8 +274,8 @@ void World::integrate_with_contacts() {
                 int cidx = cidx_list[k];
                 ContactPoint& cp = contact_points[cidx];
                 bool body1_is_art1 = cp.body1_id.is_articulation() && cp.body1_id.get_articulation_id().first == art1_id;
-                BodyId body1_id = body1_is_art1? cp.body1_id : cp.body2_id;
-                BodyId body2_id = body1_is_art1? cp.body2_id : cp.body1_id;
+                BodyLinkId body1_id = body1_is_art1 ? cp.body1_id : cp.body2_id;
+                BodyLinkId body2_id = body1_is_art1 ? cp.body2_id : cp.body1_id;
                 glm::rvec3 tau = make_vec3<real>(tau_star.data() + 3*k);
                 tau.z -= beta / cfg.dt * glm::max<real>(cp.depth - slop, 0);
                 if (glm::isnan(tau.x) || glm::isnan(tau.y) || glm::isnan(tau.z)) {
@@ -398,8 +430,8 @@ void World::integrate_with_contacts() {
                     auto& cp = contact_points[cidx];
                     bool body1_is_art1 = cp.body1_id.is_articulation() &&
                                          cp.body1_id.get_articulation_id().first == art_id;
-                    BodyId body1_id = body1_is_art1? cp.body1_id : cp.body2_id;
-                    BodyId body2_id = body1_is_art1? cp.body2_id : cp.body1_id;
+                    BodyLinkId body1_id = body1_is_art1 ? cp.body1_id : cp.body2_id;
+                    BodyLinkId body2_id = body1_is_art1 ? cp.body2_id : cp.body1_id;
                     auto [_, art_lidx] = body1_id.get_articulation_id();
                     auto contact_T = rtransform(cp.pos, mat3_cast(rotation(Ez<real>(), cp.normal)));
                     auto contact_rel_T = art.get_global_joint_trans(art_lidx) / contact_T;

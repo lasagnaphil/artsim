@@ -384,7 +384,7 @@ std::vector<ContactPoint> get_contact_points_bullet(btCollisionWorld* bt_world) 
 
         const btCollisionObject* body1 = manifold->getBody0();
         const btCollisionObject* body2 = manifold->getBody1();
-        BodyId body1_id, body2_id;
+        BodyLinkId body1_id, body2_id;
         body1_id.index = body1->getUserIndex();
         body1_id.generation = body1->getUserIndex2();
         body2_id.index = body2->getUserIndex();
@@ -516,8 +516,8 @@ contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, cons
                         cp.area = 0.5f * glm::length(glm::cross(cpos[1] - cpos[0], cpos[2] - cpos[0]));
                         cp.area += 0.5f * glm::length(glm::cross(cpos[2] - cpos[0], cpos[3] - cpos[0]));
                     }
-                    cp.body1_id = BodyId::from_articulation_link(art_id, i);
-                    cp.body2_id = BodyId::from_ground();
+                    cp.body1_id = BodyLinkId::from_articulation_link(art_id, i);
+                    cp.body2_id = BodyLinkId::from_ground();
                     contact_points.push_back(cp);
                 }
 #else
@@ -528,8 +528,8 @@ contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, cons
                     cp.normal = Ey<real>();
                     cp.depth = -pos.y;
                     cp.area = 0;
-                    cp.body1_id = BodyId::from_articulation_link(art_id, i);
-                    cp.body2_id = BodyId::from_ground();
+                    cp.body1_id = BodyLinkId::from_articulation_link(art_id, i);
+                    cp.body2_id = BodyLinkId::from_ground();
                     contact_points.push_back(cp);
                 }
 #endif
@@ -545,8 +545,8 @@ contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, cons
                     cp.normal = Ey<real>();
                     cp.depth = -d;
                     cp.area = M_PI * (r*r - (r - p.y)*(r - p.y));
-                    cp.body1_id = BodyId::from_articulation_link(art_id, i);
-                    cp.body2_id = BodyId::from_ground();
+                    cp.body1_id = BodyLinkId::from_articulation_link(art_id, i);
+                    cp.body2_id = BodyLinkId::from_ground();
                     contact_points.push_back(cp);
                 }
             } break;
