@@ -408,7 +408,7 @@ public:
     void update_colliders();
 
     void forward_dynamics(const glm::rvec3& gravity, real dt);
-    void integrate(real dt);
+    void integrate(real dt, bool use_accel = true);
     void simulate(const glm::rvec3& gravity, real dt);
 
     void mass_matrix(OUT glmx::dynmat_view<real> M, real dt = 0);
@@ -546,7 +546,7 @@ struct BodyLinkId {
         BodyId bid;
         if (is_articulation()) {
             uint32_t art_index = (index & 0x7fff0000) >> 16;
-            bid.index = art_index;
+            bid.index = art_index | 0x80000000;
         }
         else {
             bid.index = index;

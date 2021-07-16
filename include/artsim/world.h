@@ -162,7 +162,7 @@ private:
     void load_collision_meshes(ArticulatedBodySpec& spec);
     void integrate_with_contacts();
 
-    void newton_solver(const ContactPoint* contact_points, int num_contact_points);
+    void ncp_solver(const ContactPoint* contact_points, int num_contact_points);
 };
 
 }

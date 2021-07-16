@@ -171,6 +171,9 @@ void World::integrate_with_contacts() {
         return;
     }
 
+    ncp_solver(contact_points.data(), num_contacts);
+    return;
+
     auto t1 = std::chrono::high_resolution_clock::now();
 
     using MatrixXr = Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>;

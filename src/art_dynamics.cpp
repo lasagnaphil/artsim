@@ -355,6 +355,15 @@ void rne_inverse_dynamics(const ArticulatedBodySpec& art, glm::tvec3<real> gravi
     delete [] data;
 }
 
+// Solves M x, using Featherstone's algorithm, where x is a vector.
+void multiply_mass_matrix(const ArticulatedBodySpec& art, real dt,
+                          const real* q, const real* x,
+                          OUT real* M_x) {
+    ZoneScoped
+    std::vector<real> u(art.num_vel_dofs, 0);
+    rne_inverse_dynamics(art, glm::rvec3(0), dt, q, u.data(), x, nullptr, OUT M_x);
+}
+
 struct FeatherstoneData {
     JointType joint_type;
     bool has_parent;
@@ -672,7 +681,16 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
     delete [] data;
 }
 
-// Solves M^{-1} X, using Featherstone's algorithm, where M is the mass matrix.
+// Solves M^{-1} x, using Featherstone's algorithm, where x is a vector.
+void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
+                                  const real* q, const real* x,
+                                  OUT real* Minv_x) {
+    ZoneScoped
+    std::vector<real> u(art.num_vel_dofs, 0);
+    featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, q, u.data(), x, nullptr, OUT Minv_x);
+}
+
+// Solves M^{-1} X, using Featherstone's algorithm, where X is a matrix.
 
 void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
                                   const real* q, dynmat_view<real> X,
