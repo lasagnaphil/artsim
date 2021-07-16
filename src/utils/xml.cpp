@@ -226,18 +226,18 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
             col_shape = CollisionShape::make_sphere(radius);
         }
         else if (body_type == "mesh") {
-            auto grid_size_str = link_elem->Attribute("sdf_grid_size");
-            real grid_size;
-            if (grid_size_str) {
-                grid_size = std::stod(grid_size_str);
+            auto cell_size_str = link_elem->Attribute("cell_size");
+            real cell_size;
+            if (cell_size_str) {
+                cell_size = std::stod(cell_size_str);
             }
             else {
                 // Default to 0.5cm grid size
-                grid_size = 0.005;
+                cell_size = 0.005;
             }
             fs::path filepath = fs::path(current_dir) / link_elem->Attribute("obj");
             obj_filename = filepath.string();
-            col_shape = CollisionShape::make_mesh(grid_size);
+            col_shape = CollisionShape::make_mesh(cell_size);
         }
         else if (body_type == "capsule") {
             double radius = std::stod(link_elem->Attribute("radius"));

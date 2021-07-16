@@ -440,7 +440,7 @@ void World::load_collision_meshes(ArticulatedBodySpec &spec) {
         auto& link = spec.links[lidx];
         auto col_mesh = col_meshes.get(link.col_shape.mesh.id);
         col_mesh->init_from_obj(link.obj_filename.c_str(),
-                                link.col_shape.mesh.grid_size);
+                                link.col_shape.mesh.cell_size);
 
         // Calculate mass and inertia
         // Reference: https://abhilashreddy.com/writing/6/mesh_props.html

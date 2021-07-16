@@ -47,15 +47,9 @@ void OBJFile::load_obj(const char* filename) {
     std::ifstream ifs(filename);
     std::string str;
     std::string index;
-    std::stringstream ss;
 
-    while (!ifs.eof()) {
-        str.clear();
-        index.clear();
-        ss.clear();
-
-        std::getline(ifs, str);
-        ss.str(str);
+    while (std::getline(ifs, str)) {
+        std::istringstream ss(str);
         ss >> index;
 
         if (index == "v") {

@@ -130,12 +130,12 @@ CollisionShape CollisionShape::make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 
     return shape;
 }
 
-CollisionShape CollisionShape::make_mesh(real grid_size, glm::rvec3 scale) {
+CollisionShape CollisionShape::make_mesh(real cell_size, glm::rvec3 scale) {
     CollisionShape shape;
     shape.type = CollisionShape::Type::Mesh;
     shape.scale = scale;
     shape.mesh.id = {};
-    shape.mesh.grid_size = grid_size;
+    shape.mesh.cell_size = cell_size;
     shape.bt_shape = nullptr;
     return shape;
 }

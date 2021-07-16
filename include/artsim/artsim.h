@@ -175,7 +175,7 @@ struct CollisionShape {
         } sphere;
         struct {
             Id<CollisionMesh> id;
-            real grid_size;
+            real cell_size;
         } mesh;
     };
 
@@ -185,7 +185,7 @@ struct CollisionShape {
     static CollisionShape make_box(glm::vec3 size);
     static CollisionShape make_sphere(real radius);
     static CollisionShape make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 scale = glm::rvec3(1));
-    static CollisionShape make_mesh(real grid_size, glm::rvec3 scale = glm::rvec3(1));
+    static CollisionShape make_mesh(real cell_size, glm::rvec3 scale = glm::rvec3(1));
 
     real mass(real density);
     glmx::tsmat3x3<real> inertia(real density);
