@@ -120,41 +120,40 @@ void World::integrate_with_contacts() {
                 cp.bt_manifold_point = &pt;
                 cp.pos = glmconv(pt.getPositionWorldOnB());
                 cp.normal = glmconv(pt.m_normalWorldOnB);
-                cp.tangent1 = glm::rvec3(1, 0, 0);
-                if (real(1) - cp.normal.x < real(1e-6)) {
+                if (real(1) - cp.normal.x > real(1e-6)) {
                     cp.tangent1 = glm::normalize(glm::rvec3(1, 0, 0) - cp.normal.x * cp.normal);
                 }
                 else {
                     cp.tangent1 = glm::normalize(glm::rvec3(0, 1, 0) - cp.normal.y * cp.normal);
                 }
                 cp.tangent2 = glm::cross(cp.normal, cp.tangent1);
-                cp.depth = -pt.getDistance();
+                cp.distance = pt.getDistance();
                 cp.area = 0;
                 cp.body1_id = body1_id;
                 cp.body2_id = body2_id;
+                auto global_trans1 = glmx::rtransform(cp.pos + cp.distance * cp.normal,
+                                                      glm::rmat3(cp.tangent1, cp.tangent2, cp.normal));
                 if (body1_id.is_articulation()) {
                     auto [art_id, lidx] = body1_id.get_articulation_id();
                     auto art = articulated_bodies.get(art_id);
                     auto joint_trans = art->get_global_joint_trans(lidx);
-                    cp.body1_rel_trans.R = glm::transpose(joint_trans.R);
-                    cp.body1_rel_trans.v = cp.body1_rel_trans.R * (cp.pos - joint_trans.v);
+                    cp.body1_rel_trans = global_trans1 / joint_trans;
                 }
                 else {
                     auto rb = rigid_bodies.get(body1_id.get_rigid_body_id());
-                    cp.body1_rel_trans.R = glm::mat3_cast(glm::conjugate(rb->rot));
-                    cp.body1_rel_trans.v = cp.body1_rel_trans.R * (cp.pos - rb->pos);
+                    cp.body1_rel_trans = global_trans1 / glmx::rtransform(rb->pos, glm::mat3_cast(rb->rot));
                 }
+                auto global_trans2 = glmx::rtransform(cp.pos,
+                                                      glm::rmat3(cp.tangent1, cp.tangent2, cp.normal));
                 if (body2_id.is_articulation()) {
                     auto [art_id, lidx] = body2_id.get_articulation_id();
                     auto art = articulated_bodies.get(art_id);
                     auto joint_trans = art->get_global_joint_trans(lidx);
-                    cp.body2_rel_trans.R = glm::transpose(joint_trans.R);
-                    cp.body2_rel_trans.v = cp.body2_rel_trans.R * (cp.pos - joint_trans.v);
+                    cp.body2_rel_trans = global_trans2 / joint_trans;
                 }
                 else {
                     auto rb = rigid_bodies.get(body2_id.get_rigid_body_id());
-                    cp.body2_rel_trans.R = glm::mat3_cast(glm::conjugate(rb->rot));
-                    cp.body2_rel_trans.v = cp.body2_rel_trans.R * (cp.pos - rb->pos);
+                    cp.body2_rel_trans = global_trans2 / glmx::rtransform(rb->pos, glm::mat3_cast(rb->rot));
                 }
                 contact_points.push_back(cp);
             }
@@ -257,7 +256,7 @@ void World::integrate_with_contacts() {
                 BodyLinkId body1_id = body1_is_art1 ? cp.body1_id : cp.body2_id;
                 BodyLinkId body2_id = body1_is_art1 ? cp.body2_id : cp.body1_id;
                 auto [_, art1_lidx] = body1_id.get_articulation_id();
-                auto contact_T = rtransform(cp.pos, mat3_cast(rotation(Ez<real>(), cp.normal)));
+                auto contact_T = rtransform(cp.pos, rmat3(cp.tangent1, cp.tangent2, cp.normal));
                 auto contact_rel_T = contact_T / art1.get_global_joint_trans(art1_lidx);
                 rtransform* T_joint_global = art1.get_global_joint_trans_buf();
                 dynmat_view<real> Jc_T_view(Jc_T.data(), art1_num_vel_dofs, 3*art1_num_contact_points);
@@ -280,7 +279,7 @@ void World::integrate_with_contacts() {
                 BodyLinkId body1_id = body1_is_art1 ? cp.body1_id : cp.body2_id;
                 BodyLinkId body2_id = body1_is_art1 ? cp.body2_id : cp.body1_id;
                 glm::rvec3 tau = make_vec3<real>(tau_star.data() + 3*k);
-                tau.z -= beta / cfg.dt * glm::max<real>(cp.depth - slop, 0);
+                tau.z += beta / cfg.dt * glm::max<real>(cp.distance + slop, 0);
                 if (glm::isnan(tau.x) || glm::isnan(tau.y) || glm::isnan(tau.z)) {
                     printf("NaN error!\n");
                 }

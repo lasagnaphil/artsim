@@ -577,20 +577,20 @@ struct ContactPoint {
     glm::tvec3<real> normal;
     glm::tvec3<real> tangent1;
     glm::tvec3<real> tangent2;
-    real depth;
+    real distance;
     real area;
     BodyLinkId body1_id;
     BodyLinkId body2_id;
-    glmx::transform body1_rel_trans;
-    glmx::transform body2_rel_trans;
+    glmx::rtransform body1_rel_trans;
+    glmx::rtransform body2_rel_trans;
 };
 
 struct Frame {
     BodyLinkId body_id;
-    glmx::transform T_local;
+    glmx::rtransform T_local;
 
     static Frame from_articulation(Id<ArticulatedBody> id, int link_idx,
-                                   const glmx::transform& T_local) {
+                                   const glmx::rtransform& T_local) {
         return {BodyLinkId::from_articulation_link(id, link_idx), T_local};
     }
 };

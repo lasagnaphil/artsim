@@ -324,7 +324,7 @@ euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
 
         for (int i = 0; i < num_contact_points; i++) {
             c[i] = make_vec3<real>(tau_star.data() + 3*i);
-            c[i].z -= beta/dt*glm::max<real>(contact_points[i].depth - slop, 0);
+            c[i].z -= beta/dt*glm::max<real>(contact_points[i].distance - slop, 0);
         }
         for (int i = 0; i < num_contact_points; i++) {
             lambda[i] = glm::rvec3(0);
@@ -435,7 +435,7 @@ std::vector<ContactPoint> get_contact_points_bullet(btCollisionWorld* bt_world) 
             cp.bt_manifold = manifold;
             cp.pos = glmconv(pt.getPositionWorldOnB());
             cp.normal = glmconv(pt.m_normalWorldOnB);
-            cp.depth = -pt.getDistance();
+            cp.distance = -pt.getDistance();
             cp.area = 0;
             cp.body1_id = body1_id;
             cp.body2_id = body2_id;
@@ -526,7 +526,7 @@ contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, cons
                     cp.bt_manifold = nullptr;
                     cp.pos = glm::tvec3<real>(pos.x, 0, pos.z);
                     cp.normal = Ey<real>();
-                    cp.depth = -pos.y;
+                    cp.distance = -pos.y;
                     cp.area = 0;
                     cp.body1_id = BodyLinkId::from_articulation_link(art_id, i);
                     cp.body2_id = BodyLinkId::from_ground();
@@ -543,7 +543,7 @@ contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, cons
                     cp.bt_manifold = nullptr;
                     cp.pos = glm::vec3(p.x, 0, p.z);
                     cp.normal = Ey<real>();
-                    cp.depth = -d;
+                    cp.distance = -d;
                     cp.area = M_PI * (r*r - (r - p.y)*(r - p.y));
                     cp.body1_id = BodyLinkId::from_articulation_link(art_id, i);
                     cp.body2_id = BodyLinkId::from_ground();
