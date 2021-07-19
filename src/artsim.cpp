@@ -55,19 +55,11 @@ void CollisionMesh::init_from_obj(const char *filename, real sdf_grid_size) {
 
     fmt::print("Done\n");
 
-    Eigen::Vector3d size_cm = (domain.max() - domain.min()) / sdf_grid_size;
-    glm::uvec3 size_i = glm::round(glm::dvec3(size_cm[0], size_cm[1], size_cm[2]));
-    std::array<unsigned int, 3> res = {size_i[0], size_i[1], size_i[2]};
-
-    glm::rvec3 grid_bounds = sdf_grid_size * glm::rvec3(size_i);
-    Eigen::Vector3d domain_bounds = domain.max() - domain.min();
-    Eigen::Vector3d domain_extra = domain_bounds - Eigen::Vector3d(grid_bounds[0], grid_bounds[1], grid_bounds[2]);
-    domain_extra += 1e-6 * Eigen::Vector3d::Ones();
-    domain.max() += 0.5 * domain_extra;
-    domain.min() -= 0.5 * domain_extra;
-
+    Eigen::Vector3i res = ((domain.max() - domain.min()) / sdf_grid_size).array().ceil().cast<int>();
     fmt::print("Generating SDF of size ({}, {}, {})...\n", res[0], res[1], res[2]);
-    sdf_grid = Discregrid::CubicLagrangeDiscreteGrid(domain, res);
+    sdf_grid = Discregrid::CubicLagrangeDiscreteGrid(domain, Eigen::Vector3d(sdf_grid_size, sdf_grid_size, sdf_grid_size));
+    // auto cell_size = sdf_grid.cellSize();
+    // fmt::print("Cell size = ({}, {}, {})\n", cell_size[0], cell_size[1], cell_size[2]);
     auto func = [&md](Eigen::Vector3d const& xi) {return md.signedDistanceCached(xi); };
     sdf_grid.addFunction(func, true);
     fmt::print("Done\n");
