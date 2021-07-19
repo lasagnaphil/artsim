@@ -92,9 +92,24 @@ struct PositionalConstraint {
     glm::rvec3 target_pos;
 };
 
+struct PositionalEmbedConstraint {
+    int tet_id;
+    real k;
+    glm::rvec3 betas;
+    glm::rvec3 target_pos;
+};
+
 struct SoftRigidCollisionConstraint {
     int vert_id;
     real k;
+    glm::rvec3 closest_point;
+    glm::rvec3 normal;
+};
+
+struct SoftRigidCollisionEmbedConstraint {
+    int tet_id;
+    real k;
+    glm::rvec3 betas;
     glm::rvec3 closest_point;
     glm::rvec3 normal;
 };
