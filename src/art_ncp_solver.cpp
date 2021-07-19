@@ -10,54 +10,62 @@ namespace artsim {
 
 struct StateDOFMetadata {
     struct Item {
-        int vel_dof_starts;
-        int vel_dofs;
         int pos_dof_starts;
         int pos_dofs;
+        int vel_dof_starts;
+        int vel_dofs;
     };
 private:
-    std::unordered_map<BodyId, std::pair<int, int>> data;
-    int num_total_dofs = 0;
+    std::unordered_map<BodyId, Item> data;
+    int num_total_pos_dofs = 0;
+    int num_total_vel_dofs = 0;
     int num_bodies = 0;
 
 public:
     void build(Arena<ArticulatedBody>& arts, Arena<RigidBody>& rbs) {
-        int cur_dof = 0;
+        int cur_pos_dof = 0;
+        int cur_vel_dof = 0;
         arts.foreach_id_val([&](Id<ArticulatedBody> art_id, ArticulatedBody& art) {
-            int dof = art.get_num_vel_dofs();
+            int pos_dof = art.get_num_pos_dofs();
+            int vel_dof = art.get_num_vel_dofs();
             auto body_id = BodyId::from_articulated_body(art_id);
-            this->data.insert({body_id, std::make_pair(cur_dof, dof)});
-            cur_dof += dof;
+            this->data.insert({body_id, {cur_pos_dof, pos_dof, cur_vel_dof, vel_dof}});
+            cur_pos_dof += pos_dof;
+            cur_vel_dof += vel_dof;
             num_bodies++;
         });
         rbs.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
             auto body_id = BodyId::from_rigid_body(rb_id);
             if (rb.spec.is_static) {
-                this->data.insert({body_id, std::make_pair(cur_dof, 0)});
+                this->data.insert({body_id, {cur_pos_dof, 0, cur_vel_dof, 0}});
             }
             else {
-                this->data.insert({body_id, std::make_pair(cur_dof, 6)});
-                cur_dof += 6;
-                num_bodies++;
+                this->data.insert({body_id, {cur_pos_dof, 7, cur_vel_dof, 6}});
+                cur_pos_dof += 7;
+                cur_vel_dof += 6;
             }
+            num_bodies++;
         });
-        this->num_total_dofs = cur_dof;
+        this->num_total_pos_dofs = cur_pos_dof;
+        this->num_total_vel_dofs = cur_vel_dof;
     }
 
-    std::pair<int, int> get_dof_starts_and_size(BodyId body_id) const {
-        return data.at(body_id);
+    std::pair<int, int> get_pos_dof_starts_and_size(BodyId body_id) const {
+        auto item = data.at(body_id);
+        return {item.pos_dof_starts, item.pos_dofs};
     }
 
-    int get_dof_starts(BodyId body_id) const {
-        return data.at(body_id).first;
+    std::pair<int, int> get_vel_dof_starts_and_size(BodyId body_id) const {
+        auto item = data.at(body_id);
+        return {item.vel_dof_starts, item.vel_dofs};
     }
 
-    int get_dof_size(BodyId body_id) const {
-        return data.at(body_id).second;
+    int get_total_vel_dof() const {
+        return num_total_vel_dofs;
     }
 
-    int get_total_dof() const {
-        return num_total_dofs;
+    int get_total_pos_dof() const {
+        return num_total_pos_dofs;
     }
 
     int get_num_bodies() const {
@@ -69,36 +77,42 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
     StateDOFMetadata state_meta;
     state_meta.build(articulated_bodies, rigid_bodies);
 
-    int total_dof = state_meta.get_total_dof();
+    int total_pos_dof = state_meta.get_total_pos_dof();
+    int total_vel_dof = state_meta.get_total_vel_dof();
     int num_bodies = state_meta.get_num_bodies();
 
-    // Mass matrices and its inverses
-    std::vector<MatrixXr> M(num_bodies);
-    std::vector<MatrixXr> Minv(num_bodies);
+    // Mass matrix and its inverse
+    MatrixXr M(total_vel_dof, total_vel_dof);
+    MatrixXr Minv(total_vel_dof, total_vel_dof);
+    M.setZero();
+    Minv.setZero();
 
     // System matrix
     MatrixXr A(3*num_contact_points, 3*num_contact_points);
     A.setZero();
 
     // Jacobian
-    MatrixXr J_c(3*num_contact_points, total_dof);
+    MatrixXr J_c(3*num_contact_points, total_vel_dof);
     J_c.setZero();
 
     // Compliance matrix (diagonal components)
     VectorXr C(3*num_contact_points);
     C.setZero();
 
+    // Initial position
+    VectorXr q0(total_pos_dof);
+
     // Velocity
-    VectorXr u(total_dof);
-    VectorXr u_tilde(total_dof);
-    VectorXr du(total_dof);
+    VectorXr u(total_vel_dof);
+    VectorXr u_tilde(total_vel_dof);
+    VectorXr du(total_vel_dof);
 
     // Lagrange multipliers and its increments
     VectorXr lam(3*num_contact_points);
     VectorXr dlam(3*num_contact_points);
 
     // Right-side vectors
-    // VectorXr g(total_dof);
+    // VectorXr g(total_vel_dof);
     VectorXr h(3*num_contact_points);
     VectorXr b(3*num_contact_points);
 
@@ -108,21 +122,30 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
     // Material properties for each constraint
     std::vector<Material> materials(num_contact_points);
 
-    // Initialize u_tilde & preintegrate bodies
+    // Initialize u_tilde & mass matrix
     articulated_bodies.foreach_id_val([&](Id<ArticulatedBody> art_id, ArticulatedBody& art){
         auto bid = BodyId::from_articulated_body(art_id);
-        auto [dof_start, dofs] = state_meta.get_dof_starts_and_size(bid);
-        Eigen::Map<VectorXr> u0(art.get_vel_buf(), dofs);
+        auto [pos_dof_start, pos_dofs] = state_meta.get_pos_dof_starts_and_size(bid);
+        auto [vel_dof_start, vel_dofs] = state_meta.get_vel_dof_starts_and_size(bid);
+        std::copy_n(art.get_pos_buf(), pos_dofs, OUT q0.data() + pos_dof_start);
+        glmx::dynmat<real> M_art(vel_dofs, vel_dofs);
+        art.mass_matrix(OUT M_art.to_view(), cfg.dt);
+        M.block(vel_dof_start, vel_dof_start, vel_dofs, vel_dofs) = Eigen::Map<MatrixXr>(M_art.data(), vel_dofs, vel_dofs);
         art.forward_dynamics(cfg.gravity, cfg.dt);
-        art.integrate(cfg.dt);
-        std::copy_n(art.get_vel_buf(), dofs, OUT u_tilde.data() + dof_start);
+        real* art_u = art.get_vel_buf();
+        real* art_udot = art.get_acc_buf();
+        for (int k = 0; k < vel_dofs; k++) {
+            u_tilde(vel_dof_start + k) = art_u[k] + cfg.dt * art_udot[k];
+        }
     });
     rigid_bodies.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
         if (rb.spec.is_static) return;
         auto bid = BodyId::from_rigid_body(rb_id);
-        int dof_start = state_meta.get_dof_starts(bid);
+        auto [dof_start, dofs] = state_meta.get_vel_dof_starts_and_size(bid);
         // TODO
     });
+    Minv = M.inverse();
+
     // Initialize u, lam
     u.setZero();
     // u = u_tilde;
@@ -191,24 +214,21 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
         };
 
         J_c.setZero();
-        C.setZero();
-        h.setZero();
-
         for (int cidx = 0; cidx < num_contact_points; cidx++) {
             auto& cp = contact_points[cidx];
             BodyId bid1 = cp.body1_id.get_body_id();
             BodyId bid2 = cp.body2_id.get_body_id();
             std::vector<glm::rvec3> J1 = calc_body_jac(cp, cp.body1_id, cp.pos);
             std::vector<glm::rvec3> J2 = calc_body_jac(cp, cp.body2_id, cp.pos);
-            int body1_dof_start = state_meta.get_dof_starts(bid1);
-            int body2_dof_start = state_meta.get_dof_starts(bid2);
+            auto [body1_dof_start, body1_dofs] = state_meta.get_vel_dof_starts_and_size(bid1);
+            auto [body2_dof_start, body2_dofs] = state_meta.get_vel_dof_starts_and_size(bid2);
             glm::rvec2 v_f = glm::rvec2(0);
-            for (int k = 0; k < J1.size(); k++) {
+            for (int k = 0; k < body1_dofs; k++) {
                 int sidx = body1_dof_start + k;
                 v_f.x += J1[k].x * u(sidx);
                 v_f.y += J1[k].y * u(sidx);
             }
-            for (int k = 0; k < J2.size(); k++) {
+            for (int k = 0; k < body2_dofs; k++) {
                 int sidx = body2_dof_start + k;
                 v_f.x -= J2[k].x * u(sidx);
                 v_f.y -= J2[k].y * u(sidx);
@@ -246,13 +266,13 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
             }
             glm::rvec2 phi_f = v_f + W * lam_f;
 
-            for (int k = 0; k < J1.size(); k++) {
+            for (int k = 0; k < body1_dofs; k++) {
                 int sidx = body1_dof_start + k;
                 J_c(3*cidx+0, sidx) += J1[k].x;
                 J_c(3*cidx+1, sidx) += J1[k].y;
                 J_c(3*cidx+2, sidx) += alpha * glm::dot(J1[k], cp.normal);
             }
-            for (int k = 0; k < J2.size(); k++) {
+            for (int k = 0; k < body2_dofs; k++) {
                 int sidx = body2_dof_start + k;
                 J_c(3*cidx+0, sidx) -= J2[k].x;
                 J_c(3*cidx+1, sidx) -= J2[k].y;
@@ -267,54 +287,28 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
             h(3*cidx+2) = phi_n / cfg.dt;
         }
 
-        A.setZero();
-        articulated_bodies.foreach_id_val([&](Id<ArticulatedBody> art_id, ArticulatedBody& art){
-            auto bid = BodyId::from_articulated_body(art_id);
-            auto [dof_start, dofs] = state_meta.get_dof_starts_and_size(bid);
-            MatrixXr Jt = J_c.middleCols(dof_start, dofs).transpose();
-            MatrixXr Minv_Jt(dofs, 3*num_contact_points);
-            multiply_inverse_mass_matrix(art.get_spec(), cfg.dt, art.get_pos_buf(), get_view(Jt),
-                                         OUT get_view(Minv_Jt));
-            A += Jt.transpose() * Minv_Jt;
-        });
-        rigid_bodies.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
-            // TODO
-        });
-
-        b = (real(1)/cfg.dt) * (J_c * (u - u_tilde) - h) - A * lam;
+        VectorXr g = M * (u - u_tilde) - J_c.transpose() * (cfg.dt * lam);
+        A = J_c * Minv * J_c.transpose();
         A.diagonal() += C;
-
-        // TODO: solve this using Conjugate Residual
+        b = (J_c * (Minv * g) - h) / cfg.dt;
         dlam = A.ldlt().solve(b);
-        if (dlam.norm() < 1e-6) break;
-
-        VectorXr Jt_lam_prime = J_c.transpose() * (lam + dlam);
-        VectorXr Minv_Jt_lam_prime(total_dof);
-        articulated_bodies.foreach_id_val([&](Id<ArticulatedBody> art_id, ArticulatedBody& art){
-            auto bid = BodyId::from_articulated_body(art_id);
-            auto [dof_start, dofs] = state_meta.get_dof_starts_and_size(bid);
-            multiply_inverse_mass_matrix(art.get_spec(), cfg.dt, art.get_pos_buf(),
-                                         Jt_lam_prime.data() + dof_start, OUT Minv_Jt_lam_prime.data() + dof_start);
-        });
-        rigid_bodies.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
-            // TODO
-        });
-        du = u_tilde - u + cfg.dt * Minv_Jt_lam_prime;
-        if (du.norm() < 1e-6) break;
-        VectorXr t_du = real(0.75) * du;
+        du = Minv * (J_c.transpose() * (cfg.dt * dlam) - g);
 
         lam += real(0.75) * dlam;
-        u += t_du;
+        u += real(0.75) * du;
 
         articulated_bodies.foreach_id_val([&](Id<ArticulatedBody> art_id, ArticulatedBody& art){
             auto bid = BodyId::from_articulated_body(art_id);
-            auto [dof_start, dofs] = state_meta.get_dof_starts_and_size(bid);
-            std::copy_n(t_du.data() + dof_start, dofs, OUT art.get_vel_buf());
+            auto [pos_dof_start, pos_dofs] = state_meta.get_pos_dof_starts_and_size(bid);
+            auto [vel_dof_start, vel_dofs] = state_meta.get_vel_dof_starts_and_size(bid);
+            std::copy_n(q0.data() + pos_dof_start, pos_dofs, OUT art.get_pos_buf());
+            std::copy_n(u.data() + vel_dof_start, vel_dofs, OUT art.get_vel_buf());
             art.integrate(cfg.dt, false);
         });
         rigid_bodies.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
             // TODO
         });
+
         printf("||dlam|| = %f, ||du|| = %f, ||h|| = %f\n", dlam.norm(), du.norm(), h.norm());
         std::cout << "lam: " << lam.transpose() << std::endl;
         std::cout << "u: " << u.transpose() << std::endl;
