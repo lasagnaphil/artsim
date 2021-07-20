@@ -85,6 +85,17 @@ void gen_edges_from_surface_tri_mesh(const std::vector<glm::ivec3>& triangles,
     edges.insert(edges.end(), edge_set.begin(), edge_set.end());
 }
 
+void gen_verts_from_surface_tri_mesh(const std::vector<glm::ivec3>& triangles,
+                                     OUT std::vector<int>& vertices) {
+    std::unordered_set<int> vert_set;
+    for (auto& tri : triangles) {
+        vert_set.insert(tri[0]);
+        vert_set.insert(tri[1]);
+        vert_set.insert(tri[2]);
+    }
+    vertices.insert(vertices.end(), vert_set.begin(), vert_set.end());
+}
+
 void gen_edges_from_tet_mesh(const std::vector<glm::ivec4>& tets,
                              OUT std::vector<glm::ivec2>& edges) {
     std::unordered_set<glm::ivec2> edge_set;
@@ -102,6 +113,7 @@ void SoftBody::load(const TetMesh& mesh) {
     tets = mesh.tetrahedrons;
     gen_surface_triangles_from_tet_mesh(tets, OUT surface_triangles);
     gen_edges_from_surface_tri_mesh(surface_triangles, OUT surface_edges);
+    gen_verts_from_surface_tri_mesh(surface_triangles, OUT surface_verts);
 
     B_m.resize(tets.size());
     W.resize(tets.size());

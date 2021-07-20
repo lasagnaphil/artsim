@@ -34,7 +34,7 @@ struct PointInTet : public AABBTreeVisitor<T> {
     glm::tvec3<T> point; // query point
     int hit_tet; // intersected tet
     std::vector<int> skip_vert_idx;  // vert index to skip (for self collision)
-    const glm::tvec3<T> *verts;
+    const T *verts;
     const int *inds;
     PointInTet( glm::tvec3<T> point_, const T *verts_, const int *inds_ );
     bool hit_aabb( const AABB &aabb );
@@ -48,10 +48,6 @@ PointInTet<T>::PointInTet( glm::tvec3<T> point_, const T *verts_, const int *ind
 
 template <class T>
 bool PointInTet<T>::hit_aabb( const AABB &aabb ){
-    if( aabb.isEmpty() ){
-        printf("PointInTet Error: Empty AABB\n");
-        exit(EXIT_FAILURE);
-    }
     return aabb.contains(point);
 }
 
@@ -77,8 +73,7 @@ bool PointInTet<T>::hit_prim( int prim ){
 
 template <class T>
 bool PointInTet<T>::check_left_first( const AABB &left, const AABB &right ){
-    T left_ed = left.squaredExteriorDistance( point );
-    return left_ed <= right.squaredExteriorDistance( point );
+    return glmx::distance2(left, point) <= glmx::distance2(right, point);
 }
 
 // Nearest point on surface

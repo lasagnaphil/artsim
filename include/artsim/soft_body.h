@@ -56,6 +56,7 @@ struct SoftBody {
     std::vector<glm::tvec3<real>> verts;
     std::vector<glm::ivec4> tets;
 
+    std::vector<int> surface_verts;
     std::vector<glm::ivec2> surface_edges;
     std::vector<glm::ivec3> surface_triangles;
 
