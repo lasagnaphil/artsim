@@ -76,8 +76,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
     for (XMLElement* sb_el = root_el->FirstChildElement("soft_body");
          sb_el != nullptr; sb_el = sb_el->NextSiblingElement("soft_body")) { sb_count++; }
 
-    soft_bodies = std::vector<SoftBodyData>(sb_count);
-    soft_bodies_precalc = std::vector<SoftBodyPrecalcData>(sb_count);
+    soft_bodies = std::vector<SoftBody>(sb_count);
     sb_constraints.resize(sb_count);
     sb_names.resize(sb_count);
 
@@ -85,6 +84,8 @@ void ArtWithSoftBodies::load(const char* metadata) {
     sb_vert_start_idx[0] = 0;
     sb_tet_start_idx.resize(sb_count + 1);
     sb_tet_start_idx[0] = 0;
+
+    soft_body_props.resize(sb_count);
 
     int sb_idx = 0;
     for (XMLElement* sb_el = root_el->FirstChildElement("soft_body"); sb_el != nullptr; sb_el = sb_el->NextSiblingElement("soft_body")) {
@@ -106,32 +107,32 @@ void ArtWithSoftBodies::load(const char* metadata) {
         props.poisson_ratio = mat_el->DoubleAttribute("poisson_ratio");
         props.density = mat_el->DoubleAttribute("density");
 
-        soft_bodies[sb_idx].load(tet_mesh, props);
+        soft_bodies[sb_idx].load(tet_mesh);
         auto& sb = soft_bodies[sb_idx];
-        int sb_num_vertices = sb.vertices.size();
-        int sb_num_tets =sb.tetrahedrons.size();
+        int sb_num_vertices = sb.verts.size();
+        int sb_num_tets = sb.tets.size();
 
         if (mat_el->NoChildren()) {
             // Material is applied to entire soft body
-            real mu = sb.props.calc_mu();
-            real lambda = sb.props.calc_lambda();
+            real mu = props.calc_mu();
+            real lambda = props.calc_lambda();
             if (mat_type == "arap") {
-                real k = sb.props.calc_arap_stiffness();
-                int sb_num_tets = sb.tetrahedrons.size();
+                real k = props.calc_arap_stiffness();
+                int sb_num_tets = sb.tets.size();
                 for (int i = 0; i < sb_num_tets; i++) {
                     sb_constraints[sb_idx].arap_energy.push_back({i, k, mu});
                 }
             }
             if (mat_type == "corotational") {
-                real k = sb.props.calc_corotational_stiffness();
-                int sb_num_tets = sb.tetrahedrons.size();
+                real k = props.calc_corotational_stiffness();
+                int sb_num_tets = sb.tets.size();
                 for (int i = 0; i < sb_num_tets; i++) {
                     sb_constraints[sb_idx].corotational_energy.push_back({i, k, mu, lambda});
                 }
             }
             else if (mat_type == "neohookean") {
-                real k = sb.props.calc_neohookean_stiffness();
-                int sb_num_tets = sb.tetrahedrons.size();
+                real k = props.calc_neohookean_stiffness();
+                int sb_num_tets = sb.tets.size();
                 for (int i = 0; i < sb_num_tets; i++) {
                     sb_constraints[sb_idx].neohookean_energy.push_back({i, k, mu, lambda});
                 }
@@ -142,6 +143,7 @@ void ArtWithSoftBodies::load(const char* metadata) {
             exit(EXIT_FAILURE);
         }
 
+        soft_body_props[sb_idx] = props;
         sb_names[sb_idx] = soft_body_file.stem().string();
 
         sb_idx++;
@@ -151,7 +153,22 @@ void ArtWithSoftBodies::load(const char* metadata) {
 
 #pragma omp parallel for
     for (int sb_idx = 0; sb_idx < sb_count; sb_idx++) {
-        soft_body_precomputation(soft_bodies[sb_idx], sb_constraints[sb_idx], dt, OUT soft_bodies_precalc[sb_idx]);
+        auto& sb = soft_bodies[sb_idx];
+        auto& constraints = sb_constraints[sb_idx];
+        sb.build_mass(soft_body_props[sb_idx].density);
+        for (auto& c : constraints.arap_energy) {
+            sb.add_volume_constraint(c, dt);
+        }
+        for (auto& c : constraints.corotational_energy) {
+            sb.add_volume_constraint(c, dt);
+        }
+        for (auto& c : constraints.neohookean_energy) {
+            sb.add_volume_constraint(c, dt);
+        }
+        for (auto& c : constraints.positional) {
+            sb.add_positional_constraint(c, dt);
+        }
+        sb.factorize();
     }
 
     N_s = sb_vert_start_idx[sb_count];
@@ -221,7 +238,7 @@ void ArtWithSoftBodies::update_attachments() {
 
     N_t = 0;
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
-        N_t += soft_bodies[sb_idx].tetrahedrons.size();
+        N_t += soft_bodies[sb_idx].tets.size();
     }
 
     x_s.resize(3*N_s);
@@ -280,8 +297,8 @@ void ArtWithSoftBodies::save(const char* metadata) {
 void ArtWithSoftBodies::reset() {
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
         auto& sb = soft_bodies[sb_idx];
-        real* vertices_ptr = (real*) sb.vertices.data();
-        std::copy(vertices_ptr, vertices_ptr + 3*sb.vertices.size(), x_s.data() + 3*sb_vert_start_idx[sb_idx]);
+        real* vertices_ptr = (real*) sb.verts.data();
+        std::copy(vertices_ptr, vertices_ptr + 3*sb.verts.size(), x_s.data() + 3 * sb_vert_start_idx[sb_idx]);
     }
     v_s.setZero();
     f_s.setZero();
@@ -292,7 +309,7 @@ void ArtWithSoftBodies::reset() {
 
 template <class Constraint>
 void admm_vel_volume_constraint_local_solve(
-        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
+        const SoftBody& body, const Constraint* constraints, uint32_t num_constraints,
         const glm::tmat3x3<real>* F, const glmx::SVD_mats<real>* F_svd,
         OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u) {
 
@@ -307,7 +324,7 @@ void admm_vel_volume_constraint_local_solve(
 
 #define X(CTYPE, CFIELD) \
 template void admm_vel_volume_constraint_local_solve( \
-        const SoftBodyData&, const CTYPE*, uint32_t, \
+        const SoftBody&, const CTYPE*, uint32_t, \
         const glm::tmat3x3<real>* F, const glmx::SVD_mats<real>* F_svd, \
         OUT glm::tmat3x3<real>* z, OUT glm::tmat3x3<real>* u);
 ADMM_VOLUME_CONSTRAINTS
@@ -315,13 +332,13 @@ ADMM_VOLUME_CONSTRAINTS
 
 template <class Constraint>
 void admm_vel_volume_constraint_update_b(
-        const SoftBodyData& body, const Constraint* constraints, uint32_t num_constraints,
+        const SoftBody& body, const Constraint* constraints, uint32_t num_constraints,
         real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0,
         INOUT real* b) {
 
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
-        glm::ivec4 tet = body.tetrahedrons[c.tet_id];
+        glm::ivec4 tet = body.tets[c.tet_id];
         auto p = z[c.tet_id] - u[c.tet_id];
         auto& D_i = body.D[c.tet_id];
         auto D_x0 = glm::rmat3(x0[tet[0]] - x0[tet[3]], x0[tet[1]] - x0[tet[3]], x0[tet[2]] - x0[tet[3]]) * body.B_m[c.tet_id];
@@ -337,7 +354,7 @@ void admm_vel_volume_constraint_update_b(
 
 #define X(CTYPE, CFIELD) \
 template void admm_vel_volume_constraint_update_b( \
-        const SoftBodyData& body, const CTYPE* constraints, uint32_t num_constraints, \
+        const SoftBody& body, const CTYPE* constraints, uint32_t num_constraints, \
         real dt, const glm::tmat3x3<real>* z, const glm::tmat3x3<real>* u, const glm::tvec3<real>* x0, INOUT real* b);
 ADMM_VOLUME_CONSTRAINTS
 #undef X
@@ -506,9 +523,9 @@ VectorXr ArtWithSoftBodies::calc_total_force_with_gravity() {
     for (int sb_idx = 0; sb_idx < soft_bodies.size(); sb_idx++) {
         int vidx_start = sb_vert_start_idx[sb_idx];
         auto& sb = soft_bodies[sb_idx];
-        for (int t = 0; t < sb.tetrahedrons.size(); t++) {
-            glm::ivec4 tet = sb.tetrahedrons[t];
-            glm::rvec3 f_g = real(1. / 4.) * sb.props.density * sb.W[t] * gravity;
+        for (int t = 0; t < sb.tets.size(); t++) {
+            glm::ivec4 tet = sb.tets[t];
+            glm::rvec3 f_g = real(1. / 4.) * soft_body_props[sb_idx].density * sb.W[t] * gravity;
             f_s_tot_ptr[vidx_start + tet[0]] += f_g;
             f_s_tot_ptr[vidx_start + tet[1]] += f_g;
             f_s_tot_ptr[vidx_start + tet[2]] += f_g;
@@ -622,8 +639,7 @@ void ArtWithSoftBodies::integrate_admm_coupled() {
             int vidx_start = sb_vert_start_idx[sb_idx];
             int vidx_count = sb_vert_start_idx[sb_idx + 1] - vidx_start;
             auto& sb = soft_bodies[sb_idx];
-            auto& sb_precalc = soft_bodies_precalc[sb_idx];
-            v_s.middleRows(3*vidx_start, 3*vidx_count) = sb_precalc.A_LDLt.solve(b_s.middleRows(3*vidx_start, 3*vidx_count));
+            v_s.middleRows(3*vidx_start, 3*vidx_count) = sb.A_LDLt.solve(b_s.middleRows(3*vidx_start, 3*vidx_count));
         }
         v_r = M_r_inv * b_r;
 
@@ -638,8 +654,7 @@ void ArtWithSoftBodies::integrate_admm_coupled() {
                 int vidx_start = sb_vert_start_idx[sb_idx];
                 int vidx_count = sb_vert_start_idx[sb_idx + 1] - vidx_start;
                 auto& sb = soft_bodies[sb_idx];
-                auto& sb_precalc = soft_bodies_precalc[sb_idx];
-                s_v.middleRows(3*vidx_start, 3*vidx_count) = sb_precalc.A_LDLt.solve(s_f_s.middleRows(3*vidx_start, 3*vidx_count));
+                s_v.middleRows(3*vidx_start, 3*vidx_count) = sb.A_LDLt.solve(s_f_s.middleRows(3*vidx_start, 3*vidx_count));
             }
             s_v.bottomRows(N_r) = -M_r_inv_J_cr_T * s_f;
             apply_selector_matrix(s_v.data(), OUT s_v_c.data());

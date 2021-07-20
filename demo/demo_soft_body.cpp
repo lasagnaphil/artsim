@@ -7,6 +7,7 @@
 
 #include <artsim/artsim.h>
 #include <artsim/soft_body.h>
+#include <artsim/soft_body_dynamics.h>
 
 #include <imgui.h>
 #include <implot.h>
@@ -57,28 +58,52 @@ public:
         props.density = 1000;
         props.young_modulus = 1e8;
         props.poisson_ratio = 0.4;
-        soft_body.load(tet_mesh, props);
+
+        soft_body.load(tet_mesh);
+
+#if defined(DEMO_QUASISTATIC)
+        soft_body.build_mass(0);
+        real constr_dt = 1;
+#else
+        soft_body.build_mass(props.density);
+        real constr_dt = sim_dt;
+#endif
 
 #if defined(DEMO_PD)
-        for (int i = 0; i < soft_body.tetrahedrons.size(); i++) {
+        for (int i = 0; i < soft_body.tets.size(); i++) {
             constraints.linear_strain_energy.push_back({i, 1e7, 1.0, 1.0});
             // constraints.volume_preservation_energy.push_back({i, 1e5, 0.9, 1.1});
         }
         constraints.positional.push_back({0, 1e7, glm::rvec3(0, 0, 0)});
         constraints.positional.push_back({400, 1e7, glm::rvec3(0, 0, 0)});
+
+        for (auto& c : constraints.linear_strain_energy) {
+            soft_body.add_volume_constraint(c, constr_dt);
+        }
+        for (auto& c : constraints.positional) {
+            soft_body.add_positional_constraint(c, constr_dt);
+        }
+
 #elif defined(DEMO_ADMM) || defined(DEMO_QUASINEWTON)
         real stiffness = props.calc_corotational_stiffness();
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();
-        for (int i = 0; i < soft_body.tetrahedrons.size(); i++) {
+        for (int i = 0; i < soft_body.tets.size(); i++) {
             // constraints.arap_energy.push_back({i, stiffness, mu});
             constraints.corotational_energy.push_back({i, stiffness, mu, lambda});
             // constraints.neohookean_energy.push_back({i, stiffness, mu, lambda});
         }
         constraints.positional.push_back({0, 1e7, glm::rvec3(0, 0, 0)});
         constraints.positional.push_back({400, 1e7, glm::rvec3(0, 0, 0)});
+
+        for (auto& c : constraints.corotational_energy) {
+            soft_body.add_volume_constraint(c, constr_dt);
+        }
+        for (auto& c : constraints.positional) {
+            soft_body.add_positional_constraint(c, constr_dt);
+        }
 #endif
-        soft_body_precomputation(soft_body, constraints, sim_dt, OUT soft_body_precalc);
+        soft_body.factorize();
 
         soft_body_render = SoftBodyRender(&soft_body, soft_body_mat, camera);
 
@@ -107,14 +132,14 @@ public:
 
 #if defined(DEMO_PD)
 #if defined(DEMO_QUASISTATIC)
-            projective_dynamics_quasistatic(soft_body, soft_body_precalc, constraints, 20,
+            projective_dynamics_quasistatic(soft_body, constraints, 20,
                                             (real*) sb_force.data(), INOUT (real*)sb_pos.data());
 #else
-            projective_dynamics(soft_body, soft_body_precalc, constraints, sim_dt, 20,
+            projective_dynamics(soft_body, constraints, sim_dt, 20,
                                 (real*) sb_force.data(), INOUT (real*)sb_pos.data(), INOUT (real*)sb_vel.data());
 #endif
 #elif defined(DEMO_ADMM)
-            admm_dynamics(soft_body, soft_body_precalc, constraints, sim_dt, 20, (real*) sb_force.data(),
+            admm_dynamics(soft_body, constraints, sim_dt, 20, (real*) sb_force.data(),
                               INOUT (real*) sb_pos.data(), INOUT (real*) sb_vel.data());
 #elif defined(DEMO_QUASINEWTON)
             quasinewton_dynamics(soft_body, soft_body_precalc, constraints, sim_dt, 5, (real*) sb_force.data(),
@@ -171,7 +196,7 @@ public:
     }
 
     void resetPhysics() {
-        sb_pos = soft_body.vertices;
+        sb_pos = soft_body.verts;
         real noise = 0.05;
         for (int i = 0; i < sb_pos.size(); i++) {
             sb_pos[i][0] += std::uniform_real_distribution<real>(-noise, noise)(random_engine);
@@ -189,8 +214,7 @@ private:
     bool run_simulation = true;
     bool render_orig = false;
 
-    SoftBodyData soft_body;
-    SoftBodyPrecalcData soft_body_precalc;
+    SoftBody soft_body;
 #if defined(DEMO_PD)
     PDConstraints constraints;
 #elif defined(DEMO_ADMM) || defined(DEMO_QUASINEWTON)

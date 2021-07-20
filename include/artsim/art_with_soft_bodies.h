@@ -6,6 +6,7 @@
 #define ARTSIM_ART_WITH_SOFT_BODIES_H
 
 #include <artsim/soft_body.h>
+#include <artsim/soft_body_dynamics.h>
 #include <tinyxml2.h>
 #include <memory>
 
@@ -19,8 +20,8 @@ protected:
     std::shared_ptr<tinyxml2::XMLDocument> doc;
 
     ArticulatedBody art;
-    std::vector<SoftBodyData> soft_bodies;
-    std::vector<SoftBodyPrecalcData> soft_bodies_precalc;
+    std::vector<SoftBody> soft_bodies;
+    std::vector<SoftBodyProperties> soft_body_props;
     std::vector<ADMMConstraints> sb_constraints;
     std::vector<std::string> sb_names;
 
@@ -59,7 +60,7 @@ public:
 
     void integrate_admm_coupled();
 
-    const std::vector<SoftBodyData>& get_soft_bodies() {
+    const std::vector<SoftBody>& get_soft_bodies() {
         return soft_bodies;
     }
     int get_num_soft_bodies() {

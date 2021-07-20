@@ -38,6 +38,7 @@ add_library(artsim
         src/art_contacts.cpp
         src/ik.cpp
         src/soft_body.cpp
+        src/soft_body_dynamics.cpp
         src/art_with_soft_bodies.cpp
         src/pbd.cpp
         src/obj_file.cpp

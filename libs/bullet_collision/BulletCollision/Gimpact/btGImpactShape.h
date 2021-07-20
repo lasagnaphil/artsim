@@ -1,5 +1,5 @@
 /*! \file btGImpactShape.h
-\author Francisco Len Nßjera
+\author Francisco Len Nï¿½jera
 */
 /*
 This source file is part of GIMPACT Library.
@@ -48,7 +48,7 @@ enum eGIMPACT_SHAPE_TYPE
 	CONST_GIMPACT_TRIMESH_SHAPE
 };
 
-//! Helper class for tetrahedrons
+//! Helper class for tets
 class btTetrahedronShapeEx : public btBU_Simplex1to4
 {
 public:
@@ -206,7 +206,7 @@ public:
 	//! Determines if this shape has triangles
 	virtual bool needsRetrieveTriangles() const = 0;
 
-	//! Determines if this shape has tetrahedrons
+	//! Determines if this shape has tets
 	virtual bool needsRetrieveTetrahedrons() const = 0;
 
 	virtual void getBulletTriangle(int prim_index, btTriangleShapeEx& triangle) const = 0;
@@ -458,7 +458,7 @@ public:
 		return false;
 	}
 
-	//! Determines if this shape has tetrahedrons
+	//! Determines if this shape has tets
 	virtual bool needsRetrieveTetrahedrons() const
 	{
 		return false;
@@ -780,7 +780,7 @@ public:
 		return true;
 	}
 
-	//! Determines if this shape has tetrahedrons
+	//! Determines if this shape has tets
 	virtual bool needsRetrieveTetrahedrons() const
 	{
 		return false;
@@ -988,7 +988,7 @@ public:
 		return false;
 	}
 
-	//! Determines if this shape has tetrahedrons
+	//! Determines if this shape has tets
 	virtual bool needsRetrieveTetrahedrons() const
 	{
 		btAssert(0);

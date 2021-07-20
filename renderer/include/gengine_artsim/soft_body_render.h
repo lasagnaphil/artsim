@@ -11,13 +11,13 @@ class SoftBodyRender {
 public:
     SoftBodyRender() = default;
 
-    SoftBodyRender(const artsim::SoftBodyData* data, Ref<PBRMaterial> mat, Camera* camera)
+    SoftBodyRender(const artsim::SoftBody* data, Ref<PBRMaterial> mat, Camera* camera)
             : data(data), mat(mat), camera(camera) {
         std::vector<Mesh::Vertex> vertices(3*data->surface_triangles.size());
 
         mesh = Resources::make<Mesh>(vertices);
         mesh->initVBO(Mesh::DrawMode::Dynamic);
-        update_mesh(data->vertices.data());
+        update_mesh(data->verts.data());
     }
 
     void render(PBRenderer& renderer, const glm::tvec3<artsim::real>* vpos) {
@@ -37,11 +37,11 @@ public:
     }
 
     void render_debug_volume(DebugRenderer& debug, const glm::tvec3<artsim::real>* vpos) {
-        for (int t = 0; t < data->tetrahedrons.size(); t++) {
-            auto i0 = data->tetrahedrons[t][0];
-            auto i1 = data->tetrahedrons[t][1];
-            auto i2 = data->tetrahedrons[t][2];
-            auto i3 = data->tetrahedrons[t][3];
+        for (int t = 0; t < data->tets.size(); t++) {
+            auto i0 = data->tets[t][0];
+            auto i1 = data->tets[t][1];
+            auto i2 = data->tets[t][2];
+            auto i3 = data->tets[t][3];
             debug.drawLine(vpos[i0], vpos[i1], colors::Black, true);
             debug.drawLine(vpos[i0], vpos[i2], colors::Black, true);
             debug.drawLine(vpos[i0], vpos[i3], colors::Black, true);
@@ -81,7 +81,7 @@ public:
         m.updateVBO();
     }
 
-    const artsim::SoftBodyData* data;
+    const artsim::SoftBody* data;
     Ref<Mesh> mesh;
     Ref<PBRMaterial> mat;
     Camera* camera;
