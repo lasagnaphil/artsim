@@ -172,4 +172,9 @@ void SoftBody::build_mass(real density) {
     M = A;
 }
 
+void SoftBody::clear_mass() {
+    A.setZero();
+    M.setZero();
+}
+
 }

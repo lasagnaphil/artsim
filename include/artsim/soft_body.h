@@ -105,6 +105,8 @@ struct SoftBody {
         fac_P = A_LDLt.permutationP();
          */
     }
+
+    void clear_mass();
 };
 
 }
