@@ -190,7 +190,7 @@ void projective_dynamics_volume_constraint_update_b(
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tets[c.tet_id];
         auto& D_i = body.D[c.tet_id];
-        real k_s = c.k * dt * dt * body.W[c.tet_id];
+        real k_s = c.k * body.W[c.tet_id];
         for (int j = 0; j < 4; j++) {
             glm::tvec3<real> db = k_s * (p[c.tet_id] * D_i[j]);
             b[3*tet[j]+0] += db[0];
@@ -213,10 +213,9 @@ void projective_dynamics_positional_constraint_update_b(
         INOUT real* b) {
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
-        real k_s = c.k * dt * dt;
-        b[3*c.vert_id+0] += k_s * c.target_pos.x;
-        b[3*c.vert_id+1] += k_s * c.target_pos.y;
-        b[3*c.vert_id+2] += k_s * c.target_pos.z;
+        b[3*c.vert_id+0] += c.k * c.target_pos.x;
+        b[3*c.vert_id+1] += c.k * c.target_pos.y;
+        b[3*c.vert_id+2] += c.k * c.target_pos.z;
     }
 }
 
@@ -272,7 +271,7 @@ void admm_volume_constraint_update_b(
         glm::ivec4 tet = body.tets[c.tet_id];
         auto p = z[c.tet_id] - u[c.tet_id];
         auto& D_i = body.D[c.tet_id];
-        real k_s = c.k * dt * dt * body.W[c.tet_id];
+        real k_s = c.k * body.W[c.tet_id];
         for (int j = 0; j < 4; j++) {
             glm::tvec3<real> db = k_s * (p * D_i[j]);
             b[3*tet[j]+0] += db[0];
@@ -294,10 +293,9 @@ void admm_positional_constraint_update_b(
         INOUT real* b) {
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
-        real k_s = c.k * dt * dt;
-        b[3*c.vert_id+0] += k_s * c.target_pos.x;
-        b[3*c.vert_id+1] += k_s * c.target_pos.y;
-        b[3*c.vert_id+2] += k_s * c.target_pos.z;
+        b[3*c.vert_id+0] += c.k * c.target_pos.x;
+        b[3*c.vert_id+1] += c.k * c.target_pos.y;
+        b[3*c.vert_id+2] += c.k * c.target_pos.z;
     }
 }
 template <class Constraint>
@@ -330,7 +328,7 @@ void projective_dynamics(const SoftBody& body,
     Map<VectorXr> v(vel, 3*body.verts.size());
     Map<const VectorXr> f_ext(f, 3*body.verts.size());
     VectorXr x_orig = x;
-    VectorXr x_tilde = x + dt*v + (dt*dt)*body.M_LDLt.solve(f_ext);
+    VectorXr x_tilde = x + dt*v + body.M_LDLt.solve(f_ext);
 
     std::vector<glm::tmat3x3<real>> F(body.tets.size());
     std::vector<glmx::SVD_mats<real>> F_svd(body.tets.size());
@@ -415,7 +413,7 @@ void admm_dynamics(const SoftBody& body,
     Map<VectorXr> v(vel, 3*num_vertices);
     Map<const VectorXr> f_ext(f, 3*num_vertices);
     VectorXr x_orig = x;
-    VectorXr x_tilde = x + dt*v + (dt*dt)*body.M_LDLt.solve(f_ext);
+    VectorXr x_tilde = x + dt*v + body.M_LDLt.solve(f_ext);
     x = x_tilde;
 
     std::vector<glm::tmat3x3<real>> u(num_tets, glm::tmat3x3<real>(0.0));
@@ -496,13 +494,12 @@ void quasinewton_dynamics_volume_constraint_energy_gradient(
         const SoftBody& body, const Constraint* constraints, uint32_t num_constraints, real dt,
         const glm::rmat3* F, const glmx::SVD_mats<real>* F_svd, OUT glm::rvec3* E_grad) {
 
-    real dt_sq = dt * dt;
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         glm::ivec4 tet = body.tets[c.tet_id];
         auto& D_i = body.D[c.tet_id];
         glm::rmat3 pk1_tensor = pk1(F[c.tet_id], F_svd[c.tet_id], c);
-        real k_s = c.k * dt_sq * body.W[c.tet_id];
+        real k_s = c.k * body.W[c.tet_id];
         for (int j = 0; j < 4; j++) {
             E_grad[tet[j]] += k_s * (pk1_tensor * D_i[j]);
         }
@@ -515,7 +512,7 @@ void quasinewton_dynamics_positional_constraint_energy_gradient(
     real dt_sq = dt * dt;
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
-        E_grad[c.vert_id] += c.k * dt_sq * (x[c.vert_id] - c.target_pos);
+        E_grad[c.vert_id] += c.k * (x[c.vert_id] - c.target_pos);
     }
 }
 
@@ -592,7 +589,7 @@ void quasinewton_dynamics(const SoftBody& body,
     Map<VectorXr> v(vel, 3*body.verts.size());
     Map<const VectorXr> f_ext(f, 3*body.verts.size());
     VectorXr x_orig = x;
-    VectorXr x_tilde = x + dt*v + dt*dt*body.M_LDLt.solve(f_ext);
+    VectorXr x_tilde = x + dt*v + body.M_LDLt.solve(f_ext);
 
     std::vector<glm::tmat3x3<real>> F(body.tets.size());
     std::vector<glmx::SVD_mats<real>> F_svd(body.tets.size());

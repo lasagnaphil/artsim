@@ -72,14 +72,14 @@ struct SoftBody {
     virtual void load(const TetMesh& mesh);
     virtual void load(const PyMesh::MshLoader& msh);
 
-    void build_mass(real density);
+    void build_mass(real density = 0, real dt = 1);
 
     template <class Constraint>
-    void add_volume_constraint(const Constraint& c, real dt = 1) {
+    void add_volume_constraint(const Constraint& c) {
         glm::ivec4 tet = tets[c.tet_id];
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
-                real dL = c.k * (dt * dt) * W[c.tet_id] * glm::dot(D[c.tet_id][j], D[c.tet_id][k]);
+                real dL = c.k * W[c.tet_id] * glm::dot(D[c.tet_id][j], D[c.tet_id][k]);
                 A.coeffRef(3*tet[j]+0, 3*tet[k]+0) += dL;
                 A.coeffRef(3*tet[j]+1, 3*tet[k]+1) += dL;
                 A.coeffRef(3*tet[j]+2, 3*tet[k]+2) += dL;
@@ -88,10 +88,10 @@ struct SoftBody {
     }
 
     template <class Constraint>
-    void add_positional_constraint(const Constraint& c, real dt = 1) {
-        A.coeffRef(3*c.vert_id+0, 3*c.vert_id+0) += c.k * (dt * dt);
-        A.coeffRef(3*c.vert_id+1, 3*c.vert_id+1) += c.k * (dt * dt);
-        A.coeffRef(3*c.vert_id+2, 3*c.vert_id+2) += c.k * (dt * dt);
+    void add_positional_constraint(const Constraint& c) {
+        A.coeffRef(3*c.vert_id+0, 3*c.vert_id+0) += c.k;
+        A.coeffRef(3*c.vert_id+1, 3*c.vert_id+1) += c.k;
+        A.coeffRef(3*c.vert_id+2, 3*c.vert_id+2) += c.k;
     }
 
     void factorize() {

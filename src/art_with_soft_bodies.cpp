@@ -155,18 +155,18 @@ void ArtWithSoftBodies::load(const char* metadata) {
     for (int sb_idx = 0; sb_idx < sb_count; sb_idx++) {
         auto& sb = soft_bodies[sb_idx];
         auto& constraints = sb_constraints[sb_idx];
-        sb.build_mass(soft_body_props[sb_idx].density);
+        sb.build_mass(soft_body_props[sb_idx].density, dt);
         for (auto& c : constraints.arap_energy) {
-            sb.add_volume_constraint(c, dt);
+            sb.add_volume_constraint(c);
         }
         for (auto& c : constraints.corotational_energy) {
-            sb.add_volume_constraint(c, dt);
+            sb.add_volume_constraint(c);
         }
         for (auto& c : constraints.neohookean_energy) {
-            sb.add_volume_constraint(c, dt);
+            sb.add_volume_constraint(c);
         }
         for (auto& c : constraints.positional) {
-            sb.add_positional_constraint(c, dt);
+            sb.add_positional_constraint(c);
         }
         sb.factorize();
     }

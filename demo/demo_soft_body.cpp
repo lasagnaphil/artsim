@@ -16,8 +16,8 @@
 #include <gengine_artsim/soft_body_render.h>
 #include <omp.h>
 
-// #define DEMO_PD
-#define DEMO_ADMM
+#define DEMO_PD
+// #define DEMO_ADMM
 // #define DEMO_QUASINEWTON
 
 // #define DEMO_QUASISTATIC
@@ -62,11 +62,9 @@ public:
         soft_body.load(tet_mesh);
 
 #if defined(DEMO_QUASISTATIC)
-        soft_body.build_mass(0);
-        real constr_dt = 1;
+        soft_body.build_mass();
 #else
-        soft_body.build_mass(props.density);
-        real constr_dt = sim_dt;
+        soft_body.build_mass(props.density, sim_dt);
 #endif
 
 #if defined(DEMO_PD)
@@ -78,10 +76,10 @@ public:
         constraints.positional.push_back({400, 1e7, glm::rvec3(0, 0, 0)});
 
         for (auto& c : constraints.linear_strain_energy) {
-            soft_body.add_volume_constraint(c, constr_dt);
+            soft_body.add_volume_constraint(c);
         }
         for (auto& c : constraints.positional) {
-            soft_body.add_positional_constraint(c, constr_dt);
+            soft_body.add_positional_constraint(c);
         }
 
 #elif defined(DEMO_ADMM) || defined(DEMO_QUASINEWTON)
@@ -97,10 +95,10 @@ public:
         constraints.positional.push_back({400, 1e7, glm::rvec3(0, 0, 0)});
 
         for (auto& c : constraints.corotational_energy) {
-            soft_body.add_volume_constraint(c, constr_dt);
+            soft_body.add_volume_constraint(c);
         }
         for (auto& c : constraints.positional) {
-            soft_body.add_positional_constraint(c, constr_dt);
+            soft_body.add_positional_constraint(c);
         }
 #endif
         soft_body.factorize();

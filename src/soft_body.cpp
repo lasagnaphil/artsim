@@ -153,13 +153,13 @@ void SoftBody::load(const PyMesh::MshLoader& msh) {
     gen_surface_triangles_from_tet_mesh(tets, OUT surface_triangles);
 }
 
-void SoftBody::build_mass(real density) {
+void SoftBody::build_mass(real density, real dt) {
     int num_vertices = verts.size();
     int num_tets = tets.size();
     A.resize(3 * num_vertices, 3 * num_vertices);
     std::unordered_map<glm::ivec2, real> A_triplets_map;
     for (int i = 0; i < num_tets; i++) {
-        real m = density * W[i] / 20.0;
+        real m = density * W[i] / real(20.0) / (dt * dt);
         glm::ivec4 tet = tets[i];
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
