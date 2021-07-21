@@ -37,7 +37,7 @@ public:
 
     const std::vector<Node>& get_nodes() const { return nodes; }
 
-    bool traverse(AABBTreeVisitor<T>& visitor) {
+    bool traverse(AABBTreeVisitor<T>& visitor) const {
         return traverse_children(0, visitor);
     }
 
@@ -48,7 +48,7 @@ private:
     void create_children(int node_id, std::vector<int>& queue,
                          const std::vector<AABB>& leaves, const std::vector<glm::rvec3>& centroids);
 
-    bool traverse_children(int node_id, AABBTreeVisitor<T>& visitor);
+    bool traverse_children(int node_id, AABBTreeVisitor<T>& visitor) const;
 
     template <class PairVisitor>
     static void find_collisions(const AABBTree& tree1, const AABBTree& tree2, int node1_id, int node2_id,
@@ -208,7 +208,7 @@ void AABBTree<T>::create_children(int node_id, std::vector<int>& queue, const st
 }
 
 template<class T>
-bool AABBTree<T>::traverse_children(int node_id, AABBTreeVisitor<T>& visitor) {
+bool AABBTree<T>::traverse_children(int node_id, AABBTreeVisitor<T>& visitor) const {
     auto& node = nodes[node_id];
     if (!visitor.hit_aabb(node.aabb)) {
         return false;
