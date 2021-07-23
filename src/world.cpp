@@ -257,10 +257,9 @@ void World::integrate_with_contacts() {
                 BodyLinkId body2_id = body1_is_art1 ? cp.body2_id : cp.body1_id;
                 auto [_, art1_lidx] = body1_id.get_articulation_id();
                 auto contact_T = rtransform(cp.pos, rmat3(cp.tangent1, cp.tangent2, cp.normal));
-                auto contact_rel_T = contact_T / art1.get_global_joint_trans(art1_lidx);
                 rtransform* T_joint_global = art1.get_global_joint_trans_buf();
                 dynmat_view<real> Jc_T_view(Jc_T.data(), art1_num_vel_dofs, 3*art1_num_contact_points);
-                calc_linear_jacobian_transpose(art1.get_spec(), art1_lidx, contact_rel_T, T_joint_global,
+                calc_linear_jacobian_transpose(art1.get_spec(), art1_lidx, contact_T, T_joint_global,
                                                OUT Jc_T_view.slice(0, art1_num_vel_dofs, 3*k, 3));
                 // lambda[cidx].x = cp->bt_manifold_point->m_appliedImpulseLateral1;
                 // lambda[cidx].y = cp->bt_manifold_point->m_appliedImpulseLateral2;

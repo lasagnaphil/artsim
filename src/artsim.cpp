@@ -76,7 +76,7 @@ void CollisionMesh::init_from_obj(const char *filename, real sdf_grid_size) {
 real CollisionShape::mass(real density) {
     switch (type) {
         case Type::Box: return density * scale.x * scale.y * scale.z;
-        case Type::Sphere: return real(4.0 / 3.0) * glm::pi<real>() * scale.x * scale.y * scale.z;
+        case Type::Sphere: return real(4.0 / 3.0) * density * glm::pi<real>() * scale.x * scale.y * scale.z;
         default: return real(0);
     }
 }

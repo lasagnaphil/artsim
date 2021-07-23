@@ -95,18 +95,17 @@ tscrew<real> calc_v0(const Joint& joint, const real* u) {
     }
 }
 
-void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const ttransform<real>& offset,
+void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const ttransform<real>& T_frame_global,
                         const ttransform<real>* T_joint_global,
                         tscrew<real>* J_b) {
     ZoneScoped
     std::fill_n(J_b, art.get_num_vel_dofs(), tscrew<real>(IDENTITY));
-    auto T_m = T_joint_global[joint_idx] * offset;
     int i = joint_idx;
     do {
         int joint_vel_dof_start = art.joint_vel_dof_starts[i];
         int joint_vel_dofs = art.joint_vel_dofs[i];
         auto& joint = art.joints[i];
-        auto T = T_joint_global[i] / T_m;
+        auto T = T_joint_global[i] / T_frame_global;
         switch (joint.type) {
             case JOINT_TYPE_REVOLUTE_X:  J_b[joint_vel_dof_start] = {T.R[0], glm::cross(T.v, T.R[0])}; break;
             case JOINT_TYPE_REVOLUTE_Y:  J_b[joint_vel_dof_start] = {T.R[1], glm::cross(T.v, T.R[1])}; break;
@@ -132,20 +131,19 @@ void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, cons
     } while (i != -1);
 }
 
-void calc_linear_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& offset,
+void calc_linear_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& T_frame_global,
                           const rtransform* T_joint_global,
                           OUT dynmat_view<real> Jc) {
     ZoneScoped
     assert(Jc.rows == 3);
     assert(Jc.cols == art.get_num_vel_dofs());
     Jc.clear_zero();
-    auto T_m = T_joint_global[joint_idx] * offset;
     int i = joint_idx;
     do {
         int joint_vel_dof_start = art.joint_vel_dof_starts[i];
         int joint_vel_dofs = art.joint_vel_dofs[i];
         auto& joint = art.joints[i];
-        auto T = T_joint_global[i] / T_m;
+        auto T = T_joint_global[i] / T_frame_global;
         auto set_jacobian = [&Jc, joint_vel_dof_start](int i, glm::rvec3 v) {
             Jc(0, joint_vel_dof_start+i) = v[0];
             Jc(1, joint_vel_dof_start+i) = v[1];
@@ -176,20 +174,19 @@ void calc_linear_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, co
     } while (i != -1);
 }
 
-void calc_linear_jacobian_transpose(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& offset,
+void calc_linear_jacobian_transpose(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& T_frame_global,
                                     const rtransform* T_joint_global,
                                     OUT dynmat_view<real> Jc_T) {
     ZoneScoped
     assert(Jc_T.rows == art.get_num_vel_dofs());
     assert(Jc_T.cols == 3);
     Jc_T.clear_zero();
-    auto T_m = T_joint_global[joint_idx] * offset;
     int i = joint_idx;
     do {
         int joint_vel_dof_start = art.joint_vel_dof_starts[i];
         int joint_vel_dofs = art.joint_vel_dofs[i];
         auto& joint = art.joints[i];
-        auto T = T_joint_global[i] / T_m;
+        auto T = T_joint_global[i] / T_frame_global;
         auto set_jacobian = [&Jc_T, joint_vel_dof_start](int i, glm::rvec3 v) {
             Jc_T(joint_vel_dof_start+i, 0) = v[0];
             Jc_T(joint_vel_dof_start+i, 1) = v[1];

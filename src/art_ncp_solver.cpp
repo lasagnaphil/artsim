@@ -6,6 +6,8 @@
 #include "artsim/art_dynamics.h"
 #include "artsim/math/eigen.h"
 
+#include <Eigen/IterativeLinearSolvers>
+
 namespace artsim {
 
 struct StateDOFMetadata {
@@ -116,6 +118,9 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
     VectorXr h(3*num_contact_points);
     VectorXr b(3*num_contact_points);
 
+    // Preconditioning for constraints
+    VectorXr r(3*num_contact_points);
+
     // Contact constraint function
     VectorXr c_n(num_contact_points);
 
@@ -152,7 +157,7 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
     lam.setZero();
 
     printf("Newton step start\n");
-    const int max_newton_iters = 10;
+    const int max_newton_iters = 20;
     for (int iter = 0; iter < max_newton_iters; iter++) {
         for (int cidx = 0; cidx < num_contact_points; cidx++) {
             glm::rvec3 pos1, pos2;
@@ -182,13 +187,15 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
                 mat2 = rb->mat_id;
             }
 
+            r(3*cidx+0) = r(3*cidx+1) = cfg.dt;
+            r(3*cidx+2) = cfg.dt * cfg.dt;
             c_n(cidx) = glm::dot(cp.normal, pos1 - pos2);
             materials[cidx] = material_db.get_material_pair(mat1, mat2);
         }
 
 #define SQR(x) ((x)*(x))
 
-        auto calc_body_jac = [&](const ContactPoint& cp, BodyLinkId bid, glm::rvec3 pos) -> std::vector<glm::rvec3> {
+        auto calc_body_jac = [&](const ContactPoint& cp, BodyLinkId bid) -> std::vector<glm::rvec3> {
             std::vector<glm::rvec3> J;
             if (bid.is_articulation()) {
                 auto [art_id, lidx] = bid.get_articulation_id();
@@ -199,7 +206,7 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
                 auto J_view = glmx::dynmat_view<real>((real*)J.data(), 3, num_art_vel_dofs);
                 auto contact_frame = glm::rmat3(cp.tangent1, cp.tangent2, cp.normal);
                 calc_linear_jacobian(art_spec, lidx,
-                                     glmx::rtransform(pos, contact_frame) / art->get_global_joint_trans(lidx),
+                                     glmx::rtransform(cp.pos, contact_frame),
                                      art->get_global_joint_trans_buf(), OUT J_view);
             }
             else if (bid.is_rigid_body()) {
@@ -214,12 +221,14 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
         };
 
         J_c.setZero();
+        C.setZero();
+        h.setZero();
         for (int cidx = 0; cidx < num_contact_points; cidx++) {
             auto& cp = contact_points[cidx];
             BodyId bid1 = cp.body1_id.get_body_id();
             BodyId bid2 = cp.body2_id.get_body_id();
-            std::vector<glm::rvec3> J1 = calc_body_jac(cp, cp.body1_id, cp.pos);
-            std::vector<glm::rvec3> J2 = calc_body_jac(cp, cp.body2_id, cp.pos);
+            std::vector<glm::rvec3> J1 = calc_body_jac(cp, cp.body1_id);
+            std::vector<glm::rvec3> J2 = calc_body_jac(cp, cp.body2_id);
             auto [body1_dof_start, body1_dofs] = state_meta.get_vel_dof_starts_and_size(bid1);
             auto [body2_dof_start, body2_dofs] = state_meta.get_vel_dof_starts_and_size(bid2);
             glm::rvec2 v_f = glm::rvec2(0);
@@ -235,24 +244,24 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
             }
 
             const real epsilon = 1e-9;
-            real r_n = cfg.dt*cfg.dt; // TODO: use a better preconditioner
-            real lam_n = lam(3*cidx);
+            real r_n = r(3*cidx+2);
+            real lam_n = lam(3*cidx+2);
             real r_n_lam_n = r_n * lam_n;
             real C_n = c_n(cidx);
-            // if (C_n > 0 && lam_n == 0) continue;
             real size_n = glm::sqrt(SQR(C_n) + SQR(r_n_lam_n));
             real alpha, beta;
             if (glm::abs(C_n) < epsilon && glm::abs(r_n_lam_n) < epsilon) {
-                alpha = 0;
-                beta = 1;
+                alpha = real(0);
+                beta = real(1);
             }
             else {
-                alpha = 1 - C_n / size_n;
-                beta = 1 - r_n_lam_n / size_n;
+                alpha = real(1) - C_n / size_n;
+                beta = real(1) - r_n_lam_n / size_n;
             }
             real phi_n = C_n + r_n_lam_n - size_n;
 
-            real r_f = cfg.dt; // TODO: use a better preconditioner
+            // Note: how should we set the preconditioner? Is a min() okay?
+            real r_f = glm::min(r(3*cidx+0), r(3*cidx+1));
             real v_f_len_sq = glm::length2(v_f);
             real v_f_len = glm::sqrt(v_f_len_sq);
             real mu = materials[cidx].friction;
@@ -279,8 +288,8 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
                 J_c(3*cidx+2, sidx) -= alpha * glm::dot(J2[k], cp.normal);
             }
 
-            C(3*cidx+0) = C(3*cidx+1) = (lam_n > 0? W : 1) / cfg.dt;
-            C(3*cidx+2) = beta / SQR(cfg.dt);
+            C(3*cidx+0) = C(3*cidx+1) = (lam_n > 0? W : r_f) / cfg.dt;
+            C(3*cidx+2) = beta * r_n / SQR(cfg.dt);
 
             h(3*cidx+0) = phi_f.x;
             h(3*cidx+1) = phi_f.y;
@@ -291,11 +300,21 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
         A = J_c * Minv * J_c.transpose();
         A.diagonal() += C;
         b = (J_c * (Minv * g) - h) / cfg.dt;
-        dlam = A.ldlt().solve(b);
+        Eigen::ConjugateGradient<MatrixXr, Eigen::Lower|Eigen::Upper, Eigen::DiagonalPreconditioner<real>> cg;
+        cg.setMaxIterations(20);
+        cg.setTolerance(1e-6);
+        cg.compute(A);
+        dlam = cg.solve(b);
         du = Minv * (J_c.transpose() * (cfg.dt * dlam) - g);
 
         lam += real(0.75) * dlam;
         u += real(0.75) * du;
+
+        for (int cidx = 0; cidx < num_contact_points; cidx++) {
+            r(3*cidx) = cfg.dt * A(3*cidx, 3*cidx);
+            r(3*cidx+1) = cfg.dt * A(3*cidx+1, 3*cidx+1);
+            r(3*cidx+2) = cfg.dt * cfg.dt * A(3*cidx+2, 3*cidx+2);
+        }
 
         articulated_bodies.foreach_id_val([&](Id<ArticulatedBody> art_id, ArticulatedBody& art){
             auto bid = BodyId::from_articulated_body(art_id);
@@ -309,10 +328,21 @@ void World::ncp_solver(const ContactPoint* contact_points, int num_contact_point
             // TODO
         });
 
+        std::cout << std::endl;
         printf("||dlam|| = %f, ||du|| = %f, ||h|| = %f\n", dlam.norm(), du.norm(), h.norm());
-        std::cout << "lam: " << lam.transpose() << std::endl;
-        std::cout << "u: " << u.transpose() << std::endl;
-        std::cout << "h: " << h.transpose() << std::endl;
+        std::cout << "dlam:\t" << dlam.transpose() << std::endl;
+        std::cout << "lam:\t" << lam.transpose() << std::endl;
+        std::cout << "du:\t" << du.transpose() << std::endl;
+        std::cout << "u:\t" << u.transpose() << std::endl;
+        std::cout << "g:\t" << g.transpose() << std::endl;
+        std::cout << "h:\t" << h.transpose() << std::endl;
+        std::cout << "c_n:\t" << c_n.transpose() << std::endl;
+
+        std::cout << "A:" << std::endl;
+        std::cout << A << std::endl;
+        std::cout << "b:\t" << b.transpose() << std::endl;
+        std::cout << "J:" << std::endl;
+        std::cout << J_c << std::endl;
     }
 
 }
