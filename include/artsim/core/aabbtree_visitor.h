@@ -132,37 +132,99 @@ bool NearestTriangle<T>::check_left_first( const AABB &left, const AABB &right )
     return glmx::distance2(left, point) < glmx::distance2(right, point);
 }
 
-/*
 template <class T>
-struct RayCast : public AABBTreeVisitor<T> {
+struct RayCastToTriMesh : public AABBTreeVisitor<T> {
     using AABB = glmx::tbox<3, T>;
 
-    glm::tvec3<T> pos;
+    glm::tvec3<T> pstart;
+    glm::tvec3<T> pend;
     glm::tvec3<T> dir;
+    glm::tvec3<T> dir_inv;
+    T max_dist;
 
+    const glm::tvec3<T>* verts;
+    const glm::ivec3* tris;
+
+    glm::tvec3<T> hit_point;
     T hit_t;
     int hit_tri;
 
-    RayCast(glm::tvec3<T> pos, glm::tvec3<T> dir) : pos(pos), dir(dir) {}
+    RayCastToTriMesh(glm::tvec3<T> pos, glm::tvec3<T> dir, T max_dist,
+                     const glm::tvec3<T>* verts, const glm::ivec3* tris)
+        : pstart(pos), dir(dir), max_dist(max_dist),
+          verts(verts), tris(tris)
+    {
+        dir_inv = glm::tvec3<T>(1) / dir;
+        pend = pstart + max_dist*dir;
+    }
+
     bool hit_aabb(const AABB &aabb);
     bool hit_prim(int prim);
     bool check_left_first(const AABB &left, const AABB &right);
 };
 
+// Slab method for box-ray collision.
+// Source: https://tavianator.com/2011/ray_box.html and https://tavianator.com/2015/ray_box_nan.html
 template <class T>
-bool RayCast<T>::hit_aabb(const RayCast::AABB &aabb) {
-    return false;
+bool RayCastToTriMesh<T>::hit_aabb(const RayCastToTriMesh::AABB &aabb) {
+    T tx1 = (aabb.lo.x - pstart.x) * dir_inv.x;
+    T tx2 = (aabb.hi.x - pstart.x) * dir_inv.x;
+    T tmin = glm::min(tx1, tx2);
+    T tmax = glm::max(tx1, tx2);
+    T ty1 = (aabb.lo.y - pstart.y) * dir_inv.y;
+    T ty2 = (aabb.hi.y - pstart.y) * dir_inv.y;
+    tmin = glm::max(tmin, glm::min(glm::min(ty1, ty2), std::numeric_limits<T>::infinity()));
+    tmax = glm::min(tmax, glm::max(glm::max(ty1, ty2), -std::numeric_limits<T>::infinity()));
+    T tz1 = (aabb.lo.z - pstart.z) * dir_inv.z;
+    T tz2 = (aabb.hi.z - pstart.z) * dir_inv.z;
+    tmin = glm::max(tmin, glm::min(glm::min(tz1, tz2), std::numeric_limits<T>::infinity()));
+    tmax = glm::min(tmax, glm::max(glm::max(tz1, tz2), -std::numeric_limits<T>::infinity()));
+    return tmax >= tmin;
+}
+
+// Moller-Trumbore intersection algorithm.
+// Source: https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
+
+template <class T>
+inline T ray_triangle_intersection(const glm::tvec3<T>& ray_from, const glm::tvec3<T>& ray_dir,
+                                   const glm::tvec3<T>& vertex0, const glm::tvec3<T>& vertex1, const glm::tvec3<T>& vertex2) {
+    const T EPSILON = 1e-7;
+    glm::tvec3<T> edge1, edge2, h, s, q;
+    T a,f,u,v;
+    edge1 = vertex1 - vertex0;
+    edge2 = vertex2 - vertex0;
+    h = glm::cross(ray_dir, edge2);
+    a = glm::dot(edge1, h);
+    if (a > -EPSILON && a < EPSILON)
+        return false;    // This ray is parallel to this triangle.
+    f = T(1)/a;
+    s = ray_from - vertex0;
+    u = f * glm::dot(s, h);
+    if (u < T(0) || u > T(1))
+        return false;
+    q = glm::cross(s, edge1);
+    v = f * glm::dot(ray_dir, q);
+    if (v < T(0) || u + v > T(1))
+        return false;
+    // At this stage we can compute t to find out where the intersection point is on the line.
+    return f * glm::dot(edge2, q);
 }
 
 template <class T>
-bool RayCast<T>::hit_prim(int prim) {
-    return false;
+bool RayCastToTriMesh<T>::hit_prim(int prim) {
+    auto tri = tris[prim];
+    auto v0 = verts[tri[0]];
+    auto v1 = verts[tri[1]];
+    auto v2 = verts[tri[2]];
+    hit_tri = prim;
+    hit_t = ray_triangle_intersection(pstart, dir, v0, v1, v2);
+    hit_point = pstart + hit_t*dir;
+    return hit_t >= 0 && hit_t <= max_dist;
 }
 
 template <class T>
-bool RayCast<T>::check_left_first(const RayCast::AABB &left, const RayCast::AABB &right) {
-    return false;
+bool RayCastToTriMesh<T>::check_left_first(const RayCastToTriMesh::AABB &left, const RayCastToTriMesh::AABB &right) {
+    return dir.x > 0;
 }
- */
 
 #endif //EOS_SCAN_TO_HUMAN_AABBTREE_VISITOR_H
