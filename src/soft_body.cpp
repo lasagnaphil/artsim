@@ -15,8 +15,8 @@
 #include <glm/gtx/hash.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <fmt/core.h>
-#include <BulletCollision/CollisionShapes/btTriangleMesh.h>
-#include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
+
+#include <Tracy.hpp>
 
 using namespace Eigen;
 using MatrixXr = Matrix<artsim::real, Dynamic, Dynamic>;
@@ -154,9 +154,12 @@ void SoftBody::load(const PyMesh::MshLoader& msh) {
 }
 
 void SoftBody::build_mass(real density, real dt) {
+    ZoneScoped
     int num_vertices = verts.size();
     int num_tets = tets.size();
     A.resize(3 * num_vertices, 3 * num_vertices);
+
+    std::vector<Eigen::Triplet<real>> A_triplets;
     std::unordered_map<glm::ivec2, real> A_triplets_map;
     for (int i = 0; i < num_tets; i++) {
         real m = density * W[i] / real(20.0) / (dt * dt);
@@ -175,13 +178,17 @@ void SoftBody::build_mass(real density, real dt) {
             }
         }
     }
-    std::vector<Eigen::Triplet<real>> A_triplets;
     A_triplets.reserve(A_triplets_map.size());
     for (auto&[k, v] : A_triplets_map) {
         A_triplets.emplace_back(k[0], k[1], v);
     }
+
     A.setFromTriplets(A_triplets.begin(), A_triplets.end());
     M = A;
+
+    // Factorize mass matrix (not going to change over the course of simulation, so better do it now)
+    M_LDLt.analyzePattern(M);
+    M_LDLt.factorize(M);
 }
 
 void SoftBody::clear_mass() {

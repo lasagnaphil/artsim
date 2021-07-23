@@ -13,7 +13,7 @@
 #include <artsim/math/svd.h>
 #include <artsim/utils/pymesh/MshLoader.h>
 #include <Eigen/SparseCholesky>
-#include <BulletCollision/CollisionShapes/btTriangleMesh.h>
+#include <Tracy.hpp>
 
 class btBvhTriangleMeshShape;
 
@@ -95,16 +95,9 @@ struct SoftBody {
     }
 
     void factorize() {
-        // Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
+        ZoneScoped
         A_LDLt.analyzePattern(A);
         A_LDLt.factorize(A);
-        M_LDLt.analyzePattern(M);
-        M_LDLt.factorize(M);
-        /*
-        fac_L = A_LDLt.matrixL();
-        fac_D = A_LDLt.vectorD();
-        fac_P = A_LDLt.permutationP();
-         */
     }
 
     void clear_mass();
