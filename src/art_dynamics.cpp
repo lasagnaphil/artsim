@@ -862,23 +862,29 @@ void integrate_implicit_euler(const ArticulatedBodySpec& art, real dt, const rea
                 qi[0] += qdi[0]*dt;
             } break;
             case JOINT_TYPE_SPHERICAL: {
-                qi[0] += 0.5*dt*(qi[3]*qdi[0] + qi[1]*qdi[2] - qi[2]*qdi[1]);
-                qi[1] += 0.5*dt*(qi[3]*qdi[1] + qi[2]*qdi[0] - qi[0]*qdi[2]);
-                qi[2] += 0.5*dt*(qi[3]*qdi[2] + qi[0]*qdi[1] - qi[1]*qdi[0]);
-                qi[3] -= 0.5*dt*(qi[0]*qdi[0] + qi[1]*qdi[1] + qi[2]*qdi[2]);
+                rvec3 w_b = make_vec3(qdi);
+                rquat q0 = make_quat(qi);
+                qi[0] += 0.5*dt*(q0.w * w_b.x + q0.y * w_b.z - q0.z * w_b.y);
+                qi[1] += 0.5*dt*(q0.w * w_b.y + q0.z * w_b.x - q0.x * w_b.z);
+                qi[2] += 0.5*dt*(q0.w * w_b.z + q0.x * w_b.y - q0.y * w_b.x);
+                qi[3] -= 0.5*dt*(q0.x * w_b.x + q0.y * w_b.y + q0.z * w_b.z);
                 real q_len = glm::sqrt(qi[0]*qi[0] + qi[1]*qi[1] + qi[2]*qi[2] + qi[3]*qi[3]);
                 qi[0] /= q_len; qi[1] /= q_len; qi[2] /= q_len; qi[3] /= q_len;
             } break;
             case JOINT_TYPE_FLOATING: {
                 // TODO: is there a more accurate way to integrate SE(3)?
-                glm::tvec3<real> p_dot = make_quat(qi+3) * make_vec3(qdi+3);
-                qi[0] += dt*p_dot[0];
-                qi[1] += dt*p_dot[1];
-                qi[2] += dt*p_dot[2];
-                qi[3] += 0.5*dt*(qi[6]*qdi[0] + qi[4]*qdi[2] - qi[5]*qdi[1]);
-                qi[4] += 0.5*dt*(qi[6]*qdi[1] + qi[5]*qdi[0] - qi[3]*qdi[2]);
-                qi[5] += 0.5*dt*(qi[6]*qdi[2] + qi[3]*qdi[1] - qi[4]*qdi[0]);
-                qi[6] -= 0.5*dt*(qi[3]*qdi[0] + qi[4]*qdi[1] + qi[5]*qdi[2]);
+                rvec3 v_b = make_vec3(qdi + 3);
+                rvec3 w_b = make_vec3(qdi);
+                rquat q0 = make_quat(qi + 3);
+                rvec3 p = make_vec3(qi);
+                rvec3 p_dot = q0 * v_b;
+                qi[0] += dt*p_dot.x;
+                qi[1] += dt*p_dot.y;
+                qi[2] += dt*p_dot.z;
+                qi[3] += 0.5*dt*(q0.w * w_b.x + q0.y * w_b.z - q0.z * w_b.y);
+                qi[4] += 0.5*dt*(q0.w * w_b.y + q0.z * w_b.x - q0.x * w_b.z);
+                qi[5] += 0.5*dt*(q0.w * w_b.z + q0.x * w_b.y - q0.y * w_b.x);
+                qi[6] -= 0.5*dt*(q0.x * w_b.x + q0.y * w_b.y + q0.z * w_b.z);
                 real q_len = glm::sqrt(qi[3]*qi[3] + qi[4]*qi[4] + qi[5]*qi[5] + qi[6]*qi[6]);
                 qi[3] /= q_len; qi[4] /= q_len; qi[5] /= q_len; qi[6] /= q_len;
             } break;
