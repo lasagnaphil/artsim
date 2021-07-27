@@ -13,6 +13,7 @@
 #include <artsim/math/svd.h>
 #include <artsim/utils/pymesh/MshLoader.h>
 #include <Eigen/SparseCholesky>
+// #include <Eigen/CholmodSupport>
 #include <Tracy.hpp>
 
 class btBvhTriangleMeshShape;
@@ -66,8 +67,10 @@ struct SoftBody {
 
     Eigen::SparseMatrix<real> M;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> M_LDLt;
+    // Eigen::CholmodSimplicialLDLT<Eigen::SparseMatrix<real>> M_LDLt;
     Eigen::SparseMatrix<real> A;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
+    // Eigen::CholmodSimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
 
     virtual void load(const TetMesh& mesh);
     virtual void load(const PyMesh::MshLoader& msh);

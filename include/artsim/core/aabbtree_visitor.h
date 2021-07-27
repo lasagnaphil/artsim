@@ -33,7 +33,6 @@ struct PointInTet : public AABBTreeVisitor<T> {
 
     glm::tvec3<T> point; // query point
     int hit_tet; // intersected tet
-    std::vector<int> skip_vert_idx;  // vert index to skip (for self collision)
     const T *verts;
     const int *inds;
     PointInTet( glm::tvec3<T> point_, const T *verts_, const int *inds_ );
@@ -54,12 +53,6 @@ bool PointInTet<T>::hit_aabb( const AABB &aabb ){
 template <class T>
 bool PointInTet<T>::hit_prim( int prim ){
     glm::ivec4 tet( inds[prim*4+0], inds[prim*4+1], inds[prim*4+2], inds[prim*4+3] );
-    int n_skip = skip_vert_idx.size();
-    for( int i=0; i<n_skip; ++i ){
-        for( int j=0; j<4; ++j ){
-            if( skip_vert_idx[i]==tet[j] ){ return false; }
-        }
-    }
     glm::tvec3<T> v0( verts[tet[0]*3+0], verts[tet[0]*3+1], verts[tet[0]*3+2] );
     glm::tvec3<T> v1( verts[tet[1]*3+0], verts[tet[1]*3+1], verts[tet[1]*3+2] );
     glm::tvec3<T> v2( verts[tet[2]*3+0], verts[tet[2]*3+1], verts[tet[2]*3+2] );

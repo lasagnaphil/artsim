@@ -6,10 +6,13 @@
 #include <fastsvd/fastsvd.h>
 #include <artsim/types.h>
 
+#include <Tracy.hpp>
+
 namespace glmx {
 
 template <class T>
 void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out, int num_threads) {
+    ZoneScoped
     using namespace Singular_Value_Decomposition;
 
     int buf_size = 8 * ((A_count + 1) / 8) + 8;
