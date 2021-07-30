@@ -109,13 +109,13 @@ void OBJFile::save_obj(const char* filename) {
     std::ofstream ofs(filename);
 
     for (auto& v : vertices) {
-        ofs << "v " << v.x << " " << v.y << " " << v.z << std::endl;
+        ofs << "v " << v.x << " " << v.y << " " << v.z << '\n';
     }
     for (auto& vn : normals) {
-        ofs << "vn " << vn.x << " " << vn.y << " " << vn.z << std::endl;
+        ofs << "vn " << vn.x << " " << vn.y << " " << vn.z << '\n';
     }
     for (auto& vt : uvs) {
-        ofs << "vt " << vt.x << " " << vt.y << std::endl;
+        ofs << "vt " << vt.x << " " << vt.y << '\n';
     }
     if (!triangle_vertices.empty() && !triangle_uvs.empty() && !triangle_normals.empty() ) {
         for (int i = 0; i < triangle_vertices.size(); i++) {
@@ -124,7 +124,7 @@ void OBJFile::save_obj(const char* filename) {
             auto fn = triangle_normals[i]+1;
             ofs << "f " << fi[0] << "/" << ft[0] << "/" << fn[0] << " "
                         << fi[1] << "/" << ft[1] << "/" << fn[1] << " "
-                        << fi[2] << "/" << ft[2] << "/" << fn[2] << std::endl;
+                        << fi[2] << "/" << ft[2] << "/" << fn[2] << '\n';
         }
     }
     else if (!triangle_vertices.empty() && !triangle_normals.empty()) {
@@ -133,17 +133,17 @@ void OBJFile::save_obj(const char* filename) {
             auto fn = triangle_normals[i]+1;
             ofs << "f " << fi[0] << "//" << fn[0] << " "
                         << fi[1] << "//" << fn[1] << " "
-                        << fi[2] << "//" << fn[2] << std::endl;
+                        << fi[2] << "//" << fn[2] << '\n';
         }
     }
     else if (!triangle_vertices.empty()) {
         for (int i = 0; i < triangle_vertices.size(); i++) {
             auto fi = triangle_vertices[i]+1;
-            ofs << "f " << fi[0] << " " << fi[1] << " " << fi[2] << std::endl;
+            ofs << "f " << fi[0] << " " << fi[1] << " " << fi[2] << '\n';
         }
     }
     for (auto& t : tetrahedrons) {
-        ofs << "t " << t[0] << " " << t[1] << " " << t[2] << " " << t[3] << std::endl;
+        ofs << "t " << t[0] << " " << t[1] << " " << t[2] << " " << t[3] << '\n';
     }
 }
 

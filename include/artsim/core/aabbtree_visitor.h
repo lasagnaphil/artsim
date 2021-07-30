@@ -77,19 +77,18 @@ struct NearestTriangle : public AABBTreeVisitor<T> {
     glm::tvec3<T> point; // query point
     glm::tvec3<T> proj; // nearest point on hit_tri
     int hit_tri; // triangle idx
-    std::vector<int> skip_vert_idx; // vert index to skip (for self collision)
     T curr_nearest; // current nearest distance to tri
-    const T *verts;
-    const int *inds;
-    NearestTriangle( glm::tvec3<T> point_, const T *verts_, const int *inds_ );
+    const glm::tvec3<T> *verts;
+    const glm::ivec3 *tris;
+    NearestTriangle( glm::tvec3<T> point_, const glm::tvec3<T> *verts, const glm::ivec3* tris);
     bool hit_aabb( const AABB &aabb );
     bool hit_prim( int prim );
     bool check_left_first( const AABB &left, const AABB &right );
 };
 
 template <class T>
-NearestTriangle<T>::NearestTriangle( glm::tvec3<T> point_, const T *verts_, const int *inds_ ) :
-        point(point_), verts(verts_), inds(inds_), hit_tri(-1), proj(-1,-1,-1),
+NearestTriangle<T>::NearestTriangle( glm::tvec3<T> point_, const glm::tvec3<T>* verts, const glm::ivec3* tris) :
+        point(point_), verts(verts), tris(tris), hit_tri(-1), proj(-1,-1,-1),
         curr_nearest(std::numeric_limits<T>::max()) {}
 
 template <class T>
@@ -99,17 +98,10 @@ bool NearestTriangle<T>::hit_aabb( const AABB &aabb ){
 
 template <class T>
 bool NearestTriangle<T>::hit_prim( int prim ){
-    glm::ivec3 tri( inds[prim*3+0], inds[prim*3+1], inds[prim*3+2] );
-    int n_skip = skip_vert_idx.size();
-    for( int i=0; i<n_skip; ++i ){
-        for( int j=0; j<3; ++j ){
-            if( skip_vert_idx[i]==tri[j] ){ return false; }
-        }
-    }
-    glm::tvec3<T> v0( verts[tri[0]*3+0], verts[tri[0]*3+1], verts[tri[0]*3+2] );
-    glm::tvec3<T> v1( verts[tri[1]*3+0], verts[tri[1]*3+1], verts[tri[1]*3+2] );
-    glm::tvec3<T> v2( verts[tri[2]*3+0], verts[tri[2]*3+1], verts[tri[2]*3+2] );
-
+    glm::ivec3 tri = tris[prim];
+    auto v0 = verts[tri[0]];
+    auto v1 = verts[tri[1]];
+    auto v2 = verts[tri[2]];
     glm::tvec3<T> p = glmx::point_on_triangle( point, v0, v1, v2 );
     T dist = glm::distance2(p, point);
     if( dist > curr_nearest ){ return false; }
@@ -126,9 +118,11 @@ bool NearestTriangle<T>::check_left_first( const AABB &left, const AABB &right )
 }
 
 template <class T>
-struct RayCastToTriMesh : public AABBTreeVisitor<T> {
+class RayCastToTriMesh : public AABBTreeVisitor<T> {
+public:
     using AABB = glmx::tbox<3, T>;
 
+protected:
     glm::tvec3<T> pstart;
     glm::tvec3<T> pend;
     glm::tvec3<T> dir;
@@ -138,6 +132,7 @@ struct RayCastToTriMesh : public AABBTreeVisitor<T> {
     const glm::tvec3<T>* verts;
     const glm::ivec3* tris;
 
+public:
     glm::tvec3<T> hit_point;
     T hit_t;
     int hit_tri;
@@ -145,7 +140,8 @@ struct RayCastToTriMesh : public AABBTreeVisitor<T> {
     RayCastToTriMesh(glm::tvec3<T> pos, glm::tvec3<T> dir, T max_dist,
                      const glm::tvec3<T>* verts, const glm::ivec3* tris)
         : pstart(pos), dir(dir), max_dist(max_dist),
-          verts(verts), tris(tris)
+          verts(verts), tris(tris),
+          hit_t(max_dist), hit_tri(-1)
     {
         dir_inv = glm::tvec3<T>(1) / dir;
         pend = pstart + max_dist*dir;
@@ -209,15 +205,58 @@ bool RayCastToTriMesh<T>::hit_prim(int prim) {
     auto v0 = verts[tri[0]];
     auto v1 = verts[tri[1]];
     auto v2 = verts[tri[2]];
-    hit_tri = prim;
-    hit_t = ray_triangle_intersection(pstart, dir, v0, v1, v2);
-    hit_point = pstart + hit_t*dir;
-    return hit_t >= 0 && hit_t <= max_dist;
+    T t = ray_triangle_intersection(pstart, dir, v0, v1, v2);
+    if (t >= 0 && t <= hit_t) {
+        hit_tri = prim;
+        hit_t = t;
+        hit_point = pstart + hit_t*dir;
+        return true;
+    }
+    else {
+        return false;
+    }
 }
 
 template <class T>
 bool RayCastToTriMesh<T>::check_left_first(const RayCastToTriMesh::AABB &left, const RayCastToTriMesh::AABB &right) {
     return dir.x > 0;
+}
+
+template <class T>
+class RayCastToTriMeshMultiple : public RayCastToTriMesh<T> {
+public:
+    struct HitResult {
+        int tri;
+        T t;
+        glm::tvec3<T> point;
+    };
+    std::vector<HitResult> results;
+
+    RayCastToTriMeshMultiple(glm::tvec3<T> pos, glm::tvec3<T> dir, T max_dist,
+                     const glm::tvec3<T>* verts, const glm::ivec3* tris)
+         : RayCastToTriMesh<T>(pos, dir, max_dist, verts, tris) {}
+
+    bool hit_prim(int prim) override;
+};
+
+template<class T>
+bool RayCastToTriMeshMultiple<T>::hit_prim(int prim) {
+    auto tri = this->tris[prim];
+    auto v0 = this->verts[tri[0]];
+    auto v1 = this->verts[tri[1]];
+    auto v2 = this->verts[tri[2]];
+    T t = ray_triangle_intersection(this->pstart, this->dir, v0, v1, v2);
+    glm::tvec3<T> point = this->pstart + t*this->dir;
+    results.push_back({prim, t, point});
+    if (t >= 0 && t <= this->hit_t) {
+        this->hit_tri = prim;
+        this->hit_t = t;
+        this->hit_point = point;
+        return true;
+    }
+    else {
+        return false;
+    }
 }
 
 #endif //EOS_SCAN_TO_HUMAN_AABBTREE_VISITOR_H
