@@ -2,6 +2,16 @@
 // Created by lasagnaphil on 8/4/21.
 //
 
+/*
+ * Implementation of "Rigid Body Contact Problems using Proximal Operators" by Kenny Erleben.
+ * TODO:
+ * - Implement midpoint integration
+ * - In positional updates, the displacement vector g should be updated after a single iteration.
+ *     (This is the reason why pos_iter > 1 doesn't work right now)
+ * - Need to tune initial R values, both for velocity and position update.
+ * - Need to find out why simulation explodes with human articulation
+ */
+
 #include <artsim/types.h>
 #include <artsim/math/eigen.h>
 #include <artsim/world.h>

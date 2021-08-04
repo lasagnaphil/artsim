@@ -2,6 +2,11 @@
 // Created by lasagnaphil on 21. 7. 16..
 //
 
+/*
+ * Implementation of "Non-Smooth Newton Methods for Deformable Multi-Body Dynamics" by Macklin et al.
+ * This doesn't work yet, still in the process of debugging...
+ */
+
 #include <artsim/world.h>
 #include <artsim/art_dynamics.h>
 #include <artsim/math/eigen.h>
