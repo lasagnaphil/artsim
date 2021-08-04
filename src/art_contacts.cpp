@@ -19,6 +19,7 @@ namespace artsim {
  *      - Still seems to be unstable. Investigate why.
  */
 
+
 inline real compute_r(real theta, const rvec3& Minv_r3, real c_z, real mu) {
     return -c_z / (Minv_r3.z / mu + Minv_r3.x * cos(theta) + Minv_r3.y * sin(theta));
 }
@@ -160,7 +161,7 @@ std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(const tvec3<real>& l
 }
 
 void iterative_contact_solver(
-        ContactSolverType type, uint32_t max_iters, const Material* mat, real dt,
+        ContactSolverTypeLegacy type, uint32_t max_iters, const Material* mat, real dt,
         uint32_t num_contact_points,
         const dynmat<tmat3x3<real>>& M_contact_inv,
         INOUT tvec3<real>* c, INOUT tvec3<real>* lambda) {
@@ -169,19 +170,19 @@ void iterative_contact_solver(
     real alpha, total_ncp_error_sq;
 
     switch (type) {
-        case ContactSolverType::PGS:
+        case ContactSolverTypeLegacy::PGS:
             alpha = 1.0;
             alpha_min = 1.0;
             gamma = 1.0;
             lambda_err_tol = 1e-4;
             break;
-        case ContactSolverType::Bisection:
+        case ContactSolverTypeLegacy::Bisection:
             alpha = 1.0;
             alpha_min = 0.7;
             gamma = 0.99;
             lambda_err_tol = 1e-4;
             break;
-        case ContactSolverType::NCP:
+        case ContactSolverTypeLegacy::NCP:
             alpha = 1.0;
             alpha_min = 1.0;
             gamma = 1.0;
@@ -212,13 +213,13 @@ void iterative_contact_solver(
                 else {
                     tvec3<real> lambda_star;
                     switch (type) {
-                        case ContactSolverType::PGS: {
+                        case ContactSolverTypeLegacy::PGS: {
                             lambda_star = contact_projection_solver(lambda[i], M_inv_ii, c[i], mu);
                         } break;
-                        case ContactSolverType::Bisection: {
+                        case ContactSolverTypeLegacy::Bisection: {
                             lambda_star = contact_bisection_solver(lambda_v0, M_inv_ii, c[i], mu);
                         } break;
-                        case ContactSolverType::NCP: {
+                        case ContactSolverTypeLegacy::NCP: {
                             const real r = glmx::frobenius_norm(M_inv_ii);
                             real ncp_error_sq;
                             bool success;

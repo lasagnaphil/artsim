@@ -2,9 +2,9 @@
 // Created by lasagnaphil on 21. 7. 16..
 //
 
-#include "artsim/art_ncp_solver.h"
-#include "artsim/art_dynamics.h"
-#include "artsim/math/eigen.h"
+#include <artsim/world.h>
+#include <artsim/art_dynamics.h>
+#include <artsim/math/eigen.h>
 
 #include <Eigen/IterativeLinearSolvers>
 
@@ -75,7 +75,7 @@ public:
     }
 };
 
-void World::ncp_solver(const ContactPoint* contact_points, int num_contact_points) {
+void World::newton_solver(const ContactPoint* contact_points, int num_contact_points) {
     StateDOFMetadata state_meta;
     state_meta.build(articulated_bodies, rigid_bodies);
 

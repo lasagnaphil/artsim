@@ -6,18 +6,19 @@
 #define ARTSIM_ART_CONTACTS_H
 
 #include <artsim/artsim.h>
+#include <artsim/world.h>
 #include <artsim/types.h>
 #include <artsim/math/dynmat.h>
 
 #include <glm/vec3.hpp>
 
+// Deprecated
+
 namespace artsim {
 
-enum class ContactSolverType {
+enum class ContactSolverTypeLegacy {
     PGS, Bisection, NCP
 };
-
-glm::rvec3 contact_projection_solver(glm::rvec3 lambda, const glmx::rsmat3x3& Minv, glm::rvec3 c, real mu);
 
 glm::rvec3 contact_bisection_solver(
         const glm::rvec3& lambda_v0, const glmx::rsmat3x3& Minv, const glm::rvec3& c, real mu);

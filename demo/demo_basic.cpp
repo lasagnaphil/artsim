@@ -89,7 +89,7 @@ public:
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             printf("Duration: %lld microsecs\n", duration.count());
-            run_simulation = false;
+            // run_simulation = false;
         }
     }
 
@@ -149,22 +149,11 @@ public:
             } break;
             case DemoType::Contacts: {
                 world.add_plane(default_mat_id);
-                auto sphere = CollisionShape::make_sphere(1.0f);
-                ArticulatedBodySpec art_spec;
-                art_spec.add_link_and_joint(
-                        Link::create(sphere, 1000, rtransform(IDENTITY), rtransform(IDENTITY), -1, {}),
-                        Joint::floating());
-                art_spec.build();
-                art_id = world.add_articulated_body(art_spec, default_mat_id);
-
-                /*
                 art_id = world.add_articulated_body(
                         examples::create_free_link(art_type, true), default_mat_id);
-                        */
 
                 auto art = world.get_articulated_body(art_id);
-                art->set_root_transform(glmx::rtransform(glm::rvec3(0, 1.0, 0)));
-                // art->randomize_positions();
+                art->randomize_positions();
             } break;
         }
         art_renderers.push_back(ArticulationRender(&world, art_id, orig_mesh_mat, joint_mat));

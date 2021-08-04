@@ -30,10 +30,15 @@ struct MaterialDB {
     Material get_material_pair(Id<Material> mat1_id, Id<Material> mat2_id);
 };
 
+enum class ContactSolverType {
+    Proximal, NCP
+};
+
 struct WorldConfig {
     glm::rvec3 gravity = {0.0, -9.8, 0.0};
     real dt = 1.0 / 240.0;
     int max_iters = 4;
+    ContactSolverType contact_solver_type = ContactSolverType::Proximal;
 };
 
 class World {
@@ -162,7 +167,8 @@ private:
     void load_collision_meshes(ArticulatedBodySpec& spec);
     void integrate_with_contacts();
 
-    void ncp_solver(const ContactPoint* contact_points, int num_contact_points);
+    void proximal_solver(const ContactPoint* contact_points, int num_contact_points);
+    void newton_solver(const ContactPoint* contact_points, int num_contact_points);
 };
 
 }

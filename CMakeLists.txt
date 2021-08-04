@@ -36,7 +36,8 @@ add_library(artsim
         src/world.cpp
         src/art_dynamics.cpp
         src/art_contacts.cpp
-        src/art_ncp_solver.cpp
+        src/art_proximal_solver.cpp
+        src/art_newton_solver.cpp
         src/ik.cpp
         src/soft_body.cpp
         src/art_with_soft_bodies.cpp
