@@ -37,7 +37,8 @@ enum class ContactSolverType {
 struct WorldConfig {
     glm::rvec3 gravity = {0.0, -9.8, 0.0};
     real dt = 1.0 / 240.0;
-    int max_iters = 4;
+    int max_vel_iters = 8;
+    int max_pos_iters = 2;
     ContactSolverType contact_solver_type = ContactSolverType::Proximal;
 };
 
@@ -167,7 +168,7 @@ private:
     void load_collision_meshes(ArticulatedBodySpec& spec);
     void integrate_with_contacts();
 
-    void proximal_solver(const ContactPoint* contact_points, int num_contact_points);
+    void proximal_solver(const ContactPoint* blid, int num_contact_points);
     void newton_solver(const ContactPoint* contact_points, int num_contact_points);
 };
 

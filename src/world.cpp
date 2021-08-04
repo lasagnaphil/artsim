@@ -6,6 +6,7 @@
 
 #include <artsim/art_dynamics.h>
 #include <artsim/math/se3.h>
+#include <artsim/math/eigen.h>
 
 #include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
 #include <BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h>
@@ -81,10 +82,6 @@ void World::simulate(real dt) {
     }
     bt_collision_world->performDiscreteCollisionDetection();
     integrate_with_contacts();
-}
-
-Eigen::Matrix<real, 3, 1> glm_to_eigen(const glm::rvec3& v) {
-    return Eigen::Map<Eigen::Matrix<real, 3, 1>>((real*)&v[0]);
 }
 
 void World::integrate_with_contacts() {

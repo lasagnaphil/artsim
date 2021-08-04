@@ -19,6 +19,11 @@ namespace artsim {
 
     using namespace glm;
 
+    struct ReducedJacobian {
+        std::vector<int> dofs;
+        glmx::dynmat<real> J;
+    };
+
     inline int get_screw_idx(JointType joint_type) {
         return (int)joint_type;
     }

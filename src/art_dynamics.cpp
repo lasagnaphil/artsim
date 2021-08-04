@@ -3,6 +3,7 @@
 //
 
 #include "artsim/art_dynamics.h"
+#include <artsim/math/eigen.h>
 
 #include <Eigen/Dense>
 
@@ -958,28 +959,6 @@ void calc_velocities(const ArticulatedBodySpec& art, const real* q, const real* 
         glmx::rtransform Tinv = calc_Tinv(art.joints[i], art.links[i], q + cur_pos_dof);
         link_V[i] = Ad(Tinv, link_V[i_parent]) + calc_v0(art.joints[i], u + cur_vel_dof);
     }
-}
-
-Eigen::Matrix<real, 3, 3> glm_to_eigen(const glm::tmat3x3<real>& M) {
-    return Eigen::Map<Eigen::Matrix<real, 3, 3>>((real*)&M[0], 3, 3).transpose();
-}
-
-Eigen::Matrix<real, 3, 3> glm_to_eigen(const tsmat3x3<real>& M) {
-    Eigen::Matrix<real, 3, 3> Me;
-    Me(0, 0) = M.xx; Me(1, 1) = M.yy; Me(2, 2) = M.zz;
-    Me(1, 2) = Me(2, 1) = M.yz;
-    Me(2, 0) = Me(0, 2) = M.zx;
-    Me(0, 1) = Me(1, 0) = M.xy;
-    return Me;
-}
-
-Eigen::Matrix<real, 6, 6> glm_to_eigen(const tsmat6x6<real>& I) {
-    Eigen::Matrix<real, 6, 6> M;
-    M.block<3,3>(0, 0) = glm_to_eigen(I.I);
-    M.block<3,3>(3, 0) = glm_to_eigen(I.C);
-    M.block<3,3>(0, 3) = glm_to_eigen(I.C).transpose();
-    M.block<3,3>(3, 3) = glm_to_eigen(I.M);
-    return M;
 }
 
 void glm_to_dynmat(const tsmat3x3<real>& I, OUT dynmat_view<real> M) {

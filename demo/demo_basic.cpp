@@ -124,10 +124,11 @@ public:
         world = World();
         WorldConfig world_cfg;
         world_cfg.dt = sim_dt;
-        world_cfg.max_iters = 32;
+        world_cfg.max_vel_iters = 8;
+        world_cfg.max_pos_iters = 2;
         world.init(world_cfg);
 
-        default_mat_id = world.add_material(0.1f, 0.0f, 0.00f);
+        default_mat_id = world.add_material(0.5f, 0.0f, 0.00f);
 
         switch (demo_type) {
             case DemoType::Pendulum: {
