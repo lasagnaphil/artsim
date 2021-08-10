@@ -1,6 +1,10 @@
 add_subdirectory(bullet_collision)
 add_subdirectory(fastsvd)
+
 add_subdirectory(Discregrid)
+if (ARTSIM_USE_DOUBLE)
+    target_compile_definitions(Discregrid::Discregrid PUBLIC DISCREGRID_USE_DOUBLE)
+endif()
 
 # tiny_obj_loader
 add_library(tinyobjloader STATIC ${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader/tiny_obj_loader.cc)

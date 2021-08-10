@@ -12,6 +12,9 @@ namespace Eigen {
 using MatrixXr = Eigen::Matrix<artsim::real, Eigen::Dynamic, Eigen::Dynamic>;
 using VectorXr = Eigen::Matrix<artsim::real, Eigen::Dynamic, 1>;
 
+using Matrix3r = Eigen::Matrix<artsim::real, 3, 3>;
+using Vector3r = Eigen::Matrix<artsim::real, 3, 1>;
+
 }
 
 #endif //EOS_SCAN_TO_HUMAN_EIGEN_H

@@ -6,6 +6,7 @@
 #include "artsim/art_dynamics.h"
 #include "artsim/art_contacts.h"
 #include "artsim/math/se3.h"
+#include "artsim/math/eigen.h"
 
 #include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
 #include <BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h>
@@ -19,8 +20,6 @@
 #include <random>
 
 #include <fmt/core.h>
-
-#include <Eigen/Dense>
 
 #include <Tracy.hpp>
 
@@ -44,23 +43,23 @@ void CollisionMesh::init_from_obj(const char *filename, real sdf_grid_size) {
     fmt::print("Setting up SDF grid...\n");
     Discregrid::MeshDistance md(mesh);
 
-    Eigen::AlignedBox3d domain;
+    Eigen::AlignedBox<real, 3> domain;
     domain.setEmpty();
     for (auto const& x : mesh.vertices())
     {
         domain.extend(x);
     }
-    domain.max() += 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3d::Ones();
-    domain.min() -= 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3d::Ones();
+    domain.max() += 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3r::Ones();
+    domain.min() -= 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3r::Ones();
 
     fmt::print("Done\n");
 
     Eigen::Vector3i res = ((domain.max() - domain.min()) / sdf_grid_size).array().ceil().cast<int>();
     fmt::print("Generating SDF of size ({}, {}, {})...\n", res[0], res[1], res[2]);
-    sdf_grid = Discregrid::CubicLagrangeDiscreteGrid(domain, Eigen::Vector3d(sdf_grid_size, sdf_grid_size, sdf_grid_size));
+    sdf_grid = Discregrid::CubicLagrangeDiscreteGrid(domain, Eigen::Vector3r(sdf_grid_size, sdf_grid_size, sdf_grid_size));
     // auto cell_size = sdf_grid.cellSize();
     // fmt::print("Cell size = ({}, {}, {})\n", cell_size[0], cell_size[1], cell_size[2]);
-    auto func = [&md](Eigen::Vector3d const& xi) {return md.signedDistanceCached(xi); };
+    auto func = [&md](Eigen::Vector3r const& xi) {return md.signedDistanceCached(xi); };
     sdf_grid.addFunction(func, true);
     fmt::print("Done\n");
 }
