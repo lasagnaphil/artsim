@@ -137,22 +137,6 @@ void SoftBody::load(const TetMesh& mesh) {
     }
 }
 
-void SoftBody::load(const PyMesh::MshLoader& msh) {
-    auto& nodes = msh.get_nodes();
-    auto& elems = msh.get_elements();
-    int num_nodes = nodes.rows() / 3;
-    int num_elems = elems.rows() / 4;
-    verts.resize(num_nodes);
-    for (int i = 0; i < num_nodes; i++) {
-        verts[i] = {nodes[3 * i + 0], nodes[3 * i + 1], nodes[3 * i + 2]};
-    }
-    tets.resize(num_elems);
-    for (int i = 0; i < num_elems; i++) {
-        tets[i] = {elems[4 * i + 0], elems[4 * i + 1], elems[4 * i + 2], elems[4 * i + 3]};
-    }
-    gen_surface_triangles_from_tet_mesh(tets, OUT surface_triangles);
-}
-
 void SoftBody::build_mass(real density, real dt) {
     ZoneScoped
     int num_vertices = verts.size();

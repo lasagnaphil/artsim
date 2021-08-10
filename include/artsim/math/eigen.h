@@ -17,4 +17,12 @@ using Vector3r = Eigen::Matrix<artsim::real, 3, 1>;
 
 }
 
+inline Eigen::Vector3r glm_to_eigen(glm::rvec3 v) {
+    return Eigen::Vector3r(v.x, v.y, v.z);
+}
+
+inline glm::rvec3 eigen_to_glm(const Eigen::Vector3r& v) {
+    return {v(0), v(1), v(2)};
+}
+
 #endif //EOS_SCAN_TO_HUMAN_EIGEN_H

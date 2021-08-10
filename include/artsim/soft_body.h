@@ -73,7 +73,6 @@ struct SoftBody {
     // Eigen::CholmodSimplicialLDLT<Eigen::SparseMatrix<real>> A_LDLt;
 
     virtual void load(const TetMesh& mesh);
-    virtual void load(const PyMesh::MshLoader& msh);
 
     void build_mass(real density = 0, real dt = 1);
 
