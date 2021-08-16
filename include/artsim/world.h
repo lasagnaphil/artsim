@@ -170,6 +170,8 @@ private:
 
     void proximal_solver(const ContactPoint* blid, int num_contact_points);
     void newton_solver(const ContactPoint* contact_points, int num_contact_points);
+
+    Id<Material> get_material(BodyLinkId blid);
 };
 
 }

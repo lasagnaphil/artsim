@@ -30,31 +30,32 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
     using MatrixXr = Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>;
     using VectorXr = Eigen::Matrix<real, Eigen::Dynamic, 1>;
 
-    std::unordered_map<BodyId, std::vector<std::pair<int, bool>>> contact_info;
+    std::unordered_map<BodyId, std::vector<std::pair<int, int>>> contact_info;
     for (int cid = 0; cid < num_contact_points; cid++) {
         auto& c = contact_points[cid];
         BodyId bid1 = c.body1_id.get_body_id();
         auto it1 = contact_info.find(bid1);
         if (it1 == contact_info.end()) {
-            contact_info.insert({bid1, {{cid, true}}});
+            contact_info.insert({bid1, {{cid, 1}}});
         }
         else {
-            contact_info.at(bid1).push_back({cid, true});
+            contact_info.at(bid1).push_back({cid, 1});
         }
         BodyId bid2 = c.body2_id.get_body_id();
         auto it2 = contact_info.find(bid2);
         if (it2 == contact_info.end()) {
-            contact_info.insert({bid2, {{cid, false}}});
+            contact_info.insert({bid2, {{cid, -1}}});
         }
         else {
-            contact_info.at(bid2).push_back({cid, false});
+            contact_info.at(bid2).push_back({cid, -1});
         }
     }
 
     std::unordered_map<BodyId, int> body_id_to_entity_id;
     std::vector<BodyId> entity_id_to_body_id;
-    std::vector<std::vector<std::pair<int, bool>>> entity_id_to_contact_ids;
+    std::vector<std::vector<std::pair<int, int>>> entity_id_to_contact_ids;
     std::vector<std::pair<int, int>> entity_id_to_range;
+    std::vector<std::pair<int, int>> contact_id_to_rel_id(num_contact_points, {-1, -1});
 
     int count = 0;
     int vel_idx = 0;
@@ -76,6 +77,11 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
         entity_id_to_body_id.push_back(bid);
         entity_id_to_contact_ids.push_back(contact_list);
         entity_id_to_range.push_back({vel_idx, num_vel_dof});
+        for (int i = 0; i < contact_list.size(); i++) {
+            auto [cid, sign] = contact_list[i];
+            if (sign == 1) contact_id_to_rel_id[cid].first = i;
+            else contact_id_to_rel_id[cid].second = i;
+        }
 
         count++;
         vel_idx += num_vel_dof;
@@ -93,32 +99,6 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
 
     {
         ZoneNamedN(PrecalculateMatrices, "PrecalculateMatrices", true)
-
-        auto get_material = [&](BodyLinkId blid) -> Id<Material> {
-            if (blid.is_articulation()) {
-                auto [art_id, lidx] = blid.get_articulation_id();
-                auto& art = *get_articulated_body(art_id);
-                auto mat_id = art.get_mat_id();
-                auto& link = art.get_spec().links[lidx];
-                auto mat_link_id = link.mat_id;
-                if (mat_id.is_null()) {
-                    if (mat_link_id.is_null()) {
-                        printf("Empty material for articulated link {}!", art_id.to_int64());
-                    }
-                    return mat_link_id;
-                }
-                else return mat_id;
-            }
-            else {
-                auto rb_id = blid.get_rigid_body_id();
-                auto& rb = *get_rigid_body(rb_id);
-                auto mat_id = rb.mat_id;
-                if (mat_id.is_null()) {
-                    printf("Empty material for rigid body {}!", rb_id.to_int64());
-                }
-                return mat_id;
-            }
-        };
 
         for (int cid = 0; cid < num_contact_points; cid++) {
             auto& contact = contact_points[cid];
@@ -175,7 +155,8 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 for (int k = 0; k < contact_list.size(); k++) {
                     auto [cid, sign] = contact_list[k];
                     auto& mat = materials[cid];
-                    Vector3r b_k = (real(1) + mat.restitution) * J_u.middleRows<3>(3*k) + J_du.middleRows<3>(3*k);
+                    Vector3r E(1.0 + mat.restitution, 1.0 + mat.restitution, 1.0);
+                    Vector3r b_k = E.cwiseProduct(J_u.middleRows<3>(3*k)) + J_du.middleRows<3>(3*k);
                     if (sign) {
                         b.middleRows<3>(3*k) += b_k;
                     }
@@ -193,39 +174,57 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
     {
         ZoneNamedN(VelocityUpdate, "VelocityUpdate", true);
 
-        real R = 5; // Global r-Factor strategy
         VectorXr w(num_total_vel_dofs);
         VectorXr z(3*num_contact_points);
-        real r = std::numeric_limits<real>::max(), r_old;
 
-#define PROXIMAL_SOLVER_JACOBI
+// #define PROXIMAL_SOLVER_JACOBI
+#define PROXIMAL_SOLVER_GAUSS_SEIDEL
+
         VectorXr lam_old(3*num_contact_points);
         lam.setZero();
         int iter;
+#ifdef PROXIMAL_SOLVER_JACOBI
+        real R = 1.0; // Global r-Factor strategy
+        real r = std::numeric_limits<real>::max(), r_old;
         for (iter = 0; iter < cfg.max_vel_iters; iter++) {
             lam_old = lam;
             r_old = r;
-#ifdef PROXIMAL_SOLVER_JACOBI
             // Update w, z
-            z.setZero();
-            for (int eid = 0; eid < num_entities; eid++) {
-                auto [dof_start, dof_size] = entity_id_to_range[eid];
-                auto& contact_list= entity_id_to_contact_ids[eid];
-                auto& Jt = Jt_list[eid];
-                auto& Minv_Jt = Minv_Jt_list[eid];
-                auto& b = b_list[eid];
-
-                VectorXr lam_c(3*contact_list.size());
-                for (int k = 0; k < contact_list.size(); k++) {
-                    auto [cid, sign] = contact_list[k];
-                    lam_c.middleRows<3>(3*k) = lam.middleRows<3>(3*cid);
-                }
-                w.middleRows(dof_start, dof_size) = Minv_Jt * lam_c;
-                VectorXr z_c = lam_c - R * (Jt.transpose() * w.middleRows(dof_start, dof_size) + b);
-                for (int k = 0; k < contact_list.size(); k++) {
-                    auto [cid, sign] = contact_list[k];
-                    z.middleRows<3>(3*cid) += z_c.middleRows<3>(3*k);
-                }
+            w.setZero();
+            for (int cid = 0; cid < num_contact_points; cid++) {
+                auto& cp = contact_points[cid];
+                auto& mat = materials[cid];
+                int crelid1 = contact_id_to_rel_id[cid].first;
+                int crelid2 = contact_id_to_rel_id[cid].second;
+                int eid1 = body_id_to_entity_id[cp.body1_id.get_body_id()];
+                int eid2 = body_id_to_entity_id[cp.body2_id.get_body_id()];
+                auto& Minv_Jt1 = Minv_Jt_list[eid1];
+                auto& Minv_Jt2 = Minv_Jt_list[eid2];
+                auto [dof_start1, dof_size1] = entity_id_to_range[eid1];
+                auto [dof_start2, dof_size2] = entity_id_to_range[eid2];
+                if (crelid1 != -1)
+                    w.middleRows(dof_start1, dof_size1) += Minv_Jt1.middleCols<3>(3*crelid1) * lam.middleRows<3>(3*cid);
+                if (crelid2 != -1)
+                    w.middleRows(dof_start2, dof_size2) -= Minv_Jt2.middleCols<3>(3*crelid2) * lam.middleRows<3>(3*cid);
+            }
+            z = lam;
+            for (int cid = 0; cid < num_contact_points; cid++) {
+                auto& cp = contact_points[cid];
+                auto& mat = materials[cid];
+                int crelid1 = contact_id_to_rel_id[cid].first;
+                int crelid2 = contact_id_to_rel_id[cid].second;
+                int eid1 = body_id_to_entity_id[cp.body1_id.get_body_id()];
+                int eid2 = body_id_to_entity_id[cp.body2_id.get_body_id()];
+                auto& Jt1 = Jt_list[eid1];
+                auto& Jt2 = Jt_list[eid2];
+                auto& b1 = b_list[eid1];
+                auto& b2 = b_list[eid2];
+                auto [dof_start1, dof_size1] = entity_id_to_range[eid1];
+                auto [dof_start2, dof_size2] = entity_id_to_range[eid2];
+                if (crelid1 != -1)
+                    z.middleRows<3>(3*cid) -= R * (Jt1.middleCols<3>(3*crelid1).transpose() * w.middleRows(dof_start1, dof_size1) + b1.middleRows<3>(3*cid));
+                if (crelid2 != -1)
+                    z.middleRows<3>(3*cid) += R * (Jt2.middleCols<3>(3*crelid2).transpose() * w.middleRows(dof_start2, dof_size2) + b2.middleRows<3>(3*cid));
             }
             // std::cout << "w: " << w.transpose() << std::endl;
             // std::cout << "z: " << z.transpose() << std::endl;
@@ -245,17 +244,95 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 lam(3*cid+2) = lam_n;
             }
             r = (lam - lam_old).lpNorm<Eigen::Infinity>();
+            printf("velocity error: %f (R = %f)\n", r, R);
             // Adaptive r-factor tuning
             if (r > r_old) {
                 R *= 0.5;
                 lam = lam_old;
                 iter--;
             }
+        }
 #endif
 
-        }
+#ifdef PROXIMAL_SOLVER_GAUSS_SEIDEL
+        // Local r-Factor strategy
+        real R = 1.0; // Global r-Factor strategy
+        real r = std::numeric_limits<real>::max(), r_old;
+        for (iter = 0; iter < cfg.max_vel_iters; iter++) {
+            lam_old = lam;
+            r_old = r;
+            w.setZero();
+            for (int cid = 0; cid < num_contact_points; cid++) {
+                auto& cp = contact_points[cid];
+                auto& mat = materials[cid];
+                int crelid1 = contact_id_to_rel_id[cid].first;
+                int crelid2 = contact_id_to_rel_id[cid].second;
+                int eid1 = body_id_to_entity_id[cp.body1_id.get_body_id()];
+                int eid2 = body_id_to_entity_id[cp.body2_id.get_body_id()];
+                auto& Minv_Jt1 = Minv_Jt_list[eid1];
+                auto& Minv_Jt2 = Minv_Jt_list[eid2];
+                auto [dof_start1, dof_size1] = entity_id_to_range[eid1];
+                auto [dof_start2, dof_size2] = entity_id_to_range[eid2];
+                if (crelid1 != -1)
+                    w.middleRows(dof_start1, dof_size1) += Minv_Jt1.middleCols<3>(3*crelid1) * lam.middleRows<3>(3*cid);
+                if (crelid2 != -1)
+                    w.middleRows(dof_start2, dof_size2) -= Minv_Jt2.middleCols<3>(3*crelid2) * lam.middleRows<3>(3*cid);
+            }
+            // std::cout << "w: " << w.transpose() << std::endl;
+            z.setZero();
+            for (int cid = 0; cid < num_contact_points; cid++) {
+                auto& cp = contact_points[cid];
+                auto& mat = materials[cid];
+                int crelid1 = contact_id_to_rel_id[cid].first;
+                int crelid2 = contact_id_to_rel_id[cid].second;
+                int eid1 = body_id_to_entity_id[cp.body1_id.get_body_id()];
+                int eid2 = body_id_to_entity_id[cp.body2_id.get_body_id()];
+                auto& Jt1 = Jt_list[eid1];
+                auto& Jt2 = Jt_list[eid2];
+                auto& Minv_Jt1 = Minv_Jt_list[eid1];
+                auto& Minv_Jt2 = Minv_Jt_list[eid2];
+                auto& b1 = b_list[eid1];
+                auto& b2 = b_list[eid2];
+                auto [dof_start1, dof_size1] = entity_id_to_range[eid1];
+                auto [dof_start2, dof_size2] = entity_id_to_range[eid2];
+                Vector3r z_c = lam.middleRows<3>(3*cid);
+                if (crelid1 != -1)
+                    z_c -= R * (Jt1.middleCols<3>(3*crelid1).transpose() * w.middleRows(dof_start1, dof_size1) + b1.middleRows<3>(3*cid));
+                if (crelid2 != -1)
+                    z_c += R * (Jt2.middleCols<3>(3*crelid2).transpose() * w.middleRows(dof_start2, dof_size2) + b2.middleRows<3>(3*cid));
+                z.middleRows<3>(3*cid) = z_c;
 
-        // output_log("Contact solver velocity error: %f\n", r);
+                glm::rvec2 z_t = {z_c(0), z_c(1)};
+                real z_n = z_c(2);
+                real lam_n = glm::max(real(0), z_n);
+                real z_t_len = glm::length(z_t);
+                glm::rvec2 lam_t = z_t;
+                if (z_t_len > mat.friction * lam_n) {
+                    lam_t = (mat.friction * lam_n / z_t_len) * lam_t;
+                }
+                Vector3r lam_prime(lam_t.x, lam_t.y, lam_n);
+                Vector3r dlam = lam_prime - lam.middleRows<3>(3*cid);
+                if (crelid1 != -1)
+                    w.middleRows(dof_start1, dof_size1) += Minv_Jt1.middleCols<3>(3*crelid1) * dlam;
+                if (crelid2 != -1)
+                    w.middleRows(dof_start2, dof_size2) -= Minv_Jt2.middleCols<3>(3*crelid2) * dlam;
+                lam.middleRows<3>(3*cid) = lam_prime;
+            }
+            // std::cout << "z: " << z.transpose() << std::endl;
+            // std::cout << "lam: " << lam.transpose() << std::endl;
+
+            r = (lam - lam_old).lpNorm<Eigen::Infinity>();
+            printf("velocity error: %f (R = %f)\n", r, R);
+            // Adaptive r-factor tuning
+            if (r > r_old) {
+                R *= 0.5;
+                lam = lam_old;
+                iter--;
+            }
+        }
+#endif
+
+        printf("Contact solver velocity error: %f\n", r);
     }
 
     {
@@ -276,12 +353,11 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 std::copy_n(art.get_external_force_buf(), num_joints, f_ext_tot.data());
                 for (auto [cid, sign] : contact_list) {
                     auto& cp = contact_points[cid];
-                    BodyLinkId blid = sign? cp.body1_id : cp.body2_id;
+                    BodyLinkId blid = sign == 1? cp.body1_id : cp.body2_id;
                     auto [_, art_lidx] = blid.get_articulation_id();
                     auto contact_frame = rtransform(cp.pos, mat3(cp.tangent1, cp.tangent2, cp.normal));
                     auto contact_rel_frame = art.get_global_joint_trans(art_lidx) / contact_frame;
-                    glm::rvec3 lam_i = eigen_to_glm(lam.middleRows<3>(3*cid));
-                    if (!sign) lam_i *= -1;
+                    glm::rvec3 lam_i = (real)sign * eigen_to_glm(lam.middleRows<3>(3*cid));
                     f_ext_tot[art_lidx] += AdT(contact_rel_frame, rscrew(rvec3(0), lam_i / cfg.dt));
                     // cp->bt_manifold_point->m_appliedImpulseLateral1 = lambda[cidx].x;
                     // cp->bt_manifold_point->m_appliedImpulseLateral2 = lambda[cidx].y;
@@ -316,10 +392,37 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
 
         int iter;
         for (iter = 0; iter < cfg.max_pos_iters; iter++) {
+            if (iter != 0) {
+                for (int cid = 0; cid < num_contact_points; cid++) {
+                    auto& cp = contact_points[cid];
+                    glm::rvec3 pos1, pos2;
+                    if (cp.body1_id.is_articulation()) {
+                        auto [art_id, lidx] = cp.body1_id.get_articulation_id();
+                        auto art = get_articulated_body(art_id);
+                        pos1 = (art->get_global_joint_trans(lidx) * cp.body1_rel_trans).v;
+                    }
+                    else {
+                        auto rb = get_rigid_body(cp.body1_id.get_rigid_body_id());
+                        pos1 = (glmx::rtransform(rb->pos, glm::mat3_cast(rb->rot)) * cp.body1_rel_trans).v;
+                    }
+                    if (cp.body2_id.is_articulation()) {
+                        auto [art_id, lidx] = cp.body2_id.get_articulation_id();
+                        auto art = get_articulated_body(art_id);
+                        pos2 = (art->get_global_joint_trans(lidx) * cp.body2_rel_trans).v;
+                    }
+                    else {
+                        auto rb = get_rigid_body(cp.body2_id.get_rigid_body_id());
+                        pos2 = (glmx::rtransform(rb->pos, glm::mat3_cast(rb->rot)) * cp.body2_rel_trans).v;
+                    }
+                    g(cid) = glm::dot(cp.normal, pos1 - pos2);
+                }
+            }
+
             lam_n_old = lam_n;
             r_old = r;
             g_prime = g;
             w.setZero();
+
             for (int eid = 0; eid < num_entities; eid++) {
                 auto [dof_start, dof_size] = entity_id_to_range[eid];
                 auto& contact_list = entity_id_to_contact_ids[eid];
@@ -328,7 +431,7 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
 
                 for (int k = 0; k < contact_list.size(); k++) {
                     auto [cid, sign] = contact_list[k];
-                    real lam_c = sign? lam_n(cid) : -lam_n(cid);
+                    real lam_c = (real)sign * lam_n(cid);
                     w.middleRows(dof_start, dof_size) += Minv_Jt.col(3*k+2) * lam_c;
                 }
                 for (int k = 0; k < contact_list.size(); k++) {
@@ -343,30 +446,31 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 lam_n = lam_n_old;
                 iter--;
             }
-        }
 
-        // output_log("Contact solver position error: %f\n", r);
-        VectorXr u(num_total_vel_dofs);
-        u.setZero();
-        for (int eid = 0; eid < num_entities; eid++) {
-            BodyId bid = entity_id_to_body_id[eid];
-            auto [dof_start, dof_size] = entity_id_to_range[eid];
-            auto& contact_list = entity_id_to_contact_ids[eid];
-            auto& Minv_Jt = Minv_Jt_list[eid];
+            // output_log("Contact solver position error: %f\n", r);
+            VectorXr u(num_total_vel_dofs);
+            u.setZero();
+            for (int eid = 0; eid < num_entities; eid++) {
+                BodyId bid = entity_id_to_body_id[eid];
+                auto [dof_start, dof_size] = entity_id_to_range[eid];
+                auto& contact_list = entity_id_to_contact_ids[eid];
+                auto& Minv_Jt = Minv_Jt_list[eid];
 
-            for (int k = 0; k < contact_list.size(); k++) {
-                auto [cid, sign] = contact_list[k];
-                real lam_c = sign? lam_n(cid) : -lam_n(cid);
-                u.middleRows(dof_start, dof_size) += Minv_Jt.col(3*k+2) * (lam_c / cfg.dt);
-            }
-            if (bid.is_articulation()) {
-                auto art_id = bid.get_art_id();
-                auto& art = *get_articulated_body(art_id);
-                integrate_implicit_euler(art.get_spec(), cfg.dt, nullptr,
-                                         INOUT art.get_pos_buf(), INOUT u.data() + dof_start);
-            }
-            else {
-                // TODO
+                for (int k = 0; k < contact_list.size(); k++) {
+                    auto [cid, sign] = contact_list[k];
+                    real lam_c = (real)sign * lam_n(cid);
+                    u.middleRows(dof_start, dof_size) += Minv_Jt.col(3*k+2) * (lam_c / cfg.dt);
+                }
+                if (bid.is_articulation()) {
+                    auto art_id = bid.get_art_id();
+                    auto& art = *get_articulated_body(art_id);
+                    integrate_implicit_euler(art.get_spec(), cfg.dt, nullptr,
+                                             INOUT art.get_pos_buf(), INOUT u.data() + dof_start);
+                    art.forward_kinematics();
+                }
+                else {
+                    // TODO
+                }
             }
         }
     }
@@ -377,5 +481,32 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
 
 
 }
+
+Id<Material> World::get_material(BodyLinkId blid) {
+    if (blid.is_articulation()) {
+        auto [art_id, lidx] = blid.get_articulation_id();
+        auto& art = *get_articulated_body(art_id);
+        auto mat_id = art.get_mat_id();
+        auto& link = art.get_spec().links[lidx];
+        auto mat_link_id = link.mat_id;
+        if (mat_id.is_null()) {
+            if (mat_link_id.is_null()) {
+                printf("Empty material for articulated link {}!", art_id.to_int64());
+            }
+            return mat_link_id;
+        }
+        else return mat_id;
+    }
+    else {
+        auto rb_id = blid.get_rigid_body_id();
+        auto& rb = *get_rigid_body(rb_id);
+        auto mat_id = rb.mat_id;
+        if (mat_id.is_null()) {
+            printf("Empty material for rigid body {}!", rb_id.to_int64());
+        }
+        return mat_id;
+    }
+};
+
 
 }
