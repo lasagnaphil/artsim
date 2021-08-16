@@ -87,7 +87,7 @@ void World::simulate(real dt) {
 void World::integrate_with_contacts() {
     ZoneScoped
 
-    std::vector<ContactPoint> contact_points;
+    contact_points.clear();
     {
         ZoneNamedN(GatherContacts, "GatherContacts", true);
 
@@ -168,9 +168,9 @@ void World::integrate_with_contacts() {
 
     switch (cfg.contact_solver_type) {
         case ContactSolverType::Proximal:
-            proximal_solver(contact_points.data(), num_contacts); break;
+            proximal_solver(); break;
         case ContactSolverType::NCP:
-            newton_solver(contact_points.data(), num_contacts); break;
+            newton_solver(); break;
     }
     return;
 

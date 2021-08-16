@@ -577,6 +577,7 @@ struct ContactPoint {
     glm::tvec3<real> normal;
     glm::tvec3<real> tangent1;
     glm::tvec3<real> tangent2;
+    glm::tvec3<real> lam;
     real distance;
     real area;
     BodyLinkId body1_id;

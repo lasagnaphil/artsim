@@ -308,8 +308,8 @@ void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_s
             col_obj->setCollisionShape(spec.links[i].col_shape.bt_shape);
             col_obj->setUserIndex(body_id.index);
             col_obj->setUserIndex2(body_id.generation);
-            bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);
-            // bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0);
+            // bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);
+            bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0);
             bt_collision_objects[i] = col_obj;
         }
     }

@@ -80,7 +80,9 @@ public:
     }
 };
 
-void World::newton_solver(const ContactPoint* contact_points, int num_contact_points) {
+void World::newton_solver() {
+    int num_contact_points = contact_points.size();
+
     StateDOFMetadata state_meta;
     state_meta.build(articulated_bodies, rigid_bodies);
 

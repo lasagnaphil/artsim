@@ -12,6 +12,7 @@
 #include <gengine/App.h>
 #include <gengine/InputManager.h>
 #include <gengine_artsim/articulation_render.h>
+#include <gengine_artsim/world_debug_render.h>
 
 using namespace artsim;
 using namespace glm;
@@ -103,6 +104,7 @@ public:
         for (auto& art_renderer : art_renderers) {
             art_renderer.render(pbRenderer);
         }
+        world_debug_renderer.render(imRenderer);
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
         /*
@@ -125,7 +127,7 @@ public:
         WorldConfig world_cfg;
         world_cfg.dt = sim_dt;
         world_cfg.max_vel_iters = 8;
-        world_cfg.max_pos_iters = 2;
+        world_cfg.max_pos_iters = 0;
         world.init(world_cfg);
 
         default_mat_id = world.add_material(0.5f, 0.0f, 0.00f);
@@ -158,6 +160,7 @@ public:
             } break;
         }
         art_renderers.push_back(ArticulationRender(&world, art_id, orig_mesh_mat, joint_mat));
+        world_debug_renderer = WorldDebugRender(&world);
     }
 
 private:
@@ -173,6 +176,7 @@ private:
 
     Ref<PBRMaterial> orig_mesh_mat, joint_mat;
     std::vector<ArticulationRender> art_renderers;
+    WorldDebugRender world_debug_renderer;
 
     DemoType demo_type = DemoType::Contacts;
     int art_type = 1;

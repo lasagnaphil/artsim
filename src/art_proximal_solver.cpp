@@ -29,11 +29,13 @@ namespace artsim {
 // #define PROXIMAL_SOLVER_GLOBAL_R_STRATEGY
 #define PROXIMAL_SOLVER_LOCAL_R_STRATEGY
 
-void World::proximal_solver(const ContactPoint* contact_points, int num_contact_points) {
+void World::proximal_solver() {
     auto t1 = std::chrono::high_resolution_clock::now();
 
     using MatrixXr = Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic>;
     using VectorXr = Eigen::Matrix<real, Eigen::Dynamic, 1>;
+
+    int num_contact_points = contact_points.size();
 
     std::unordered_map<BodyId, std::vector<std::pair<int, int>>> contact_info;
     for (int cid = 0; cid < num_contact_points; cid++) {
@@ -212,7 +214,7 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 A += J_Minv_Jt2.block<3, 3>(3*crelid2, 3*crelid2);
             R.middleRows<3>(3*cid) = A.diagonal().cwiseInverse();
         }
-        std::cout << "R: " << R.transpose() << std::endl;
+        // std::cout << "R: " << R.transpose() << std::endl;
 #endif
         real r = std::numeric_limits<real>::max(), r_old;
 
@@ -328,10 +330,10 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 Vector3r z_c = lam.middleRows<3>(3*cid);
                 if (crelid1 != -1)
                     z_c -= R.middleRows<3>(3*cid).cwiseProduct(
-                            Jt1.middleCols<3>(3*crelid1).transpose() * w.middleRows(dof_start1, dof_size1) + b1.middleRows<3>(3*cid));
+                            Jt1.middleCols<3>(3*crelid1).transpose() * w.middleRows(dof_start1, dof_size1) + b1.middleRows<3>(3*crelid1));
                 if (crelid2 != -1)
                     z_c += R.middleRows<3>(3*cid).cwiseProduct(
-                            Jt2.middleCols<3>(3*crelid2).transpose() * w.middleRows(dof_start2, dof_size2) + b2.middleRows<3>(3*cid));
+                            Jt2.middleCols<3>(3*crelid2).transpose() * w.middleRows(dof_start2, dof_size2) + b2.middleRows<3>(3*crelid2));
                 z.middleRows<3>(3*cid) = z_c;
 
                 glm::rvec2 z_t = {z_c(0), z_c(1)};
@@ -369,6 +371,11 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
 #endif
 
         printf("Contact solver velocity error: %f\n", r);
+    }
+
+    for (int cid = 0; cid < num_contact_points; cid++) {
+        auto& cp = contact_points[cid];
+        cp.lam = eigen_to_glm(lam.middleRows<3>(3*cid));
     }
 
     {
@@ -514,7 +521,6 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
     auto t2 = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
     output_log("Contact solver: %lld ns\n", duration.count());
-
 
 }
 

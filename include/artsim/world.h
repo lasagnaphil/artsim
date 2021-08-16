@@ -55,6 +55,8 @@ private:
 
     WorldConfig cfg;
 
+    std::vector<ContactPoint> contact_points;
+
 public:
     void init(WorldConfig world_cfg);
     void destroy() {
@@ -164,12 +166,15 @@ public:
         return bt_collision_world;
     }
 
+    std::vector<ContactPoint>& get_contact_points() { return contact_points; }
+    const std::vector<ContactPoint>& get_contact_points() const { return contact_points; }
+
 private:
     void load_collision_meshes(ArticulatedBodySpec& spec);
     void integrate_with_contacts();
 
-    void proximal_solver(const ContactPoint* blid, int num_contact_points);
-    void newton_solver(const ContactPoint* contact_points, int num_contact_points);
+    void proximal_solver();
+    void newton_solver();
 
     Id<Material> get_material(BodyLinkId blid);
 };
