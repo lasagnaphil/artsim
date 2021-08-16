@@ -24,6 +24,11 @@ using namespace glmx;
 
 namespace artsim {
 
+// #define PROXIMAL_SOLVER_JACOBI
+#define PROXIMAL_SOLVER_GAUSS_SEIDEL
+#define PROXIMAL_SOLVER_GLOBAL_R_STRATEGY
+// #define PROXIMAL_SOLVER_LOCAL_R_STRATEGY
+
 void World::proximal_solver(const ContactPoint* contact_points, int num_contact_points) {
     auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -95,6 +100,9 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
     std::vector<Material> materials(num_contact_points);
     std::vector<MatrixXr> Jt_list(num_entities);
     std::vector<MatrixXr> Minv_Jt_list(num_entities);
+#ifdef PROXIMAL_SOLVER_LOCAL_R_STRATEGY
+    std::vector<MatrixXr> J_Minv_Jt_list(num_entities);
+#endif
     std::vector<VectorXr> b_list(num_entities);
 
     {
@@ -113,6 +121,9 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
             auto& contact_list = entity_id_to_contact_ids[eid];
             auto& Jt = Jt_list[eid];
             auto& Minv_Jt = Minv_Jt_list[eid];
+#ifdef PROXIMAL_SOLVER_LOCAL_R_STRATEGY
+            auto& J_Minv_Jt = J_Minv_Jt_list[eid];
+#endif
             auto& b = b_list[eid];
 
             if (bid.is_articulation()) {
@@ -130,6 +141,9 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
 
                 Jt.resize(art_num_vel_dofs, 3*contact_list.size());
                 Minv_Jt.resize(art_num_vel_dofs, 3*contact_list.size());
+#ifdef PROXIMAL_SOLVER_LOCAL_R_STRATEGY
+                J_Minv_Jt.resize(3*contact_list.size(), 3*contact_list.size());
+#endif
                 b.resize(3*contact_list.size());
                 b.setZero();
 
@@ -146,6 +160,9 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 }
 
                 multiply_inverse_mass_matrix(art_spec, cfg.dt, art_q, get_view(Jt), OUT get_view(Minv_Jt));
+#ifdef PROXIMAL_SOLVER_LOCAL_R_STRATEGY
+                J_Minv_Jt = Jt.transpose() * Minv_Jt;
+#endif
 
                 VectorXr art_udot_bar(art_num_vel_dofs);
                 featherstone_forward_dynamics(art_spec, cfg.gravity, cfg.dt,
@@ -155,14 +172,8 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 for (int k = 0; k < contact_list.size(); k++) {
                     auto [cid, sign] = contact_list[k];
                     auto& mat = materials[cid];
-                    Vector3r E(1.0 + mat.restitution, 1.0 + mat.restitution, 1.0);
-                    Vector3r b_k = E.cwiseProduct(J_u.middleRows<3>(3*k)) + J_du.middleRows<3>(3*k);
-                    if (sign) {
-                        b.middleRows<3>(3*k) += b_k;
-                    }
-                    else {
-                        b.middleRows<3>(3*k) -= b_k;
-                    }
+                    Vector3r E(real(1), real(1), real(1) + mat.restitution);
+                    b.middleRows<3>(3*k) += (real)sign * E.cwiseProduct(J_u.middleRows<3>(3*k)) + J_du.middleRows<3>(3*k);
                 }
             }
             else {
@@ -177,15 +188,35 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
         VectorXr w(num_total_vel_dofs);
         VectorXr z(3*num_contact_points);
 
-// #define PROXIMAL_SOLVER_JACOBI
-#define PROXIMAL_SOLVER_GAUSS_SEIDEL
-
         VectorXr lam_old(3*num_contact_points);
         lam.setZero();
         int iter;
-#ifdef PROXIMAL_SOLVER_JACOBI
-        real R = 1.0; // Global r-Factor strategy
+
+        VectorXr R(3*num_contact_points);
+#if defined(PROXIMAL_SOLVER_GLOBAL_R_STRATEGY)
+        R.fill(1.0);
+#elif defined(PROXIMAL_SOLVER_LOCAL_R_STRATEGY)
+        for (int cid = 0; cid < num_contact_points; cid++) {
+            auto& cp = contact_points[cid];
+            int crelid1 = contact_id_to_rel_id[cid].first;
+            int crelid2 = contact_id_to_rel_id[cid].second;
+            int eid1 = body_id_to_entity_id[cp.body1_id.get_body_id()];
+            int eid2 = body_id_to_entity_id[cp.body2_id.get_body_id()];
+            auto& J_Minv_Jt1 = J_Minv_Jt_list[eid1];
+            auto& J_Minv_Jt2 = J_Minv_Jt_list[eid2];
+            Eigen::Matrix<real, 3, 3> A;
+            A.setZero();
+            if (crelid1 != -1)
+                A += J_Minv_Jt1.block<3, 3>(3*crelid1, 3*crelid1);
+            if (crelid2 != -1)
+                A += J_Minv_Jt2.block<3, 3>(3*crelid2, 3*crelid2);
+            R.middleRows<3>(3*cid) = A.diagonal().cwiseInverse();
+        }
+        std::cout << "R: " << R.transpose() << std::endl;
+#endif
         real r = std::numeric_limits<real>::max(), r_old;
+
+#if defined(PROXIMAL_SOLVER_JACOBI)
         for (iter = 0; iter < cfg.max_vel_iters; iter++) {
             lam_old = lam;
             r_old = r;
@@ -222,9 +253,11 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 auto [dof_start1, dof_size1] = entity_id_to_range[eid1];
                 auto [dof_start2, dof_size2] = entity_id_to_range[eid2];
                 if (crelid1 != -1)
-                    z.middleRows<3>(3*cid) -= R * (Jt1.middleCols<3>(3*crelid1).transpose() * w.middleRows(dof_start1, dof_size1) + b1.middleRows<3>(3*cid));
+                    z.middleRows<3>(3*cid) -= R.middleRows<3>(3*cid).cwiseProduct(
+                            Jt1.middleCols<3>(3*crelid1).transpose() * w.middleRows(dof_start1, dof_size1) + b1.middleRows<3>(3*cid));
                 if (crelid2 != -1)
-                    z.middleRows<3>(3*cid) += R * (Jt2.middleCols<3>(3*crelid2).transpose() * w.middleRows(dof_start2, dof_size2) + b2.middleRows<3>(3*cid));
+                    z.middleRows<3>(3*cid) += R.middleRows<3>(3*cid).cwiseProduct(
+                            Jt2.middleCols<3>(3*crelid2).transpose() * w.middleRows(dof_start2, dof_size2) + b2.middleRows<3>(3*cid));
             }
             // std::cout << "w: " << w.transpose() << std::endl;
             // std::cout << "z: " << z.transpose() << std::endl;
@@ -244,7 +277,7 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 lam(3*cid+2) = lam_n;
             }
             r = (lam - lam_old).lpNorm<Eigen::Infinity>();
-            printf("velocity error: %f (R = %f)\n", r, R);
+            printf("velocity error: %f\n", r);
             // Adaptive r-factor tuning
             if (r > r_old) {
                 R *= 0.5;
@@ -254,10 +287,7 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
         }
 #endif
 
-#ifdef PROXIMAL_SOLVER_GAUSS_SEIDEL
-        // Local r-Factor strategy
-        real R = 1.0; // Global r-Factor strategy
-        real r = std::numeric_limits<real>::max(), r_old;
+#if defined(PROXIMAL_SOLVER_GAUSS_SEIDEL)
         for (iter = 0; iter < cfg.max_vel_iters; iter++) {
             lam_old = lam;
             r_old = r;
@@ -297,9 +327,11 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
                 auto [dof_start2, dof_size2] = entity_id_to_range[eid2];
                 Vector3r z_c = lam.middleRows<3>(3*cid);
                 if (crelid1 != -1)
-                    z_c -= R * (Jt1.middleCols<3>(3*crelid1).transpose() * w.middleRows(dof_start1, dof_size1) + b1.middleRows<3>(3*cid));
+                    z_c -= R.middleRows<3>(3*cid).cwiseProduct(
+                            Jt1.middleCols<3>(3*crelid1).transpose() * w.middleRows(dof_start1, dof_size1) + b1.middleRows<3>(3*cid));
                 if (crelid2 != -1)
-                    z_c += R * (Jt2.middleCols<3>(3*crelid2).transpose() * w.middleRows(dof_start2, dof_size2) + b2.middleRows<3>(3*cid));
+                    z_c += R.middleRows<3>(3*cid).cwiseProduct(
+                            Jt2.middleCols<3>(3*crelid2).transpose() * w.middleRows(dof_start2, dof_size2) + b2.middleRows<3>(3*cid));
                 z.middleRows<3>(3*cid) = z_c;
 
                 glm::rvec2 z_t = {z_c(0), z_c(1)};
@@ -322,10 +354,14 @@ void World::proximal_solver(const ContactPoint* contact_points, int num_contact_
             // std::cout << "lam: " << lam.transpose() << std::endl;
 
             r = (lam - lam_old).lpNorm<Eigen::Infinity>();
-            printf("velocity error: %f (R = %f)\n", r, R);
+            printf("velocity error: %f\n", r);
             // Adaptive r-factor tuning
             if (r > r_old) {
+#if defined(PROXIMAL_SOLVER_GLOBAL_R_STRATEGY)
                 R *= 0.5;
+#elif defined(PROXIMAL_SOLVER_LOCAL_R_STRATEGY)
+                R *= 0.9;
+#endif
                 lam = lam_old;
                 iter--;
             }
