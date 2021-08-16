@@ -25,6 +25,7 @@ namespace examples {
     ArticulatedBodySpec create_5_link_tree(bool spherical = false);
     ArticulatedBodySpec create_13_link_tree(bool spherical = false);
     ArticulatedBodySpec create_free_link(int num_links, bool spherical = false);
+    ArticulatedBodySpec create_free_ball(float radius);
 }
 
 }

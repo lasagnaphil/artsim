@@ -212,3 +212,19 @@ artsim::ArticulatedBodySpec artsim::examples::create_free_link(int num_links, bo
     return art;
 }
 
+artsim::ArticulatedBodySpec artsim::examples::create_free_ball(float radius) {
+    float density = 1000.0f;
+    CollisionShape shape = CollisionShape::make_sphere(radius);
+
+    ArticulatedBodySpec art;
+
+    art.add_link_and_joint(
+            Link::create(shape, density,
+                         ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
+                         ttransform<real>(glm::tvec3<real>(0.0f, 0.0f, 0.0f)),
+                         -1, {}),
+                         Joint::floating());
+    art.build();
+    return art;
+}
+

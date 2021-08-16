@@ -65,6 +65,8 @@ public:
         if (inputMgr->isKeyEntered(SDL_SCANCODE_RETURN)) {
             auto new_art_id = world.add_articulated_body(
                     examples::create_free_link(art_type, true), default_mat_id);
+            // auto new_art_id = world.add_articulated_body(
+            //         examples::create_free_ball(0.1f), default_mat_id);
 
             auto new_art = world.get_articulated_body(new_art_id);
             new_art->randomize_positions();

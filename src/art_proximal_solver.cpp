@@ -175,7 +175,7 @@ void World::proximal_solver() {
                     auto [cid, sign] = contact_list[k];
                     auto& mat = materials[cid];
                     Vector3r E(real(1), real(1), real(1) + mat.restitution);
-                    b.middleRows<3>(3*k) += (real)sign * E.cwiseProduct(J_u.middleRows<3>(3*k)) + J_du.middleRows<3>(3*k);
+                    b.middleRows<3>(3*k) += E.cwiseProduct(J_u.middleRows<3>(3*k)) + J_du.middleRows<3>(3*k);
                 }
             }
             else {
@@ -484,8 +484,13 @@ void World::proximal_solver() {
             }
             lam_n = (lam_n - R*g_prime).cwiseMax(0);
             r = (lam_n - lam_n_old).lpNorm<Eigen::Infinity>();
+
             if (r > r_old) {
+#if defined(PROXIMAL_SOLVER_GLOBAL_R_STRATEGY)
                 R *= 0.5;
+#elif defined(PROXIMAL_SOLVER_LOCAL_R_STRATEGY)
+                R *= 0.9;
+#endif
                 lam_n = lam_n_old;
                 iter--;
             }

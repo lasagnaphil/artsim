@@ -23,6 +23,7 @@ public:
             debug_renderer.drawAxisTriad(transform, 0.01f, 0.1f, true);
             glm::rvec3 disp = R * cp.lam;
             debug_renderer.drawArrow(cp.pos, cp.pos + 10.0f * disp, colors::Green, 1.0f * glm::length(disp), true);
+            // debug_renderer.drawArrow(cp.pos, cp.pos - 10.0f * disp, colors::Green, 1.0f * glm::length(disp), true);
         }
     }
 };
