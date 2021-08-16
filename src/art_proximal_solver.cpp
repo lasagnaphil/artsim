@@ -26,8 +26,8 @@ namespace artsim {
 
 // #define PROXIMAL_SOLVER_JACOBI
 #define PROXIMAL_SOLVER_GAUSS_SEIDEL
-#define PROXIMAL_SOLVER_GLOBAL_R_STRATEGY
-// #define PROXIMAL_SOLVER_LOCAL_R_STRATEGY
+// #define PROXIMAL_SOLVER_GLOBAL_R_STRATEGY
+#define PROXIMAL_SOLVER_LOCAL_R_STRATEGY
 
 void World::proximal_solver(const ContactPoint* contact_points, int num_contact_points) {
     auto t1 = std::chrono::high_resolution_clock::now();
