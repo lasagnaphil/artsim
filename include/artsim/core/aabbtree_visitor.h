@@ -33,17 +33,17 @@ struct PointInTet : public AABBTreeVisitor<T> {
 
     glm::tvec3<T> point; // query point
     int hit_tet; // intersected tet
-    const T *verts;
-    const int *inds;
-    PointInTet( glm::tvec3<T> point_, const T *verts_, const int *inds_ );
+    const glm::tvec3<T> *verts;
+    const glm::ivec4 *tets;
+    PointInTet( glm::tvec3<T> point_, const glm::tvec3<T> *verts_, const glm::ivec4 *tets_ );
     bool hit_aabb( const AABB &aabb );
     bool hit_prim( int prim );
     bool check_left_first( const AABB &left, const AABB &right );
 };
 
 template <class T>
-PointInTet<T>::PointInTet( glm::tvec3<T> point_, const T *verts_, const int *inds_ ) :
-        point(point_), verts(verts_), inds(inds_), hit_tet(-1) {}
+PointInTet<T>::PointInTet( glm::tvec3<T> point_, const glm::tvec3<T> *verts_, const glm::ivec4 *tets_ ) :
+        point(point_), verts(verts_), tets(tets_), hit_tet(-1) {}
 
 template <class T>
 bool PointInTet<T>::hit_aabb( const AABB &aabb ){
@@ -52,12 +52,8 @@ bool PointInTet<T>::hit_aabb( const AABB &aabb ){
 
 template <class T>
 bool PointInTet<T>::hit_prim( int prim ){
-    glm::ivec4 tet( inds[prim*4+0], inds[prim*4+1], inds[prim*4+2], inds[prim*4+3] );
-    glm::tvec3<T> v0( verts[tet[0]*3+0], verts[tet[0]*3+1], verts[tet[0]*3+2] );
-    glm::tvec3<T> v1( verts[tet[1]*3+0], verts[tet[1]*3+1], verts[tet[1]*3+2] );
-    glm::tvec3<T> v2( verts[tet[2]*3+0], verts[tet[2]*3+1], verts[tet[2]*3+2] );
-    glm::tvec3<T> v3( verts[tet[3]*3+0], verts[tet[3]*3+1], verts[tet[3]*3+2] );
-    if( glmx::point_in_tet<T>( point, v0, v1, v2, v3 ) ){
+    glm::ivec4 tet = tets[prim];
+    if( glmx::point_in_tet<T>( point, verts[tet[0]], verts[tet[1]], verts[tet[2]], verts[tet[3]]) ){
         hit_tet = prim;
         return true;
     }
