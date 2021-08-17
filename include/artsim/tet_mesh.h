@@ -20,6 +20,7 @@ struct TetMesh {
     void load_obj(const char* filename);
 
     void save_obj(const char* filename);
+    void save_msh(const char* filename);
 };
 
 }

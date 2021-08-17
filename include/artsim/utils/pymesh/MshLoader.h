@@ -9,25 +9,27 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 
+#include <artsim/math/eigen.h>
+
 namespace PyMesh {
 
 class MshLoader {
     public:
-        typedef std::map<std::string, Eigen::VectorXd> FieldMap;
+        typedef std::map<std::string, Eigen::VectorXr> FieldMap;
         typedef std::vector<std::string> FieldNames;
 
     public:
         MshLoader(const std::string& filename);
 
     public:
-        const Eigen::VectorXd& get_nodes() const { return m_nodes; }
+        const Eigen::VectorXr& get_nodes() const { return m_nodes; }
         const Eigen::VectorXi& get_elements() const { return m_elements; }
 
-        Eigen::VectorXd& get_node_field(const std::string& fieldname) {
+        Eigen::VectorXr& get_node_field(const std::string& fieldname) {
             return m_node_fields[fieldname];
         }
 
-        Eigen::VectorXd& get_element_field(const std::string& fieldname) {
+        Eigen::VectorXr& get_element_field(const std::string& fieldname) {
             return m_element_fields[fieldname];
         }
 
@@ -72,7 +74,7 @@ class MshLoader {
         size_t m_data_size;
         size_t m_nodes_per_element;
         size_t m_element_type;
-        Eigen::VectorXd m_nodes;
+        Eigen::VectorXr m_nodes;
         Eigen::VectorXi m_elements;
         FieldMap m_node_fields;
         FieldMap m_element_fields;

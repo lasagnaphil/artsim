@@ -311,7 +311,7 @@ void MshLoader::parse_node_field(std::ifstream& fin) {
     std::string fieldname = str_tags[0];
     int num_components = int_tags[1];
     int num_entries = int_tags[2];
-    Eigen::VectorXd field(num_entries * num_components);
+    Eigen::VectorXr field(num_entries * num_components);
 
     delete [] str_tags;
     delete [] real_tags;
@@ -384,7 +384,7 @@ void MshLoader::parse_element_field(std::ifstream& fin) {
     std::string fieldname = str_tags[0];
     int num_components = int_tags[1];
     int num_entries = int_tags[2];
-    Eigen::VectorXd field(num_entries * num_components);
+    Eigen::VectorXr field(num_entries * num_components);
 
     delete [] str_tags;
     delete [] real_tags;

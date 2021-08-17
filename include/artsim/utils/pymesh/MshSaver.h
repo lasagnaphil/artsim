@@ -6,6 +6,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <artsim/math/eigen.h>
 
 namespace PyMesh {
 
@@ -24,16 +25,16 @@ class MshSaver {
         };
 
     public:
-        void save_mesh(const Eigen::VectorXd& nodes, const Eigen::VectorXi& elements,
+        void save_mesh(const Eigen::VectorXr& nodes, const Eigen::VectorXi& elements,
                 size_t dim, ElementType type);
         void save_header();
-        void save_nodes(const Eigen::VectorXd& nodes);
+        void save_nodes(const Eigen::VectorXr& nodes);
         void save_elements(const Eigen::VectorXi& elements, ElementType type);
-        void save_scalar_field(const std::string& fieldname, const Eigen::VectorXd& field);
-        void save_vector_field(const std::string& fieldname, const Eigen::VectorXd& field);
-        void save_elem_scalar_field(const std::string& fieldname, const Eigen::VectorXd& field);
-        void save_elem_vector_field(const std::string& fieldname, const Eigen::VectorXd& field);
-        void save_elem_tensor_field(const std::string& fieldname, const Eigen::VectorXd& field);
+        void save_scalar_field(const std::string& fieldname, const Eigen::VectorXr& field);
+        void save_vector_field(const std::string& fieldname, const Eigen::VectorXr& field);
+        void save_elem_scalar_field(const std::string& fieldname, const Eigen::VectorXr& field);
+        void save_elem_vector_field(const std::string& fieldname, const Eigen::VectorXr& field);
+        void save_elem_tensor_field(const std::string& fieldname, const Eigen::VectorXr& field);
 
     public:
         enum ErrorCode {

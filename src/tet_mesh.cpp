@@ -4,6 +4,7 @@
 
 #include "artsim/tet_mesh.h"
 #include "artsim/utils/pymesh/MshLoader.h"
+#include "artsim/utils/pymesh/MshSaver.h"
 
 #include <fmt/core.h>
 #include <fstream>
@@ -87,17 +88,22 @@ void TetMesh::load_msh(const char* filename) {
     PyMesh::MshLoader msh(filename);
     auto& nodes = msh.get_nodes();
     auto& elems = msh.get_elements();
-    int num_nodes = nodes.rows() / 3;
-    int num_elems = elems.rows() / 4;
-    fmt::print("Loading msh {}: nodes = {}, elems = {}\n", filename, num_nodes, num_elems);
-    vertices.resize(num_nodes);
-    for (int i = 0; i < num_nodes; i++) {
-        vertices[i] = {nodes[3*i+0], nodes[3*i+1], nodes[3*i+2]};
-    }
-    tetrahedrons.resize(num_elems);
-    for (int i = 0; i < num_elems; i++) {
-        tetrahedrons[i] = {elems[4*i+0], elems[4*i+1], elems[4*i+2], elems[4*i+3]};
-    }
+    int num_verts = nodes.rows() / 3;
+    int num_tets = elems.rows() / 4;
+    fmt::print("Loading msh {}: verts = {}, tets = {}\n", filename, num_verts, num_tets);
+    vertices.resize(num_verts);
+    std::copy_n(nodes.data(), nodes.size(), (real*)vertices.data());
+    tetrahedrons.resize(num_tets);
+    std::copy_n(elems.data(), elems.size(), (int*)tetrahedrons.data());
+}
+
+void TetMesh::save_msh(const char* filename) {
+    PyMesh::MshSaver msh(filename);
+    Eigen::VectorXr nodes(3*vertices.size());
+    Eigen::VectorXi elems(4*tetrahedrons.size());
+    std::copy_n((real*)vertices.data(), nodes.size(), nodes.data());
+    std::copy_n((int*)tetrahedrons.data(), elems.size(), elems.data());
+    msh.save_mesh(nodes, elems, 3, PyMesh::MshSaver::ElementType::TET);
 }
 
 }

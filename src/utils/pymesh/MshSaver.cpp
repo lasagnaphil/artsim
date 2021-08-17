@@ -28,7 +28,7 @@ MshSaver::~MshSaver() {
     fout.close();
 }
 
-void MshSaver::save_mesh(const Eigen::VectorXd& nodes, const Eigen::VectorXi& elements,
+void MshSaver::save_mesh(const Eigen::VectorXr& nodes, const Eigen::VectorXi& elements,
         size_t dim, MshSaver::ElementType type) {
     if (dim != 2 && dim != 3) {
         std::stringstream err_msg;
@@ -57,14 +57,14 @@ void MshSaver::save_header() {
     fout.flush();
 }
 
-void MshSaver::save_nodes(const Eigen::VectorXd& nodes) {
+void MshSaver::save_nodes(const Eigen::VectorXr& nodes) {
     // Save nodes.
     m_num_nodes = nodes.size() / m_dim;
     fout << "$Nodes" << std::endl;
     fout << m_num_nodes << std::endl;
     if (!m_binary) {
         for (size_t i=0; i<nodes.size(); i+=m_dim) {
-            const Eigen::VectorXd& v = nodes.segment(i,m_dim);
+            const Eigen::VectorXr& v = nodes.segment(i,m_dim);
             int node_idx = i/m_dim+1;
             fout << node_idx << " " << v[0] << " " << v[1] << " ";
             if (m_dim == 2) {
@@ -75,7 +75,7 @@ void MshSaver::save_nodes(const Eigen::VectorXd& nodes) {
         }
     } else {
         for (size_t i=0; i<nodes.size(); i+=m_dim) {
-            const Eigen::VectorXd& v = nodes.segment(i,m_dim);
+            const Eigen::VectorXr& v = nodes.segment(i,m_dim);
             int node_idx = i/m_dim+1;
             fout.write((char*)&node_idx, sizeof(int));
             fout.write((char*)v.data(), sizeof(Float)*m_dim);
@@ -153,7 +153,7 @@ void MshSaver::save_elements(
     fout.flush();
 }
 
-void MshSaver::save_scalar_field(const std::string& fieldname, const Eigen::VectorXd& field) {
+void MshSaver::save_scalar_field(const std::string& fieldname, const Eigen::VectorXr& field) {
     assert(field.size() == m_num_nodes);
     fout << "$NodeData" << std::endl;
     fout << "1" << std::endl; // num string tags.
@@ -181,7 +181,7 @@ void MshSaver::save_scalar_field(const std::string& fieldname, const Eigen::Vect
     fout.flush();
 }
 
-void MshSaver::save_vector_field(const std::string& fieldname, const Eigen::VectorXd& field) {
+void MshSaver::save_vector_field(const std::string& fieldname, const Eigen::VectorXr& field) {
     assert(field.size() == m_dim * m_num_nodes);
     fout << "$NodeData" << std::endl;
     fout << "1" << std::endl; // num string tags.
@@ -227,7 +227,7 @@ void MshSaver::save_vector_field(const std::string& fieldname, const Eigen::Vect
     fout.flush();
 }
 
-void MshSaver::save_elem_scalar_field(const std::string& fieldname, const Eigen::VectorXd& field) {
+void MshSaver::save_elem_scalar_field(const std::string& fieldname, const Eigen::VectorXr& field) {
     assert(field.size() == m_num_elements);
     fout << "$ElementData" << std::endl;
     fout << 1 << std::endl; // num string tags.
@@ -256,7 +256,7 @@ void MshSaver::save_elem_scalar_field(const std::string& fieldname, const Eigen:
     fout.flush();
 }
 
-void MshSaver::save_elem_vector_field(const std::string& fieldname, const Eigen::VectorXd& field) {
+void MshSaver::save_elem_vector_field(const std::string& fieldname, const Eigen::VectorXr& field) {
     assert(field.size() == m_num_elements * m_dim);
     fout << "$ElementData" << std::endl;
     fout << 1 << std::endl; // num string tags.
@@ -303,7 +303,7 @@ void MshSaver::save_elem_vector_field(const std::string& fieldname, const Eigen:
     fout.flush();
 }
 
-void MshSaver::save_elem_tensor_field(const std::string& fieldname, const Eigen::VectorXd& field) {
+void MshSaver::save_elem_tensor_field(const std::string& fieldname, const Eigen::VectorXr& field) {
     assert(field.size() == m_num_elements * m_dim * (m_dim + 1) / 2);
     fout << "$ElementData" << std::endl;
     fout << 1 << std::endl; // num string tags.
@@ -321,14 +321,14 @@ void MshSaver::save_elem_tensor_field(const std::string& fieldname, const Eigen:
             int elem_idx = i+1;
             fout.write((char*)&elem_idx, sizeof(int));
             if (m_dim == 3) {
-                const Eigen::VectorXd& val = field.segment(i*6, 6);
+                const Eigen::VectorXr& val = field.segment(i*6, 6);
                 Float tensor[9] = {
                     val[0], val[5], val[4],
                     val[5], val[1], val[3],
                     val[4], val[3], val[2] };
                 fout.write((char*)tensor, sizeof(Float) * 9);
             } else if (m_dim == 2) {
-                const Eigen::VectorXd& val = field.segment(i*3, 3);
+                const Eigen::VectorXr& val = field.segment(i*3, 3);
                 Float tensor[9] = {
                     val[0], val[2], zero,
                     val[2], val[1], zero,
@@ -340,7 +340,7 @@ void MshSaver::save_elem_tensor_field(const std::string& fieldname, const Eigen:
         for (size_t i=0; i<m_num_elements; i++) {
             int elem_idx = i+1;
             if (m_dim == 3) {
-                const Eigen::VectorXd& val = field.segment(i*6, 6);
+                const Eigen::VectorXr& val = field.segment(i*6, 6);
                 fout << elem_idx
                     << " " << val[0]
                     << " " << val[5]
@@ -353,7 +353,7 @@ void MshSaver::save_elem_tensor_field(const std::string& fieldname, const Eigen:
                     << " " << val[2]
                     << std::endl;
             } else if (m_dim == 2) {
-                const Eigen::VectorXd& val = field.segment(i*3, 3);
+                const Eigen::VectorXr& val = field.segment(i*3, 3);
                 fout << elem_idx
                     << " " << val[0]
                     << " " << val[2]
