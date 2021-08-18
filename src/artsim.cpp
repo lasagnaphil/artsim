@@ -294,8 +294,12 @@ void ArticulatedBody::init(artsim::ArticulatedBodySpec art_spec) {
 }
 
 void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_spec, Id<Material> mat_id,
-                           btCollisionWorld* bt_collision_world)
+                           btCollisionWorld* bt_collision_world,
+                           int col_filter_group_mask, int col_filter_mask,
+                           bool enable_self_collisions)
 {
+    this->is_self_collision_enabled = enable_self_collisions;
+
     init(art_spec);
     this->mat_id = mat_id;
     int num_links = get_num_links();

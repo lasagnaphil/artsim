@@ -362,10 +362,16 @@ private:
 
     std::vector<btCollisionObject*> bt_collision_objects;
 
+    bool is_self_collision_enabled = false;
+
 public:
     void init(artsim::ArticulatedBodySpec art_spec);
     void init(Id<ArticulatedBody> art_id, artsim::ArticulatedBodySpec art_spec, Id<Material> mat_id,
-              btCollisionWorld* bt_collision_world);
+              btCollisionWorld* bt_collision_world,
+              int col_filter_group_mask = btBroadphaseProxy::DefaultFilter,
+              int col_filter_mask = btBroadphaseProxy::AllFilter,
+              bool enable_self_collisions = false);
+
     void release(btCollisionWorld* bt_collision_world);
 
     void reset();
@@ -429,6 +435,10 @@ public:
     }
 
     glm::rvec3 get_center_of_mass() const;
+
+    bool self_collision_enabled() const { return is_self_collision_enabled; }
+    void enable_self_collisions() { is_self_collision_enabled = true; }
+    void disable_self_collisions() { is_self_collision_enabled = false; }
 };
 
 struct pair_hash {

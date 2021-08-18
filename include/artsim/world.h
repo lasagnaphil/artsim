@@ -52,6 +52,7 @@ private:
 
     btCollisionWorld* bt_collision_world = nullptr;
     btCollisionObject* bt_plane_col = nullptr;
+    btOverlapFilterCallback* overlap_filter_callback = nullptr;
 
     WorldConfig cfg;
 
@@ -61,6 +62,7 @@ public:
     void init(WorldConfig world_cfg);
     void destroy() {
         delete bt_collision_world;
+        delete overlap_filter_callback;
         rigid_bodies.clear();
         articulated_bodies.clear();
         material_db.clear();
@@ -103,10 +105,13 @@ public:
         return add_rigid_body(spec, mat_id);
     }
 
-    Id<ArticulatedBody> add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id) {
+    Id<ArticulatedBody> add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id,
+                                             int col_filter_group = btBroadphaseProxy::DefaultFilter,
+                                             int col_filter_mask = btBroadphaseProxy::AllFilter,
+                                             bool enable_self_colisions = false) {
         auto id = articulated_bodies.make();
         auto ptr = articulated_bodies.get(id);
-        ptr->init(id, spec, mat_id, bt_collision_world);
+        ptr->init(id, spec, mat_id, bt_collision_world, col_filter_group, col_filter_mask, enable_self_colisions);
         load_collision_meshes(ptr->get_spec_mut());
         return id;
     }
@@ -177,6 +182,14 @@ private:
     void newton_solver();
 
     Id<Material> get_material(BodyLinkId blid);
+};
+
+struct WorldOverlapFilterCallback : public btOverlapFilterCallback {
+    artsim::World* world;
+
+    WorldOverlapFilterCallback(artsim::World* world) : world(world) {}
+
+    bool needBroadphaseCollision(btBroadphaseProxy* proxy0, btBroadphaseProxy* proxy1) const override;
 };
 
 }

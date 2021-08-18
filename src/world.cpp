@@ -73,6 +73,9 @@ void World::init(WorldConfig world_cfg) {
     auto bt_dispatcher = new btCollisionDispatcher(bt_collision_config);
     auto bt_broadphase = new btDbvtBroadphase;
     this->bt_collision_world = new btCollisionWorld(bt_dispatcher, bt_broadphase, bt_collision_config);
+
+    overlap_filter_callback = new WorldOverlapFilterCallback(this);
+    this->bt_collision_world->getPairCache()->setOverlapFilterCallback(overlap_filter_callback);
 }
 
 void World::simulate(real dt) {
@@ -258,4 +261,26 @@ void World::load_collision_meshes(ArticulatedBodySpec &spec) {
     });
 }
 
+bool WorldOverlapFilterCallback::needBroadphaseCollision(btBroadphaseProxy* proxy0, btBroadphaseProxy* proxy1) const {
+    bool collides = (proxy0->m_collisionFilterGroup & proxy1->m_collisionFilterMask) != 0;
+    collides = collides && (proxy1->m_collisionFilterGroup & proxy0->m_collisionFilterMask);
+
+    if (collides) {
+        auto col_obj1 = static_cast<btCollisionObject*>(proxy0->m_clientObject);
+        auto col_obj2 = static_cast<btCollisionObject*>(proxy1->m_clientObject);
+        BodyLinkId blid1 = {(uint32_t)col_obj1->getUserIndex(), (uint32_t)col_obj1->getUserIndex2()};
+        BodyLinkId blid2 = {(uint32_t)col_obj2->getUserIndex(), (uint32_t)col_obj2->getUserIndex2()};
+        if (blid1.is_articulation() && blid2.is_articulation()) {
+            auto [aid1, lid1] = blid1.get_articulation_id();
+            auto [aid2, lid2] = blid2.get_articulation_id();
+            if (aid1 == aid2) {
+                auto art = world->get_articulated_body(aid1);
+                return art->self_collision_enabled();
+            }
+            return aid1 != aid2;
+        }
+        else return true;
+    }
+    else return false;
+}
 }
