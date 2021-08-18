@@ -1,0 +1,2 @@
+add_executable(artsim_benchmark benchmark.cpp)
+target_link_libraries(artsim_benchmark PRIVATE artsim)

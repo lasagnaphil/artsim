@@ -36,12 +36,12 @@ using namespace artsim;
 using namespace glmx;
 
 void CollisionMesh::init_from_obj(const char *filename, real sdf_grid_size) {
-    fmt::print("Loading mesh {}\n", filename);
+    printf("Loading mesh %s}\n", filename);
     objfile.load_obj(filename);
     Discregrid::TriangleMesh mesh(filename);
-    fmt::print("Done\n");
+    printf("Done\n");
 
-    fmt::print("Setting up SDF grid...\n");
+    printf("Setting up SDF grid...\n");
     Discregrid::MeshDistance md(mesh);
 
     Eigen::AlignedBox3d domain;
@@ -53,7 +53,7 @@ void CollisionMesh::init_from_obj(const char *filename, real sdf_grid_size) {
     domain.max() += 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3d::Ones();
     domain.min() -= 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3d::Ones();
 
-    fmt::print("Done\n");
+    printf("Done\n");
 
     Eigen::Vector3d size_cm = (domain.max() - domain.min()) / sdf_grid_size;
     glm::uvec3 size_i = glm::round(glm::dvec3(size_cm[0], size_cm[1], size_cm[2]));
@@ -66,11 +66,11 @@ void CollisionMesh::init_from_obj(const char *filename, real sdf_grid_size) {
     domain.max() += 0.5 * domain_extra;
     domain.min() -= 0.5 * domain_extra;
 
-    fmt::print("Generating SDF of size ({}, {}, {})...\n", res[0], res[1], res[2]);
+    printf("Generating SDF of size (%d, %d, %d)...\n", res[0], res[1], res[2]);
     sdf_grid = Discregrid::CubicLagrangeDiscreteGrid(domain, res);
     auto func = [&md](Eigen::Vector3d const& xi) {return md.signedDistanceCached(xi); };
     sdf_grid.addFunction(func, true);
-    fmt::print("Done\n");
+    printf("Done\n");
 }
 
 real CollisionShape::mass(real density) {
