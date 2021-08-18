@@ -116,32 +116,16 @@ public:
         fragmented = false;
     }
 
-    Id<T> insert(T&& item) {
-        Id<T> id;
-        if (free_list_front == 0xFFFFFFFF) {
-            // If free list is empty, create new free list node
-            Id<T> node = {(uint32_t)items.size(), TypeID<T>()(), 1};
-            id = {(uint32_t)free_list.size(), TypeID<T>()(), 1};
-            free_list.push_back(node);
-        }
-        else {
-            // Take the front node of free list
-            Id<T>& node = free_list[free_list_front];
-            uint32_t new_index = free_list_front;
-            free_list_front = node.index;
-            if (free_list_front == 0xFFFFFFFF) {
-                free_list_back = free_list_front;
-            }
-            node.index = items.size();
-            id = {new_index, TypeID<T>()(), node.generation};
-        }
+    Id<T> insert(const T& item) {
+        Id<T> id = make_new_id();
         items.push_back(item);
-        dense_to_sparse_map.push_back(id.index);
         return id;
     }
 
-    Id<T> insert(const T& item) {
-        return insert(std::move(T(item)));
+    Id<T> insert(T&& item) {
+        Id<T> id = make_new_id();
+        items.push_back(std::move(item));
+        return id;
     }
 
     template <class ...Args>
@@ -277,6 +261,30 @@ public:
             auto& val = items[i];
             fun(id, val);
         }
+    }
+
+private:
+    Id<T> make_new_id() {
+        Id<T> id;
+        if (free_list_front == 0xFFFFFFFF) {
+            // If free list is empty, create new free list node
+            Id<T> node = {(uint32_t)items.size(), TypeID<T>()(), 1};
+            id = {(uint32_t)free_list.size(), TypeID<T>()(), 1};
+            free_list.push_back(node);
+        }
+        else {
+            // Take the front node of free list
+            Id<T>& node = free_list[free_list_front];
+            uint32_t new_index = free_list_front;
+            free_list_front = node.index;
+            if (free_list_front == 0xFFFFFFFF) {
+                free_list_back = free_list_front;
+            }
+            node.index = items.size();
+            id = {new_index, TypeID<T>()(), node.generation};
+        }
+        dense_to_sparse_map.push_back(id.index);
+        return id;
     }
 };
 

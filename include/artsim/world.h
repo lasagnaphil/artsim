@@ -134,10 +134,17 @@ public:
         material_db.set_material_pair(mat1_id, mat2_id, friction, restitution, restitution_threshold);
     }
 
-    Id<CollisionMesh> add_collision_mesh(const char* objfile, real sdf_grid_size) {
+    Id<CollisionMesh> add_collision_mesh_bvh(const char* objfile) {
         auto id = col_meshes.make();
         auto ptr = col_meshes.get(id);
-        ptr->init_from_obj(objfile, sdf_grid_size);
+        ptr->init_bvh(objfile);
+        return id;
+    }
+
+    Id<CollisionMesh> add_collision_mesh_sdf(const char* objfile, real sdf_grid_size) {
+        auto id = col_meshes.make();
+        auto ptr = col_meshes.get(id);
+        ptr->init_sdf(objfile, sdf_grid_size);
         return id;
     }
 

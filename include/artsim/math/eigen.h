@@ -6,6 +6,7 @@
 #define EOS_SCAN_TO_HUMAN_EIGEN_H
 
 #include <artsim/types.h>
+#include <glm/gtc/type_ptr.hpp>
 
 namespace Eigen {
 
@@ -17,12 +18,32 @@ using Vector3r = Eigen::Matrix<artsim::real, 3, 1>;
 
 }
 
-inline Eigen::Vector3r glm_to_eigen(glm::rvec3 v) {
-    return Eigen::Vector3r(v.x, v.y, v.z);
+template <class T, int Rows, int Cols>
+inline Eigen::Matrix<T, Rows, Cols> glm_to_eigen(const glm::mat<Cols, Rows, T>& M) {
+    Eigen::Matrix<T, Rows, Cols> ret;
+    memcpy(ret.data(), glm::value_ptr(M), sizeof(T) * Rows * Cols);
+    return ret;
 }
 
-inline glm::rvec3 eigen_to_glm(const Eigen::Vector3r& v) {
-    return {v(0), v(1), v(2)};
+template <class T, int Rows>
+inline Eigen::Matrix<T, Rows, 1> glm_to_eigen(const glm::vec<Rows, T>& v) {
+    Eigen::Matrix<T, Rows, 1> ret;
+    memcpy(ret.data(), glm::value_ptr(v), sizeof(T) * Rows);
+    return ret;
+}
+
+template <class T, int Rows, int Cols>
+inline glm::mat<Cols, Rows, T> eigen_to_glm(const Eigen::Matrix<T, Rows, Cols>& M) {
+    glm::mat<Cols, Rows, T> ret;
+    memcpy(glm::value_ptr(ret), M.data(), sizeof(T) * Rows * Cols);
+    return ret;
+}
+
+template <class T, int Rows>
+inline glm::vec<Rows, T> eigen_to_glm(const Eigen::Matrix<T, Rows, 1>& v) {
+    glm::vec<Rows, T> ret;
+    memcpy(glm::value_ptr(ret), v.data(), sizeof(T) * Rows);
+    return ret;
 }
 
 #endif //EOS_SCAN_TO_HUMAN_EIGEN_H

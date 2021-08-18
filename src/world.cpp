@@ -7,6 +7,7 @@
 #include "artsim/art_dynamics.h"
 #include "artsim/art_contacts.h"
 #include "artsim/math/se3.h"
+#include "artsim/math/eigen.h"
 
 #include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
 #include <BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h>
@@ -439,20 +440,26 @@ void World::load_collision_meshes(ArticulatedBodySpec &spec) {
         auto& lidx = links_to_load[i];
         auto& link = spec.links[lidx];
         auto col_mesh = col_meshes.get(link.col_shape.mesh.id);
-        col_mesh->init_from_obj(link.obj_filename.c_str(),
-                                link.col_shape.mesh.cell_size);
+        switch (link.col_shape.mesh.type) {
+            case CollisionMesh::Type::BVH: {
+                col_mesh->init_bvh(link.obj_filename.c_str());
+            } break;
+            case CollisionMesh::Type::SDF: {
+                col_mesh->init_sdf(link.obj_filename.c_str(), link.col_shape.mesh.cell_size);
+            }
+        }
 
         // Calculate mass and inertia
         // Reference: https://abhilashreddy.com/writing/6/mesh_props.html
         // fmt::print("Link {}: \n", spec.names[lidx]);
-        auto& obj = col_mesh->objfile;
-        int num_tris = obj.triangle_vertices.size();
-        auto verts = obj.vertices;
-        auto mean = glm::rvec3(0);
+        auto& obj = col_mesh->mesh;
+        int num_tris = obj->nFaces();
+        auto verts = obj->vertex_data();
+        Eigen::Vector3r mean = Eigen::Vector3r::Zero();
         for (auto& v : verts) {
             mean += v;
         }
-        mean /= verts.size();
+        mean /= (float)obj->nVertices();
         for (auto& v : verts) {
             v -= mean;
         }
@@ -462,10 +469,10 @@ void World::load_collision_meshes(ArticulatedBodySpec &spec) {
         std::vector<glm::rvec3> c2f(num_tris);
         real volume = 0;
         for (int tidx = 0; tidx < num_tris; tidx++) {
-            auto tri = obj.triangle_vertices[tidx];
-            auto v0 = obj.vertices[tri[0]];
-            auto v1 = obj.vertices[tri[1]];
-            auto v2 = obj.vertices[tri[2]];
+            auto tri = obj->face_data()[tidx];
+            auto v0 = eigen_to_glm(verts[tri[0]]);
+            auto v1 = eigen_to_glm(verts[tri[1]]);
+            auto v2 = eigen_to_glm(verts[tri[2]]);
             cent[tidx] = (v0 + v1 + v2) / real(3);
             area_vec[tidx] = real(0.5) * glm::cross(v1 - v0, v2 - v0);
             area[tidx] = glm::length(area_vec[tidx]);

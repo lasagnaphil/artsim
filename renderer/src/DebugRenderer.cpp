@@ -360,7 +360,7 @@ void DebugRenderer::drawCone(glm::vec3 apex, glm::vec3 dir, glm::vec3 color, flo
     assert(false && "drawCone not implemented yet!");
 }
 
-void DebugRenderer::drawBox(nonstd::span <glm::vec3> points, glm::vec3 color, bool depthEnabled) {
+void DebugRenderer::drawBox(std::span<glm::vec3> points, glm::vec3 color, bool depthEnabled) {
     assert(points.size() == 8);
 
     for (int i = 0; i < 4; ++i)

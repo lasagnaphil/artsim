@@ -39,8 +39,30 @@ public:
                     link_meshes[i] = Mesh::makeCube();
                 } break;
                 case artsim::CollisionShape::Type::Mesh: {
-                    auto mesh = world->get_collision_mesh(shape.mesh.id);
-                    link_meshes[i] = Mesh::fromOBJ(&mesh->objfile);
+                    auto mesh = world->get_collision_mesh(shape.mesh.id)->mesh.get();
+                    link_meshes[i] = Resources::make<Mesh>();
+                    auto& render_mesh = *link_meshes[i];
+                    render_mesh.vertices.resize(3*mesh->nFaces());
+                    for (int k = 0; k < 3*mesh->nFaces(); k++) {
+                        render_mesh.vertices[k].normal = glm::rvec3(0);
+                    }
+                    for (int k = 0; k < mesh->nFaces(); k++) {
+                        auto& face = mesh->face(k);
+                        glm::rvec3 normal = eigen_to_glm(mesh->computeFaceNormal(k));
+                        render_mesh.vertices[3*k].pos = eigen_to_glm(mesh->vertex(face[0]));
+                        render_mesh.vertices[3*k].normal += normal;
+                        render_mesh.vertices[3*k].uv = glm::rvec2(0);
+                        render_mesh.vertices[3*k+1].pos = eigen_to_glm(mesh->vertex(face[1]));
+                        render_mesh.vertices[3*k+1].normal += normal;
+                        render_mesh.vertices[3*k+1].uv = glm::rvec2(0);
+                        render_mesh.vertices[3*k+2].pos = eigen_to_glm(mesh->vertex(face[2]));
+                        render_mesh.vertices[3*k+2].normal += normal;
+                        render_mesh.vertices[3*k+2].uv = glm::rvec2(0);
+                    }
+                    for (int k = 0; k < 3*mesh->nFaces(); k++) {
+                        render_mesh.vertices[k].normal = glm::normalize(render_mesh.vertices[k].normal);
+                    }
+                    render_mesh.initVBO();
                 } break;
                 default: {}
             }
@@ -75,21 +97,6 @@ public:
             if (i == 0 && art->get_spec().floating) continue;
             renderer.queueRender(PBRCommand {joint_meshes[i], joint_mat, joint_trans});
         }
-        /*
-        for (int c = 0; c < state->contact_points.size(); c++) {
-            using namespace artsim;
-            auto normal = state->contact_normals[c];
-            const ContactPoint& cp = state->contact_points[c];
-
-            auto tangent_u = glmx::Ez<real>();
-            auto tangent_v = glm::cross(cp.normal, tangent_u);
-            auto contact_T = glmx::ttransform<real>(cp.pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp.normal));
-
-            debug.drawLine(glm::vec3(contact_T.v),
-                           glm::vec3(contact_T.v + real(1) * (contact_T.R * normal)),
-                           colors::Green, true);
-        }
-         */
     }
 
     World* world;

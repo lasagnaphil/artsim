@@ -83,7 +83,7 @@ struct DebugRenderer {
     void drawSphere(glm::vec3 center, glm::vec3 color, float radius, bool depthEnabled);
     void drawCone(glm::vec3 apex, glm::vec3 dir, glm::vec3 color,
                     float baseRadius, float apexRadius, bool depthEnabled);
-    void drawBox(nonstd::span<glm::vec3> points, glm::vec3 color, bool depthEnabled);
+    void drawBox(std::span<glm::vec3> points, glm::vec3 color, bool depthEnabled);
     void drawBox(glm::vec3 center, glm::vec3 color, float width, float height, float depth, bool depthEnabled);
     void drawFrustrum(glm::mat4 invClipMatrix, glm::vec3 color, bool depthEnabled);
     void drawVertexNormal(glm::vec3 origin, glm::vec3 normal, float length, bool depthEnabled);

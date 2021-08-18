@@ -24,6 +24,8 @@
 #include <string>
 #include <tiny_obj_loader.h>
 #include <Discregrid/cubic_lagrange_discrete_grid.hpp>
+#include <Discregrid/geometry/mesh_distance.hpp>
+#include <Discregrid/mesh/triangle_mesh.hpp>
 
 namespace artsim {
 
@@ -152,10 +154,13 @@ struct Joint {
 };
 
 struct CollisionMesh {
-    OBJFile objfile;
-    Discregrid::CubicLagrangeDiscreteGrid sdf_grid;
+    std::unique_ptr<Discregrid::TriangleMesh> mesh;
+    std::unique_ptr<Discregrid::MeshDistance> bvh;
+    std::unique_ptr<Discregrid::CubicLagrangeDiscreteGrid> sdf;
+    enum class Type { BVH, SDF } type;
 
-    void init_from_obj(const char* objfile, real sdf_grid_size);
+    void init_bvh(const char* objfile);
+    void init_sdf(const char* objfile, real sdf_grid_size);
 };
 
 struct CollisionShape {
@@ -166,18 +171,11 @@ struct CollisionShape {
     glm::rvec3 scale;
     glm::rvec3 color; // For debug rendering purposes
 
-    union {
-        struct {
-        } ground;
-        struct {
-        } box;
-        struct {
-        } sphere;
-        struct {
-            Id<CollisionMesh> id;
-            real cell_size;
-        } mesh;
-    };
+    struct {
+        Id<CollisionMesh> id;
+        CollisionMesh::Type type = CollisionMesh::Type::BVH;
+        real cell_size;
+    } mesh;
 
     btCollisionShape* bt_shape;
 
@@ -185,7 +183,8 @@ struct CollisionShape {
     static CollisionShape make_box(glm::vec3 size);
     static CollisionShape make_sphere(real radius);
     static CollisionShape make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 scale = glm::rvec3(1));
-    static CollisionShape make_mesh(real cell_size, glm::rvec3 scale = glm::rvec3(1));
+    static CollisionShape make_mesh_bvh(glm::rvec3 scale = glm::rvec3(1));
+    static CollisionShape make_mesh_sdf(real cell_size, glm::rvec3 scale = glm::rvec3(1));
 
     real mass(real density);
     glmx::tsmat3x3<real> inertia(real density);

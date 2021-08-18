@@ -1,3 +1,8 @@
+# span-lite
+set(SPAN_LITE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/span-lite)
+add_library(span-lite INTERFACE)
+target_include_directories(span-lite INTERFACE ${SPAN_LITE_DIR})
+
 add_subdirectory(bullet_collision)
 add_subdirectory(fastsvd)
 

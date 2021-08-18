@@ -43,7 +43,7 @@ void LineMesh::updateBuffers() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void LineMesh::updateAllPoints(nonstd::span<glm::vec3> points) {
+void LineMesh::updateAllPoints(std::span<glm::vec3> points) {
     assert(points.size() == positions.size());
     positions = std::vector<glm::vec3>(points.begin(), points.end());
     glBindBuffer(GL_ARRAY_BUFFER, vbo);

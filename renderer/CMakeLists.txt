@@ -45,11 +45,6 @@ target_include_directories(stb INTERFACE ${STB_DIR})
 # tinyxml2
 find_package(TinyXML2 REQUIRED)
 
-# span-lite
-set(SPAN_LITE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/span-lite)
-add_library(span-lite INTERFACE)
-target_include_directories(span-lite INTERFACE ${SPAN_LITE_DIR})
-
 # fmt
 find_package(fmt REQUIRED)
 

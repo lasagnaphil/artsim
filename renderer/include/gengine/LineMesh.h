@@ -46,7 +46,7 @@ struct LineMesh {
 
     void updateBuffers();
 
-    void updateAllPoints(nonstd::span<glm::vec3> points);
+    void updateAllPoints(std::span<glm::vec3> points);
 
     void updatePoint(std::size_t idx, const glm::vec3& point);
 

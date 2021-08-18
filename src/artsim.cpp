@@ -34,34 +34,36 @@ static Eigen::Vector3i glm_to_eigen(const glm::ivec3& v) {
 using namespace artsim;
 using namespace glmx;
 
-void CollisionMesh::init_from_obj(const char *filename, real sdf_grid_size) {
-    fmt::print("Loading mesh {}\n", filename);
-    objfile.load_obj(filename);
-    Discregrid::TriangleMesh mesh(filename);
-    fmt::print("Done\n");
+void CollisionMesh::init_bvh(const char* objfile) {
+    type = CollisionMesh::Type::BVH;
+    fmt::print("Loading mesh {}...\n", objfile);
+    mesh = std::make_unique<Discregrid::TriangleMesh>(objfile);
+    fmt::print("Initializing BVH structure for mesh {}...\n", objfile);
+    bvh = std::make_unique<Discregrid::MeshDistance>(mesh.get());
+}
 
-    fmt::print("Setting up SDF grid...\n");
-    Discregrid::MeshDistance md(mesh);
+void CollisionMesh::init_sdf(const char* objfile, real sdf_grid_size) {
+    init_bvh(objfile);
+
+    type = CollisionMesh::Type::SDF;
 
     Eigen::AlignedBox<real, 3> domain;
     domain.setEmpty();
-    for (auto const& x : mesh.vertices())
+    for (auto const& x : mesh->vertices())
     {
         domain.extend(x);
     }
     domain.max() += 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3r::Ones();
     domain.min() -= 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3r::Ones();
 
-    fmt::print("Done\n");
-
     Eigen::Vector3i res = ((domain.max() - domain.min()) / sdf_grid_size).array().ceil().cast<int>();
-    fmt::print("Generating SDF of size ({}, {}, {})...\n", res[0], res[1], res[2]);
-    sdf_grid = Discregrid::CubicLagrangeDiscreteGrid(domain, Eigen::Vector3r(sdf_grid_size, sdf_grid_size, sdf_grid_size));
+    fmt::print("Generating SDF of size ({}, {}, {}) for {}...\n", res[0], res[1], res[2], objfile);
+    sdf = std::make_unique<Discregrid::CubicLagrangeDiscreteGrid>(
+            domain, Eigen::Vector3r(sdf_grid_size, sdf_grid_size, sdf_grid_size));
     // auto cell_size = sdf_grid.cellSize();
     // fmt::print("Cell size = ({}, {}, {})\n", cell_size[0], cell_size[1], cell_size[2]);
-    auto func = [&md](Eigen::Vector3r const& xi) {return md.signedDistanceCached(xi); };
-    sdf_grid.addFunction(func, true);
-    fmt::print("Done\n");
+    auto func = [this](Eigen::Vector3r const& xi) {return bvh->signedDistanceCached(xi); };
+    sdf->addFunction(func, true);
 }
 
 real CollisionShape::mass(real density) {
@@ -121,11 +123,22 @@ CollisionShape CollisionShape::make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 
     return shape;
 }
 
-CollisionShape CollisionShape::make_mesh(real cell_size, glm::rvec3 scale) {
+CollisionShape CollisionShape::make_mesh_bvh(glm::rvec3 scale) {
     CollisionShape shape;
     shape.type = CollisionShape::Type::Mesh;
     shape.scale = scale;
     shape.mesh.id = {};
+    shape.mesh.type = CollisionMesh::Type::BVH;
+    shape.bt_shape = nullptr;
+    return shape;
+}
+
+CollisionShape CollisionShape::make_mesh_sdf(real cell_size, glm::rvec3 scale) {
+    CollisionShape shape;
+    shape.type = CollisionShape::Type::Mesh;
+    shape.scale = scale;
+    shape.mesh.id = {};
+    shape.mesh.type = CollisionMesh::Type::SDF;
     shape.mesh.cell_size = cell_size;
     shape.bt_shape = nullptr;
     return shape;

@@ -56,4 +56,18 @@ using rsmat6x6 = glmx::tsmat6x6<artsim::real>;
 
 }
 
+namespace artsim {
+
+using rvec2 = glm::rvec2;
+using rvec3 = glm::rvec3;
+using rvec4 = glm::rvec4;
+using rmat3 = glm::rmat3;
+using rmat4 = glm::rmat4;
+using rquat = glm::rquat;
+using ivec2 = glm::ivec2;
+using ivec3 = glm::ivec3;
+using ivec4 = glm::ivec4;
+
+}
+
 #endif //ARTSIM_TYPES_H

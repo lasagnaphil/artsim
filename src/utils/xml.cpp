@@ -226,6 +226,11 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
             col_shape = CollisionShape::make_sphere(radius);
         }
         else if (body_type == "mesh") {
+            fs::path filepath = fs::path(current_dir) / link_elem->Attribute("obj");
+            obj_filename = filepath.string();
+            col_shape = CollisionShape::make_mesh_bvh();
+        }
+        else if (body_type == "mesh_sdf") {
             auto cell_size_str = link_elem->Attribute("cell_size");
             real cell_size;
             if (cell_size_str) {
@@ -237,7 +242,7 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
             }
             fs::path filepath = fs::path(current_dir) / link_elem->Attribute("obj");
             obj_filename = filepath.string();
-            col_shape = CollisionShape::make_mesh(cell_size);
+            col_shape = CollisionShape::make_mesh_sdf(cell_size);
         }
         else if (body_type == "capsule") {
             double radius = std::stod(link_elem->Attribute("radius"));
