@@ -356,7 +356,7 @@ void World::proximal_solver() {
             // std::cout << "lam: " << lam.transpose() << std::endl;
 
             r = (lam - lam_old).lpNorm<Eigen::Infinity>();
-            printf("velocity error: %f\n", r);
+            // printf("velocity error: %f\n", r);
             // Adaptive r-factor tuning
             if (r > r_old) {
 #if defined(PROXIMAL_SOLVER_GLOBAL_R_STRATEGY)
@@ -370,7 +370,7 @@ void World::proximal_solver() {
         }
 #endif
 
-        printf("Contact solver velocity error: %f\n", r);
+        // printf("Contact solver velocity error: %f\n", r);
     }
 
     for (int cid = 0; cid < num_contact_points; cid++) {
