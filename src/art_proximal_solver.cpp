@@ -279,7 +279,7 @@ void World::proximal_solver() {
                 lam(3*cid+2) = lam_n;
             }
             r = (lam - lam_old).lpNorm<Eigen::Infinity>();
-            printf("velocity error: %f\n", r);
+            // printf("velocity error: %f\n", r);
             // Adaptive r-factor tuning
             if (r > r_old) {
                 R *= 0.5;

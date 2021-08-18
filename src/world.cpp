@@ -107,10 +107,8 @@ void World::integrate_with_contacts() {
             body1_id.generation = bt_body1->getUserIndex2();
             body2_id.index = bt_body2->getUserIndex();
             body2_id.generation = bt_body2->getUserIndex2();
-            if (body1_id.index < body2_id.index) std::swap(body1_id, body2_id);
             for (int j = 0; j < num_contacts; j++) {
                 auto& pt = manifold->getContactPoint(j);
-                int cp_id = contact_points.size();
                 ContactPoint cp;
                 cp.bt_manifold = manifold;
                 cp.bt_manifold_point = &pt;
