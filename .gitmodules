@@ -3,4 +3,4 @@
 	url = https://github.com/wolfpld/tracy
 [submodule "libs/Discregrid"]
 	path = libs/Discregrid
-	url = https://github.com/InteractiveComputerGraphics/Discregrid
+	url = git@github.com:lasagnaphil/Discregrid
