@@ -679,7 +679,7 @@ void ArtWithSoftBodies::integrate_admm_coupled() {
         x_s = x_s_orig + dt*v_s;
     }
 
-    integrate_implicit_euler(art.get_spec(), dt, nullptr, x_r.data(), v_r.data());
+    integrate_positions(art.get_spec(), dt, v_r.data(), x_r.data());
 
     // Project constrained positions to articulation
     art.forward_kinematics();

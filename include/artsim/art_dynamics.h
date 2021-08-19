@@ -93,9 +93,12 @@ namespace artsim {
                                      const real*__restrict q, const real*__restrict u, const real*__restrict tau,
                                      OUT real*__restrict udot);
 
+    void integrate_velocities(const ArticulatedBodySpec& art, real dt, const real*__restrict udot, INOUT real*__restrict u);
+    void integrate_positions(const ArticulatedBodySpec& art, real dt, const real*__restrict u, INOUT real*__restrict q);
+
     void integrate_implicit_euler(const ArticulatedBodySpec& art,
                                   real dt, const real*__restrict udot,
-                                  OUT real*__restrict q, OUT real*__restrict u);
+                                  INOUT real*__restrict q, INOUT real*__restrict u);
 
     void calc_transforms(const ArticulatedBodySpec& art, const real* q, glmx::ttransform<real>* T_joint_globals,
                          OUT glmx::ttransform<real>* T_link_globals);

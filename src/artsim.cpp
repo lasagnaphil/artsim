@@ -428,8 +428,11 @@ void ArticulatedBody::forward_dynamics(const glm::rvec3& gravity, real dt) {
 }
 
 void ArticulatedBody::integrate(real dt, bool use_accel) {
-    artsim::integrate_implicit_euler(spec, dt, use_accel? udot.data() : nullptr,
-                                     INOUT q.data(), INOUT u.data());
+    if (use_accel) {
+        artsim::integrate_velocities(spec, dt, udot.data(), u.data());
+    }
+    artsim::integrate_positions(spec, dt, u.data(), q.data());
+
     forward_kinematics();
 }
 

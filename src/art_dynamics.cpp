@@ -854,13 +854,14 @@ void forward_dynamics_using_rnea(const ArticulatedBodySpec& art, glm::tvec3<real
     x.noalias() = M_eigen.llt().solve(b);
 }
 
-void integrate_implicit_euler(const ArticulatedBodySpec& art, real dt, const real* udot, real* q, real* u) {
-    if (udot) {
-        for (int d = 0; d < art.get_num_vel_dofs(); d++) {
-            u[d] += udot[d] * dt;
-        }
+void integrate_velocities(const ArticulatedBodySpec& art, real dt, const real*__restrict udot, INOUT real*__restrict u) {
+    for (int d = 0; d < art.get_num_vel_dofs(); d++) {
+        u[d] += udot[d] * dt;
     }
-    real* qi = q; real* qdi = u;
+}
+
+void integrate_positions(const ArticulatedBodySpec& art, real dt, const real*__restrict u, INOUT real*__restrict q) {
+    real* qi = q; const real* qdi = u;
     for (int i = 0; i < art.get_num_joints(); i++) {
         switch (art.joints[i].type) {
             JOINT_DOF_1_CASE {
@@ -891,6 +892,12 @@ void integrate_implicit_euler(const ArticulatedBodySpec& art, real dt, const rea
         qi += art.joint_pos_dofs[i];
         qdi += art.joint_vel_dofs[i];
     }
+}
+
+void integrate_implicit_euler(const ArticulatedBodySpec& art, real dt, const real* udot,
+                              INOUT real*__restrict q, INOUT real*__restrict u) {
+    integrate_velocities(art, dt, udot, INOUT u);
+    integrate_positions(art, dt, u, INOUT q);
 }
 
 void calc_transforms(const ArticulatedBodySpec& art, const real* q, glmx::ttransform<real>* T_joint_globals,

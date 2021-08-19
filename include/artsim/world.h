@@ -34,12 +34,17 @@ enum class ContactSolverType {
     Proximal, NCP
 };
 
+enum class IntegrationType {
+    SemiImplicitEuler, Midpoint
+};
+
 struct WorldConfig {
     glm::rvec3 gravity = {0.0, -9.8, 0.0};
     real dt = 1.0 / 240.0;
     int max_vel_iters = 8;
     int max_pos_iters = 2;
     ContactSolverType contact_solver_type = ContactSolverType::Proximal;
+    IntegrationType integration_type = IntegrationType::SemiImplicitEuler;
 };
 
 class World {

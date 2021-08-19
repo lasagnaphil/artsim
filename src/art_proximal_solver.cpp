@@ -37,6 +37,17 @@ void World::proximal_solver() {
 
     int num_contact_points = contact_points.size();
 
+    if (cfg.integration_type == IntegrationType::Midpoint) {
+        articulated_bodies.foreach_id_val([&](Id<ArticulatedBody> art_id, ArticulatedBody& art) {
+            integrate_positions(art.get_spec(), real(0.5)*cfg.dt, art.get_vel_buf(), art.get_pos_buf());
+            art.forward_kinematics();
+        });
+
+        rigid_bodies.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
+            // TODO
+        });
+    }
+
     std::unordered_map<BodyId, std::vector<std::pair<int, int>>> contact_info;
     for (int cid = 0; cid < num_contact_points; cid++) {
         auto& c = contact_points[cid];
@@ -386,7 +397,6 @@ void World::proximal_solver() {
             auto it = body_id_to_entity_id.find(bid);
             if (it == body_id_to_entity_id.end()) {
                 art.forward_dynamics(cfg.gravity, cfg.dt);
-                art.integrate(cfg.dt);
             }
             else {
                 int eid = it->second;
@@ -412,7 +422,14 @@ void World::proximal_solver() {
                                               f_ext_tot.data(), art.get_pos_buf(), art.get_vel_buf(),
                                               art.get_internal_force_buf(), art.get_target_pos_buf(),
                                               OUT art.get_acc_buf());
+            }
+            if (cfg.integration_type == IntegrationType::SemiImplicitEuler) {
                 art.integrate(cfg.dt);
+            }
+            else if (cfg.integration_type == IntegrationType::Midpoint) {
+                integrate_velocities(art.get_spec(), cfg.dt, art.get_acc_buf(), art.get_vel_buf());
+                integrate_positions(art.get_spec(), real(0.5) * cfg.dt, art.get_vel_buf(), art.get_pos_buf());
+                art.forward_kinematics();
             }
         });
 
@@ -512,8 +529,7 @@ void World::proximal_solver() {
                 if (bid.is_articulation()) {
                     auto art_id = bid.get_art_id();
                     auto& art = *get_articulated_body(art_id);
-                    integrate_implicit_euler(art.get_spec(), cfg.dt, nullptr,
-                                             INOUT art.get_pos_buf(), INOUT u.data() + dof_start);
+                    integrate_positions(art.get_spec(), cfg.dt, u.data() + dof_start, art.get_pos_buf());
                     art.forward_kinematics();
                 }
                 else {

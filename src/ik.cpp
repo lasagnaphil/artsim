@@ -43,7 +43,7 @@ void artsim::inverse_kinematics(
         pos_diff = ee_global_pos - T_global.v;
         Matrix<real, 3, 1> dX((real*)&pos_diff);
         u.bottomRows(num_vel_dofs-6) = (J_b.transpose() * J_b).ldlt().solve(J_b.transpose() * dX);
-        integrate_implicit_euler(art, 1.0f, nullptr, q_cur.data(), u.data());
+        integrate_positions(art, 1.0f, u.data(), q_cur.data());
         if (glm::length2(pos_diff) <= epsilon*epsilon) {
             break;
         }
