@@ -68,8 +68,8 @@ public:
             // auto new_art_id = world.add_articulated_body(
             //         examples::create_free_ball(0.1f), default_mat_id);
 
-            auto new_art = world.get_articulated_body(new_art_id);
-            new_art->randomize_positions();
+            auto art = world.get_articulated_body(new_art_id);
+            art->randomize_positions();
             art_renderers.push_back(ArticulationRender(&world, new_art_id, orig_mesh_mat, joint_mat));
         }
 

@@ -100,6 +100,9 @@ namespace artsim {
                                   real dt, const real*__restrict udot,
                                   INOUT real*__restrict q, INOUT real*__restrict u);
 
+    void integrate_second_order(const ArticulatedBodySpec& art, real dt, const real* udot,
+                                INOUT real*__restrict q, INOUT real*__restrict u);
+
     void calc_transforms(const ArticulatedBodySpec& art, const real* q, glmx::ttransform<real>* T_joint_globals,
                          OUT glmx::ttransform<real>* T_link_globals);
 

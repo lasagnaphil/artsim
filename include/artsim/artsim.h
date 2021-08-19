@@ -414,7 +414,7 @@ public:
     void update_colliders();
 
     void forward_dynamics(const glm::rvec3& gravity, real dt);
-    void integrate(real dt, bool use_accel = true);
+    void integrate(real dt);
     void simulate(const glm::rvec3& gravity, real dt);
 
     void mass_matrix(OUT glmx::dynmat_view<real> M, real dt = 0);

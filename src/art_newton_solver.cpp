@@ -329,7 +329,7 @@ void World::newton_solver() {
             auto [vel_dof_start, vel_dofs] = state_meta.get_vel_dof_starts_and_size(bid);
             std::copy_n(q0.data() + pos_dof_start, pos_dofs, OUT art.get_pos_buf());
             std::copy_n(u.data() + vel_dof_start, vel_dofs, OUT art.get_vel_buf());
-            art.integrate(cfg.dt, false);
+            integrate_positions(art.get_spec(), cfg.dt, art.get_vel_buf(), art.get_pos_buf());
         });
         rigid_bodies.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
             // TODO

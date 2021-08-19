@@ -868,15 +868,30 @@ void integrate_positions(const ArticulatedBodySpec& art, real dt, const real*__r
                 qi[0] += qdi[0]*dt;
             } break;
             case JOINT_TYPE_SPHERICAL: {
+                auto w = make_vec3(qdi);
+                auto q_0 = make_quat(qi);
+                auto q_1 = normalize(q_0 * exp(dt*w));
+                std::memcpy(qi, glm::value_ptr(q_1), 4*sizeof(real));
+                /*
                 qi[0] += 0.5*dt*(qi[3]*qdi[0] + qi[1]*qdi[2] - qi[2]*qdi[1]);
                 qi[1] += 0.5*dt*(qi[3]*qdi[1] + qi[2]*qdi[0] - qi[0]*qdi[2]);
                 qi[2] += 0.5*dt*(qi[3]*qdi[2] + qi[0]*qdi[1] - qi[1]*qdi[0]);
                 qi[3] -= 0.5*dt*(qi[0]*qdi[0] + qi[1]*qdi[1] + qi[2]*qdi[2]);
                 real q_len = glm::sqrt(qi[0]*qi[0] + qi[1]*qi[1] + qi[2]*qi[2] + qi[3]*qi[3]);
                 qi[0] /= q_len; qi[1] /= q_len; qi[2] /= q_len; qi[3] /= q_len;
+                 */
             } break;
             case JOINT_TYPE_FLOATING: {
                 // TODO: is there a more accurate way to integrate SE(3)?
+                auto w = make_vec3(qdi);
+                auto v = make_vec3(qdi+3);
+                auto x_0 = make_vec3(qi);
+                auto q_0 = make_quat(qi+3);
+                auto x_1 = x_0 + (q_0 * v)*dt;
+                auto q_1 = normalize(q_0 * exp(dt*w));
+                std::memcpy(qi, glm::value_ptr(x_1), 3*sizeof(real));
+                std::memcpy(qi+3, glm::value_ptr(q_1), 4*sizeof(real));
+                /*
                 glm::tvec3<real> p_dot = make_quat(qi+3) * make_vec3(qdi+3);
                 qi[0] += dt*p_dot[0];
                 qi[1] += dt*p_dot[1];
@@ -887,6 +902,7 @@ void integrate_positions(const ArticulatedBodySpec& art, real dt, const real*__r
                 qi[6] -= 0.5*dt*(qi[3]*qdi[0] + qi[4]*qdi[1] + qi[5]*qdi[2]);
                 real q_len = glm::sqrt(qi[3]*qi[3] + qi[4]*qi[4] + qi[5]*qi[5] + qi[6]*qi[6]);
                 qi[3] /= q_len; qi[4] /= q_len; qi[5] /= q_len; qi[6] /= q_len;
+                 */
             } break;
         }
         qi += art.joint_pos_dofs[i];
@@ -894,10 +910,62 @@ void integrate_positions(const ArticulatedBodySpec& art, real dt, const real*__r
     }
 }
 
+/*
+ * The semi-implicit Euler method.
+ * This seems to be the most stable method so far for articulations...
+ */
 void integrate_implicit_euler(const ArticulatedBodySpec& art, real dt, const real* udot,
                               INOUT real*__restrict q, INOUT real*__restrict u) {
-    integrate_velocities(art, dt, udot, INOUT u);
-    integrate_positions(art, dt, u, INOUT q);
+    integrate_velocities(art, dt, udot, u);
+    integrate_positions(art, dt, u, q);
+}
+
+/*
+ * Augmented second order method from Buss's paper (Accurate and Efficient Simulation of Rigid Body Rotations)
+ * https://www.math.ucsd.edu/~sbuss/ResearchWeb/accuraterotation/paper.pdf
+ */
+void integrate_second_order(const ArticulatedBodySpec& art, real dt, const real* udot,
+                            INOUT real*__restrict q, INOUT real*__restrict u) {
+    real* qi = q; real* qdi = u; const real* q2di = udot;
+    for (int i = 0; i < art.get_num_joints(); i++) {
+        switch (art.joints[i].type) {
+            JOINT_DOF_1_CASE {
+                qdi[0] += q2di[0]*dt;
+                qi[0] += qdi[0]*dt;
+            } break;
+            case JOINT_TYPE_SPHERICAL: {
+                auto w = make_vec3(qdi);
+                auto w_dot = make_vec3(q2di);
+                auto q_0 = make_quat(qi);
+                auto w_1 = w + w_dot * dt;
+                auto w_p = w + real(1./2.)*dt*w_dot + real(1./12.)*dt*dt*glm::cross(w_dot, w);
+                auto q_1 = normalize(q_0 * exp(dt*w_p));
+                std::memcpy(qi, glm::value_ptr(q_1), 4*sizeof(real));
+                std::memcpy(qdi, glm::value_ptr(w_1), 3*sizeof(real));
+            } break;
+            case JOINT_TYPE_FLOATING: {
+                // TODO: is there a more accurate way to integrate SE(3)?
+                auto w = make_vec3(qdi);
+                auto w_dot = make_vec3(q2di);
+                auto v = make_vec3(qdi+3);
+                auto v_dot = make_vec3(q2di+3);
+                auto x_0 = make_vec3(qi);
+                auto q_0 = make_quat(qi+3);
+                auto w_1 = w + w_dot * dt;
+                auto v_1 = v + v_dot * dt;
+                auto w_p = w + real(1./2.)*dt*w_dot + real(1./12.)*dt*dt*glm::cross(w_dot, w);
+                auto q_1 = normalize(q_0 * exp(dt*w_p));
+                auto x_1 = x_0 + (q_0 * v_1)*dt;
+                std::memcpy(qi, glm::value_ptr(x_1), 3*sizeof(real));
+                std::memcpy(qi+3, glm::value_ptr(q_1), 4*sizeof(real));
+                std::memcpy(qdi, glm::value_ptr(w_1), 3*sizeof(real));
+                std::memcpy(qdi+3, glm::value_ptr(v_1), 3*sizeof(real));
+            } break;
+        }
+        qi += art.joint_pos_dofs[i];
+        qdi += art.joint_vel_dofs[i];
+        q2di += art.joint_vel_dofs[i];
+    }
 }
 
 void calc_transforms(const ArticulatedBodySpec& art, const real* q, glmx::ttransform<real>* T_joint_globals,
