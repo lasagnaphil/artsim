@@ -116,7 +116,6 @@ TEST_CASE("Various kinds of pendulums") {
             {"16. floating double link spherical", examples::create_free_link(2, true)},
     };
 
-    MaterialDB material_db;
     for (auto& [name, spec] : articulations) {
         SUBCASE(name.c_str()) {
 
@@ -152,18 +151,6 @@ TEST_CASE("Various kinds of pendulums") {
             real* udot = art.get_acc_buf();
             tscrew<real>* f_ext = art.get_external_force_buf();
             real* tau = art.get_internal_force_buf();
-
-            // Performance comparison
-            int num_iters = 100;
-            {
-                auto t1 = std::chrono::high_resolution_clock::now();
-                for (int i = 0; i < num_iters; i++) {
-                    featherstone_forward_dynamics(spec, glm::tvec3<real>(0, -g, 0), dt, f_ext, q, u, tau, nullptr, OUT q2dot_1.data());
-                }
-                auto t2 = std::chrono::high_resolution_clock::now();
-                auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-                MESSAGE(num_iters << " iters of featherstone forward dynamics: " << duration.count() << " microsecs");
-            }
 
             for (int i = 0; i < 100; i++) {
                 mass_matrix(spec, dt, q, OUT M1.to_view());

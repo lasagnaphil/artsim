@@ -6,6 +6,7 @@
 #define ARTSIM_ARTICULATION_RENDER_H
 
 #include <artsim/world.h>
+#include <artsim/math/eigen.h>
 #include <artsim/utils/example_articulations.h>
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>

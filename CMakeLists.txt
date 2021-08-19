@@ -36,6 +36,8 @@ add_library(artsim
         src/world.cpp
         src/art_dynamics.cpp
         src/art_contacts.cpp
+        src/art_proximal_solver.cpp
+        src/art_newton_solver.cpp
         src/ik.cpp
         src/soft_body.cpp
         src/soft_body_dynamics.cpp
@@ -86,3 +88,4 @@ endif()
 if (ARTSIM_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
+add_subdirectory(benchmark)

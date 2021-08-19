@@ -19,6 +19,7 @@ namespace artsim {
  *      - Still seems to be unstable. Investigate why.
  */
 
+
 inline real compute_r(real theta, const rvec3& Minv_r3, real c_z, real mu) {
     return -c_z / (Minv_r3.z / mu + Minv_r3.x * cos(theta) + Minv_r3.y * sin(theta));
 }
@@ -160,7 +161,7 @@ std::tuple<glm::tvec3<real>, real, bool> contact_ncp_solver(const tvec3<real>& l
 }
 
 void iterative_contact_solver(
-        ContactSolverType type, uint32_t max_iters, const Material* mat, real dt,
+        ContactSolverTypeLegacy type, uint32_t max_iters, const Material* mat, real dt,
         uint32_t num_contact_points,
         const dynmat<tmat3x3<real>>& M_contact_inv,
         INOUT tvec3<real>* c, INOUT tvec3<real>* lambda) {
@@ -169,19 +170,19 @@ void iterative_contact_solver(
     real alpha, total_ncp_error_sq;
 
     switch (type) {
-        case ContactSolverType::PGS:
+        case ContactSolverTypeLegacy::PGS:
             alpha = 1.0;
             alpha_min = 1.0;
             gamma = 1.0;
             lambda_err_tol = 1e-4;
             break;
-        case ContactSolverType::Bisection:
+        case ContactSolverTypeLegacy::Bisection:
             alpha = 1.0;
             alpha_min = 0.7;
             gamma = 0.99;
             lambda_err_tol = 1e-4;
             break;
-        case ContactSolverType::NCP:
+        case ContactSolverTypeLegacy::NCP:
             alpha = 1.0;
             alpha_min = 1.0;
             gamma = 1.0;
@@ -212,13 +213,13 @@ void iterative_contact_solver(
                 else {
                     tvec3<real> lambda_star;
                     switch (type) {
-                        case ContactSolverType::PGS: {
+                        case ContactSolverTypeLegacy::PGS: {
                             lambda_star = contact_projection_solver(lambda[i], M_inv_ii, c[i], mu);
                         } break;
-                        case ContactSolverType::Bisection: {
+                        case ContactSolverTypeLegacy::Bisection: {
                             lambda_star = contact_bisection_solver(lambda_v0, M_inv_ii, c[i], mu);
                         } break;
-                        case ContactSolverType::NCP: {
+                        case ContactSolverTypeLegacy::NCP: {
                             const real r = glmx::frobenius_norm(M_inv_ii);
                             real ncp_error_sq;
                             bool success;
@@ -310,10 +311,9 @@ euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
             // auto tangent_v = glm::cross(cp.normal, tangent_u);
             // auto contact_T = ttransform<real>(cp.pos, glm::tmat3x3<real>(tangent_u, tangent_v, cp.normal));
             auto contact_T = rtransform(cp.pos, mat3_cast(rotation(Ez<real>(), cp.normal)));
-            auto contact_rel_T = contact_T / T_joint_global[art_link_idx];
             // art_contact_T[c] = inverse(contact_rel_T);
             dynmat_view<real> Jc_T_view(Jc_T.data() + 3*c*num_vel_dofs, num_vel_dofs, 3);
-            calc_linear_jacobian_transpose(art, art_link_idx, contact_rel_T, T_joint_global.data(),
+            calc_linear_jacobian_transpose(art, art_link_idx, contact_T, T_joint_global.data(),
                                            OUT Jc_T_view);
         }
 
@@ -324,7 +324,7 @@ euler_step_with_collision(ContactSolverType type, uint32_t max_iters,
 
         for (int i = 0; i < num_contact_points; i++) {
             c[i] = make_vec3<real>(tau_star.data() + 3*i);
-            c[i].z -= beta/dt*glm::max<real>(contact_points[i].depth - slop, 0);
+            c[i].z -= beta/dt*glm::max<real>(contact_points[i].distance - slop, 0);
         }
         for (int i = 0; i < num_contact_points; i++) {
             lambda[i] = glm::rvec3(0);
@@ -384,7 +384,7 @@ std::vector<ContactPoint> get_contact_points_bullet(btCollisionWorld* bt_world) 
 
         const btCollisionObject* body1 = manifold->getBody0();
         const btCollisionObject* body2 = manifold->getBody1();
-        BodyId body1_id, body2_id;
+        BodyLinkId body1_id, body2_id;
         body1_id.index = body1->getUserIndex();
         body1_id.generation = body1->getUserIndex2();
         body2_id.index = body2->getUserIndex();
@@ -435,7 +435,7 @@ std::vector<ContactPoint> get_contact_points_bullet(btCollisionWorld* bt_world) 
             cp.bt_manifold = manifold;
             cp.pos = glmconv(pt.getPositionWorldOnB());
             cp.normal = glmconv(pt.m_normalWorldOnB);
-            cp.depth = -pt.getDistance();
+            cp.distance = -pt.getDistance();
             cp.area = 0;
             cp.body1_id = body1_id;
             cp.body2_id = body2_id;
@@ -516,8 +516,8 @@ contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, cons
                         cp.area = 0.5f * glm::length(glm::cross(cpos[1] - cpos[0], cpos[2] - cpos[0]));
                         cp.area += 0.5f * glm::length(glm::cross(cpos[2] - cpos[0], cpos[3] - cpos[0]));
                     }
-                    cp.body1_id = BodyId::from_articulation_link(art_id, i);
-                    cp.body2_id = BodyId::from_ground();
+                    cp.body1_id = BodyLinkId::from_articulation_link(art_id, i);
+                    cp.body2_id = BodyLinkId::from_ground();
                     contact_points.push_back(cp);
                 }
 #else
@@ -526,10 +526,10 @@ contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, cons
                     cp.bt_manifold = nullptr;
                     cp.pos = glm::tvec3<real>(pos.x, 0, pos.z);
                     cp.normal = Ey<real>();
-                    cp.depth = -pos.y;
+                    cp.distance = -pos.y;
                     cp.area = 0;
-                    cp.body1_id = BodyId::from_articulation_link(art_id, i);
-                    cp.body2_id = BodyId::from_ground();
+                    cp.body1_id = BodyLinkId::from_articulation_link(art_id, i);
+                    cp.body2_id = BodyLinkId::from_ground();
                     contact_points.push_back(cp);
                 }
 #endif
@@ -543,10 +543,10 @@ contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, cons
                     cp.bt_manifold = nullptr;
                     cp.pos = glm::vec3(p.x, 0, p.z);
                     cp.normal = Ey<real>();
-                    cp.depth = -d;
+                    cp.distance = -d;
                     cp.area = M_PI * (r*r - (r - p.y)*(r - p.y));
-                    cp.body1_id = BodyId::from_articulation_link(art_id, i);
-                    cp.body2_id = BodyId::from_ground();
+                    cp.body1_id = BodyLinkId::from_articulation_link(art_id, i);
+                    cp.body2_id = BodyLinkId::from_ground();
                     contact_points.push_back(cp);
                 }
             } break;

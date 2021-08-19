@@ -30,10 +30,21 @@ struct MaterialDB {
     Material get_material_pair(Id<Material> mat1_id, Id<Material> mat2_id);
 };
 
+enum class ContactSolverType {
+    Proximal, NCP
+};
+
+enum class IntegrationType {
+    SemiImplicitEuler, Midpoint
+};
+
 struct WorldConfig {
     glm::rvec3 gravity = {0.0, -9.8, 0.0};
     real dt = 1.0 / 240.0;
-    int max_iters = 4;
+    int max_vel_iters = 8;
+    int max_pos_iters = 2;
+    ContactSolverType contact_solver_type = ContactSolverType::Proximal;
+    IntegrationType integration_type = IntegrationType::SemiImplicitEuler;
 };
 
 class World {
@@ -46,13 +57,17 @@ private:
 
     btCollisionWorld* bt_collision_world = nullptr;
     btCollisionObject* bt_plane_col = nullptr;
+    btOverlapFilterCallback* overlap_filter_callback = nullptr;
 
     WorldConfig cfg;
+
+    std::vector<ContactPoint> contact_points;
 
 public:
     void init(WorldConfig world_cfg);
     void destroy() {
         delete bt_collision_world;
+        delete overlap_filter_callback;
         rigid_bodies.clear();
         articulated_bodies.clear();
         material_db.clear();
@@ -95,10 +110,13 @@ public:
         return add_rigid_body(spec, mat_id);
     }
 
-    Id<ArticulatedBody> add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id) {
+    Id<ArticulatedBody> add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id,
+                                             int col_filter_group = btBroadphaseProxy::DefaultFilter,
+                                             int col_filter_mask = btBroadphaseProxy::AllFilter,
+                                             bool enable_self_colisions = false) {
         auto id = articulated_bodies.make();
         auto ptr = articulated_bodies.get(id);
-        ptr->init(id, spec, mat_id, bt_collision_world);
+        ptr->init(id, spec, mat_id, bt_collision_world, col_filter_group, col_filter_mask, enable_self_colisions);
         load_collision_meshes(ptr->get_spec_mut());
         return id;
     }
@@ -165,9 +183,25 @@ public:
         return bt_collision_world;
     }
 
+    std::vector<ContactPoint>& get_contact_points() { return contact_points; }
+    const std::vector<ContactPoint>& get_contact_points() const { return contact_points; }
+
 private:
     void load_collision_meshes(ArticulatedBodySpec& spec);
     void integrate_with_contacts();
+
+    void proximal_solver();
+    void newton_solver();
+
+    Id<Material> get_material(BodyLinkId blid);
+};
+
+struct WorldOverlapFilterCallback : public btOverlapFilterCallback {
+    artsim::World* world;
+
+    WorldOverlapFilterCallback(artsim::World* world) : world(world) {}
+
+    bool needBroadphaseCollision(btBroadphaseProxy* proxy0, btBroadphaseProxy* proxy1) const override;
 };
 
 }

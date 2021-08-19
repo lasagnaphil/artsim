@@ -69,7 +69,7 @@ void CollisionMesh::init_sdf(const char* objfile, real sdf_grid_size) {
 real CollisionShape::mass(real density) {
     switch (type) {
         case Type::Box: return density * scale.x * scale.y * scale.z;
-        case Type::Sphere: return real(4.0 / 3.0) * glm::pi<real>() * scale.x * scale.y * scale.z;
+        case Type::Sphere: return real(4.0 / 3.0) * density * glm::pi<real>() * scale.x * scale.y * scale.z;
         default: return real(0);
     }
 }
@@ -158,7 +158,7 @@ void RigidBody::init(Id<RigidBody> rb_id, RigidBodySpec rb_spec, Id<Material> ma
     this->mat_id = mat_id;
     auto col_shape = spec.col_shape;
     if (col_shape.type != CollisionShape::Type::Mesh) {
-        BodyId body_id = BodyId::from_rigid_body(rb_id);
+        BodyLinkId body_id = BodyLinkId::from_rigid_body(rb_id);
         bt_collision_object = new btCollisionObject;
         bt_collision_object->setCollisionShape(spec.col_shape.bt_shape);
         bt_collision_object->setWorldTransform(btTransform::getIdentity());
@@ -298,8 +298,12 @@ void ArticulatedBody::init(artsim::ArticulatedBodySpec art_spec) {
 }
 
 void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_spec, Id<Material> mat_id,
-                           btCollisionWorld* bt_collision_world)
+                           btCollisionWorld* bt_collision_world,
+                           int col_filter_group_mask, int col_filter_mask,
+                           bool enable_self_collisions)
 {
+    this->is_self_collision_enabled = enable_self_collisions;
+
     init(art_spec);
     this->mat_id = mat_id;
     int num_links = get_num_links();
@@ -307,13 +311,13 @@ void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_s
     for (int i = 0; i < num_links; i++) {
         auto col_shape = spec.links[i].col_shape;
         if (col_shape.type != CollisionShape::Type::Mesh) {
-            BodyId body_id = BodyId::from_articulation_link(art_id, i);
+            BodyLinkId body_id = BodyLinkId::from_articulation_link(art_id, i);
             btCollisionObject* col_obj = new btCollisionObject;
             col_obj->setCollisionShape(spec.links[i].col_shape.bt_shape);
             col_obj->setUserIndex(body_id.index);
             col_obj->setUserIndex2(body_id.generation);
-            bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);
-            // bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0);
+            // bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);
+            bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0);
             bt_collision_objects[i] = col_obj;
         }
     }
@@ -428,7 +432,7 @@ void ArticulatedBody::forward_dynamics(const glm::rvec3& gravity, real dt) {
 }
 
 void ArticulatedBody::integrate(real dt) {
-    artsim::integrate_implicit_euler(spec, dt, udot.data(), INOUT q.data(), INOUT u.data());
+    artsim::integrate_implicit_euler(spec, dt, udot.data(), q.data(), u.data());
     forward_kinematics();
 }
 

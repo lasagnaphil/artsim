@@ -3,6 +3,7 @@
 //
 
 #include "artsim/art_dynamics.h"
+#include <artsim/math/eigen.h>
 
 #include <Eigen/Dense>
 
@@ -95,18 +96,17 @@ tscrew<real> calc_v0(const Joint& joint, const real* u) {
     }
 }
 
-void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const ttransform<real>& offset,
+void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const ttransform<real>& T_frame_global,
                         const ttransform<real>* T_joint_global,
                         tscrew<real>* J_b) {
     ZoneScoped
     std::fill_n(J_b, art.get_num_vel_dofs(), tscrew<real>(IDENTITY));
-    auto T_m = T_joint_global[joint_idx] * offset;
     int i = joint_idx;
     do {
         int joint_vel_dof_start = art.joint_vel_dof_starts[i];
         int joint_vel_dofs = art.joint_vel_dofs[i];
         auto& joint = art.joints[i];
-        auto T = T_joint_global[i] / T_m;
+        auto T = T_joint_global[i] / T_frame_global;
         switch (joint.type) {
             case JOINT_TYPE_REVOLUTE_X:  J_b[joint_vel_dof_start] = {T.R[0], glm::cross(T.v, T.R[0])}; break;
             case JOINT_TYPE_REVOLUTE_Y:  J_b[joint_vel_dof_start] = {T.R[1], glm::cross(T.v, T.R[1])}; break;
@@ -132,20 +132,19 @@ void calc_body_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, cons
     } while (i != -1);
 }
 
-void calc_linear_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& offset,
+void calc_linear_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& T_frame_global,
                           const rtransform* T_joint_global,
                           OUT dynmat_view<real> Jc) {
     ZoneScoped
     assert(Jc.rows == 3);
     assert(Jc.cols == art.get_num_vel_dofs());
     Jc.clear_zero();
-    auto T_m = T_joint_global[joint_idx] * offset;
     int i = joint_idx;
     do {
         int joint_vel_dof_start = art.joint_vel_dof_starts[i];
         int joint_vel_dofs = art.joint_vel_dofs[i];
         auto& joint = art.joints[i];
-        auto T = T_joint_global[i] / T_m;
+        auto T = T_joint_global[i] / T_frame_global;
         auto set_jacobian = [&Jc, joint_vel_dof_start](int i, glm::rvec3 v) {
             Jc(0, joint_vel_dof_start+i) = v[0];
             Jc(1, joint_vel_dof_start+i) = v[1];
@@ -176,20 +175,19 @@ void calc_linear_jacobian(const ArticulatedBodySpec& art, uint32_t joint_idx, co
     } while (i != -1);
 }
 
-void calc_linear_jacobian_transpose(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& offset,
+void calc_linear_jacobian_transpose(const ArticulatedBodySpec& art, uint32_t joint_idx, const rtransform& T_frame_global,
                                     const rtransform* T_joint_global,
                                     OUT dynmat_view<real> Jc_T) {
     ZoneScoped
     assert(Jc_T.rows == art.get_num_vel_dofs());
     assert(Jc_T.cols == 3);
     Jc_T.clear_zero();
-    auto T_m = T_joint_global[joint_idx] * offset;
     int i = joint_idx;
     do {
         int joint_vel_dof_start = art.joint_vel_dof_starts[i];
         int joint_vel_dofs = art.joint_vel_dofs[i];
         auto& joint = art.joints[i];
-        auto T = T_joint_global[i] / T_m;
+        auto T = T_joint_global[i] / T_frame_global;
         auto set_jacobian = [&Jc_T, joint_vel_dof_start](int i, glm::rvec3 v) {
             Jc_T(joint_vel_dof_start+i, 0) = v[0];
             Jc_T(joint_vel_dof_start+i, 1) = v[1];
@@ -224,7 +222,6 @@ struct RecursiveNewtonEulerData {
     // IN
     bool is_floating_art;
     JointType joint_type;
-    bool has_parent;
 
     ttransform<real> Tinv;
     tscrew<real> v0;
@@ -243,9 +240,9 @@ struct RecursiveNewtonEulerData {
     tvec3<real> tau;           // dof
 
     // kin must be calculated using jcalc() before this call
-    void rnea_pass1() {
-        v = Ad(Tinv, v) + v0;
-        a = Ad(Tinv, a) + ad(v, v0); // + c0; (c0 is zero for all types of joints)
+    void rnea_pass1(const RecursiveNewtonEulerData& parent) {
+        v = Ad(Tinv, parent.v) + v0;
+        a = Ad(Tinv, parent.a) + ad(v, v0); // + c0; (c0 is zero for all types of joints)
         if (!is_floating_art) {
             switch (joint_type) {
                 JOINT_DOF_1_CASE {
@@ -260,7 +257,8 @@ struct RecursiveNewtonEulerData {
         f = I * a - adT(v, I * v) - f_ext;
     }
 
-    void rnea_pass2(real dt) {
+    template <bool has_parent>
+    void rnea_pass2(real dt, OUT RecursiveNewtonEulerData& parent) {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
@@ -271,7 +269,7 @@ struct RecursiveNewtonEulerData {
             } break;
         }
         if (has_parent) {
-            f = AdT(Tinv, f);
+            parent.f += AdT(Tinv, f);
         }
     }
 };
@@ -291,7 +289,6 @@ void rne_inverse_dynamics(const ArticulatedBodySpec& art, glm::tvec3<real> gravi
         int num_vel_dofs = art.joint_vel_dofs[i];
         data[i].is_floating_art = art.floating;
         data[i].joint_type = joint.type;
-        data[i].has_parent = i != 0;
         data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
         data[i].v0 = calc_v0(joint, u + cur_vel_dof);
         data[i].I = link.I_j;
@@ -311,27 +308,24 @@ void rne_inverse_dynamics(const ArticulatedBodySpec& art, glm::tvec3<real> gravi
                 data[0].v = make_tscrew(u);
                 data[0].a = Ad(inverse(T_root), tscrew<real>(tvec3<real>(0), -gravity));
                 data[0].f = data[0].I * data[0].a - adT(data[0].v, data[0].I * data[0].v) - data[0].f_ext;
-                continue;
             }
             else {
                 data[0].v = tscrew<real>(IDENTITY);
                 data[0].a = tscrew<real>(tvec3<real>(0), -gravity);
+                data[0].rnea_pass1(data[0]);
             }
         }
         else {
-            data[i].v = data[art.parents[i]].v;
-            data[i].a = data[art.parents[i]].a;
+            data[i].rnea_pass1(data[art.parents[i]]);
         }
-        data[i].rnea_pass1();
     }
 
-    int j_limit = art.floating? 1 : 0;
-    for (int j = num_joints - 1; j >= j_limit; j--) {
+    for (int j = num_joints - 1; j >= 1; j--) {
         int i = art.bfs_iteration_order[j];
-        data[i].rnea_pass2(dt);
-        if (i != 0) {
-            data[art.parents[i]].f += data[i].f;
-        }
+        data[i].rnea_pass2<true>(dt, data[art.parents[i]]);
+    }
+    if (!art.floating) {
+        data[0].rnea_pass2<false>(dt, data[0]);
     }
 
     for (int i = 0; i < num_joints; i++) {
@@ -353,6 +347,15 @@ void rne_inverse_dynamics(const ArticulatedBodySpec& art, glm::tvec3<real> gravi
     }
 
     delete [] data;
+}
+
+// Solves M x, using Featherstone's algorithm, where x is a vector.
+void multiply_mass_matrix(const ArticulatedBodySpec& art, real dt,
+                          const real* q, const real* x,
+                          OUT real* M_x) {
+    ZoneScoped
+    std::vector<real> u(art.num_vel_dofs, 0);
+    rne_inverse_dynamics(art, glm::rvec3(0), dt, q, u.data(), x, nullptr, OUT M_x);
 }
 
 struct FeatherstoneData {
@@ -390,14 +393,14 @@ struct FeatherstoneData {
     tvec3<real> udot;         // dof
 
     // kin must be calculated using jcalc() before this call
-    inline void forward_pass1() {
-        v = Ad(Tinv, v) + v0;
+    inline void forward_pass1(const FeatherstoneData& parent) {
+        v = Ad(Tinv, parent.v) + v0;
         c = ad(v, v0); // + c0; (c0 is zero for all joints)
         p_a = -adT(v, I_a * v) - f_ext;
     }
 
-    inline void forward_pass2() {
-        tscrew<real> a_p = Ad(Tinv, a) + c;
+    inline void forward_pass2(const FeatherstoneData& parent) {
+        tscrew<real> a_p = Ad(Tinv, parent.a) + c;
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
@@ -414,7 +417,7 @@ struct FeatherstoneData {
     }
 
     template <bool has_parent>
-    inline void backward_pass(real dt) {
+    inline void backward_pass(real dt, OUT FeatherstoneData& parent) {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
@@ -424,8 +427,8 @@ struct FeatherstoneData {
                 if constexpr (has_parent) {
                     tsmat6x6<real> I_prime = I_a - symmetric_cartesian_product(j1dof.D) / j1dof.H;
                     tscrew<real> p_prime = p_a + I_prime * c + ((u[0] - kd * v0[k]) / j1dof.H) * j1dof.D;
-                    I_a = inv_transform(I_prime, Tinv);
-                    p_a = AdT(Tinv, p_prime);
+                    parent.I_a += inv_transform(I_prime, Tinv);
+                    parent.p_a += AdT(Tinv, p_prime);
                 }
             } break;
             case JOINT_TYPE_SPHERICAL: {
@@ -443,8 +446,8 @@ struct FeatherstoneData {
                     p_prime += I_prime * c;
                     p_prime.w += j3dof.I_Dinv * tau_prime;
                     p_prime.v += j3dof.Ct_Dinv * tau_prime;
-                    I_a = inv_transform(I_prime, Tinv);
-                    p_a = AdT(Tinv, p_prime);
+                    parent.I_a += inv_transform(I_prime, Tinv);
+                    parent.p_a += AdT(Tinv, p_prime);
                 }
             } break;
         }
@@ -452,7 +455,7 @@ struct FeatherstoneData {
 
 
     template <bool has_parent>
-    inline void invmass_backward_pass1(real dt) {
+    inline void invmass_backward_pass1(real dt, OUT FeatherstoneData& parent) {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
@@ -460,7 +463,7 @@ struct FeatherstoneData {
                 j1dof.H = j1dof.D[k] + kd * dt;
                 if constexpr (has_parent) {
                     tsmat6x6<real> I_prime = I_a - symmetric_cartesian_product(j1dof.D) / j1dof.H;
-                    I_a = inv_transform(I_prime, Tinv);
+                    parent.I_a += inv_transform(I_prime, Tinv);
                 }
             } break;
             case JOINT_TYPE_SPHERICAL: {
@@ -472,21 +475,21 @@ struct FeatherstoneData {
                             I_a.I - j3dof.I_Dinv * I_a.I,
                             I_a.C - mat3_cast(j3dof.I_Dinv) * I_a.C,
                             I_a.M - smat3_cast(j3dof.Ct_Dinv * I_a.C));
-                    I_a = inv_transform(I_prime, Tinv);
+                    parent.I_a += inv_transform(I_prime, Tinv);
                 }
             } break;
         }
     }
 
     template <bool has_parent>
-    inline void invmass_backward_pass2() {
+    inline void invmass_backward_pass2(OUT FeatherstoneData& parent) {
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
                 u[0] = tau[0] - p_a[k];
                 if constexpr (has_parent) {
                     tscrew<real> p_prime = p_a + (u[0] / j1dof.H) * j1dof.D;
-                    p_a = AdT(Tinv, p_prime);
+                    parent.p_a += AdT(Tinv, p_prime);
                 }
             } break;
             case JOINT_TYPE_SPHERICAL: {
@@ -496,14 +499,14 @@ struct FeatherstoneData {
                     tscrew<real> p_prime = p_a;
                     p_prime.w += j3dof.I_Dinv * tau_prime;
                     p_prime.v += j3dof.Ct_Dinv * tau_prime;
-                    p_a = AdT(Tinv, p_prime);
+                    parent.p_a += AdT(Tinv, p_prime);
                 }
             } break;
         }
     }
 
-    inline void invmass_forward_pass() {
-        tscrew<real> a_p = Ad(Tinv, a);
+    inline void invmass_forward_pass(const FeatherstoneData& parent) {
+        tscrew<real> a_p = Ad(Tinv, parent.a);
         switch (joint_type) {
             JOINT_DOF_1_CASE {
                 int k = get_screw_idx(joint_type);
@@ -599,12 +602,11 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
         }
         else {
             data[0].v = tscrew<real>(IDENTITY);
-            data[0].forward_pass1();
+            data[0].forward_pass1(data[0]);
         }
         for (int j = 1; j < num_joints; j++) {
             int i = art.bfs_iteration_order[j];
-            data[i].v = data[art.parents[i]].v;
-            data[i].forward_pass1();
+            data[i].forward_pass1(data[art.parents[i]]);
         }
     }
 
@@ -613,14 +615,11 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
         ZoneNamedN(BackwardPass, "Backward pass 1", true)
         for (int j = num_joints - 1; j >= 1; j--) {
             int i = art.bfs_iteration_order[j];
-            data[i].backward_pass<true>(dt);
-            data[art.parents[i]].I_a += data[i].I_a;
-            data[art.parents[i]].p_a += data[i].p_a;
+            data[i].backward_pass<true>(dt, data[art.parents[i]]);
         }
         if (!art.floating) {
-            data[0].backward_pass<false>(dt);
+            data[0].backward_pass<false>(dt, data[0]);
         }
-
     }
 
     // Forward pass 2
@@ -631,12 +630,11 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
         }
         else {
             data[0].a = tscrew<real>(tvec3<real>(0), -gravity);
-            data[0].forward_pass2();
+            data[0].forward_pass2(data[0]);
         }
         for (int j = 1; j < num_joints; j++) {
             int i = art.bfs_iteration_order[j];
-            data[i].a = data[art.parents[i]].a;
-            data[i].forward_pass2();
+            data[i].forward_pass2(data[art.parents[i]]);
         }
     }
 
@@ -672,7 +670,16 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
     delete [] data;
 }
 
-// Solves M^{-1} X, using Featherstone's algorithm, where M is the mass matrix.
+// Solves M^{-1} x, using Featherstone's algorithm, where x is a vector.
+void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
+                                  const real* q, const real* x,
+                                  OUT real* Minv_x) {
+    ZoneScoped
+    std::vector<real> u(art.num_vel_dofs, 0);
+    featherstone_forward_dynamics(art, glm::rvec3(0), dt, nullptr, q, u.data(), x, nullptr, OUT Minv_x);
+}
+
+// Solves M^{-1} X, using Featherstone's algorithm, where X is a matrix.
 
 void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
                                   const real* q, dynmat_view<real> X,
@@ -707,11 +714,10 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
         ZoneNamedN(BackwardPass1, "Backward pass 1", true)
         for (int j = num_joints - 1; j >= 1; j--) {
             int i = art.bfs_iteration_order[j];
-            data[i].invmass_backward_pass1<true>(dt);
-            data[art.parents[i]].I_a += data[i].I_a;
+            data[i].invmass_backward_pass1<true>(dt, data[art.parents[i]]);
         }
         if (!art.floating) {
-            data[0].invmass_backward_pass1<false>(dt);
+            data[0].invmass_backward_pass1<false>(dt, data[0]);
         }
     }
 
@@ -747,11 +753,10 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
             ZoneNamedN(BackwardPass2, "Backward pass 2", true)
             for (int j = num_joints - 1; j >= 1; j--) {
                 int i = art.bfs_iteration_order[j];
-                data[i].invmass_backward_pass2<true>();
-                data[art.parents[i]].p_a += data[i].p_a;
+                data[i].invmass_backward_pass2<true>(data[art.parents[i]]);
             }
             if (!art.floating) {
-                data[0].invmass_backward_pass2<false>();
+                data[0].invmass_backward_pass2<false>(data[0]);
             }
         }
 
@@ -763,12 +768,12 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
             }
             else {
                 data[0].a = tscrew<real>(IDENTITY);
-                data[0].invmass_forward_pass();
+                data[0].invmass_forward_pass(data[0]);
             }
             for (int j = 1; j < num_joints; j++) {
                 int i = art.bfs_iteration_order[j];
                 data[i].a = data[art.parents[i]].a;
-                data[i].invmass_forward_pass();
+                data[i].invmass_forward_pass(data[art.parents[i]]);
             }
         }
 
@@ -849,48 +854,117 @@ void forward_dynamics_using_rnea(const ArticulatedBodySpec& art, glm::tvec3<real
     x.noalias() = M_eigen.llt().solve(b);
 }
 
-void integrate_implicit_euler(const ArticulatedBodySpec& art, real dt, const real* udot, real* q, real* u) {
-    if (udot) {
-        for (int d = 0; d < art.get_num_vel_dofs(); d++) {
-            u[d] += udot[d] * dt;
-        }
+void integrate_velocities(const ArticulatedBodySpec& art, real dt, const real*__restrict udot, INOUT real*__restrict u) {
+    for (int d = 0; d < art.get_num_vel_dofs(); d++) {
+        u[d] += udot[d] * dt;
     }
-    real* qi = q; real* qdi = u;
+}
+
+void integrate_positions(const ArticulatedBodySpec& art, real dt, const real*__restrict u, INOUT real*__restrict q) {
+    real* qi = q; const real* qdi = u;
     for (int i = 0; i < art.get_num_joints(); i++) {
         switch (art.joints[i].type) {
             JOINT_DOF_1_CASE {
                 qi[0] += qdi[0]*dt;
             } break;
             case JOINT_TYPE_SPHERICAL: {
-                rvec3 w_b = make_vec3(qdi);
-                rquat q0 = make_quat(qi);
-                qi[0] += 0.5*dt*(q0.w * w_b.x + q0.y * w_b.z - q0.z * w_b.y);
-                qi[1] += 0.5*dt*(q0.w * w_b.y + q0.z * w_b.x - q0.x * w_b.z);
-                qi[2] += 0.5*dt*(q0.w * w_b.z + q0.x * w_b.y - q0.y * w_b.x);
-                qi[3] -= 0.5*dt*(q0.x * w_b.x + q0.y * w_b.y + q0.z * w_b.z);
+                auto w = make_vec3(qdi);
+                auto q_0 = make_quat(qi);
+                auto q_1 = normalize(q_0 * exp(dt*w));
+                std::memcpy(qi, glm::value_ptr(q_1), 4*sizeof(real));
+                /*
+                qi[0] += 0.5*dt*(qi[3]*qdi[0] + qi[1]*qdi[2] - qi[2]*qdi[1]);
+                qi[1] += 0.5*dt*(qi[3]*qdi[1] + qi[2]*qdi[0] - qi[0]*qdi[2]);
+                qi[2] += 0.5*dt*(qi[3]*qdi[2] + qi[0]*qdi[1] - qi[1]*qdi[0]);
+                qi[3] -= 0.5*dt*(qi[0]*qdi[0] + qi[1]*qdi[1] + qi[2]*qdi[2]);
                 real q_len = glm::sqrt(qi[0]*qi[0] + qi[1]*qi[1] + qi[2]*qi[2] + qi[3]*qi[3]);
                 qi[0] /= q_len; qi[1] /= q_len; qi[2] /= q_len; qi[3] /= q_len;
+                 */
             } break;
             case JOINT_TYPE_FLOATING: {
                 // TODO: is there a more accurate way to integrate SE(3)?
-                rvec3 v_b = make_vec3(qdi + 3);
-                rvec3 w_b = make_vec3(qdi);
-                rquat q0 = make_quat(qi + 3);
-                rvec3 p = make_vec3(qi);
-                rvec3 p_dot = q0 * v_b;
-                qi[0] += dt*p_dot.x;
-                qi[1] += dt*p_dot.y;
-                qi[2] += dt*p_dot.z;
-                qi[3] += 0.5*dt*(q0.w * w_b.x + q0.y * w_b.z - q0.z * w_b.y);
-                qi[4] += 0.5*dt*(q0.w * w_b.y + q0.z * w_b.x - q0.x * w_b.z);
-                qi[5] += 0.5*dt*(q0.w * w_b.z + q0.x * w_b.y - q0.y * w_b.x);
-                qi[6] -= 0.5*dt*(q0.x * w_b.x + q0.y * w_b.y + q0.z * w_b.z);
+                auto w = make_vec3(qdi);
+                auto v = make_vec3(qdi+3);
+                auto x_0 = make_vec3(qi);
+                auto q_0 = make_quat(qi+3);
+                auto x_1 = x_0 + (q_0 * v)*dt;
+                auto q_1 = normalize(q_0 * exp(dt*w));
+                std::memcpy(qi, glm::value_ptr(x_1), 3*sizeof(real));
+                std::memcpy(qi+3, glm::value_ptr(q_1), 4*sizeof(real));
+                /*
+                glm::tvec3<real> p_dot = make_quat(qi+3) * make_vec3(qdi+3);
+                qi[0] += dt*p_dot[0];
+                qi[1] += dt*p_dot[1];
+                qi[2] += dt*p_dot[2];
+                qi[3] += 0.5*dt*(qi[6]*qdi[0] + qi[4]*qdi[2] - qi[5]*qdi[1]);
+                qi[4] += 0.5*dt*(qi[6]*qdi[1] + qi[5]*qdi[0] - qi[3]*qdi[2]);
+                qi[5] += 0.5*dt*(qi[6]*qdi[2] + qi[3]*qdi[1] - qi[4]*qdi[0]);
+                qi[6] -= 0.5*dt*(qi[3]*qdi[0] + qi[4]*qdi[1] + qi[5]*qdi[2]);
                 real q_len = glm::sqrt(qi[3]*qi[3] + qi[4]*qi[4] + qi[5]*qi[5] + qi[6]*qi[6]);
                 qi[3] /= q_len; qi[4] /= q_len; qi[5] /= q_len; qi[6] /= q_len;
+                 */
             } break;
         }
         qi += art.joint_pos_dofs[i];
         qdi += art.joint_vel_dofs[i];
+    }
+}
+
+/*
+ * The semi-implicit Euler method.
+ * This seems to be the most stable method so far for articulations...
+ */
+void integrate_implicit_euler(const ArticulatedBodySpec& art, real dt, const real* udot,
+                              INOUT real*__restrict q, INOUT real*__restrict u) {
+    integrate_velocities(art, dt, udot, u);
+    integrate_positions(art, dt, u, q);
+}
+
+/*
+ * Augmented second order method from Buss's paper (Accurate and Efficient Simulation of Rigid Body Rotations)
+ * https://www.math.ucsd.edu/~sbuss/ResearchWeb/accuraterotation/paper.pdf
+ */
+void integrate_second_order(const ArticulatedBodySpec& art, real dt, const real* udot,
+                            INOUT real*__restrict q, INOUT real*__restrict u) {
+    real* qi = q; real* qdi = u; const real* q2di = udot;
+    for (int i = 0; i < art.get_num_joints(); i++) {
+        switch (art.joints[i].type) {
+            JOINT_DOF_1_CASE {
+                qdi[0] += q2di[0]*dt;
+                qi[0] += qdi[0]*dt;
+            } break;
+            case JOINT_TYPE_SPHERICAL: {
+                auto w = make_vec3(qdi);
+                auto w_dot = make_vec3(q2di);
+                auto q_0 = make_quat(qi);
+                auto w_1 = w + w_dot * dt;
+                auto w_p = w + real(1./2.)*dt*w_dot + real(1./12.)*dt*dt*glm::cross(w_dot, w);
+                auto q_1 = normalize(q_0 * exp(dt*w_p));
+                std::memcpy(qi, glm::value_ptr(q_1), 4*sizeof(real));
+                std::memcpy(qdi, glm::value_ptr(w_1), 3*sizeof(real));
+            } break;
+            case JOINT_TYPE_FLOATING: {
+                // TODO: is there a more accurate way to integrate SE(3)?
+                auto w = make_vec3(qdi);
+                auto w_dot = make_vec3(q2di);
+                auto v = make_vec3(qdi+3);
+                auto v_dot = make_vec3(q2di+3);
+                auto x_0 = make_vec3(qi);
+                auto q_0 = make_quat(qi+3);
+                auto w_1 = w + w_dot * dt;
+                auto v_1 = v + v_dot * dt;
+                auto w_p = w + real(1./2.)*dt*w_dot + real(1./12.)*dt*dt*glm::cross(w_dot, w);
+                auto q_1 = normalize(q_0 * exp(dt*w_p));
+                auto x_1 = x_0 + (q_0 * v_1)*dt;
+                std::memcpy(qi, glm::value_ptr(x_1), 3*sizeof(real));
+                std::memcpy(qi+3, glm::value_ptr(q_1), 4*sizeof(real));
+                std::memcpy(qdi, glm::value_ptr(w_1), 3*sizeof(real));
+                std::memcpy(qdi+3, glm::value_ptr(v_1), 3*sizeof(real));
+            } break;
+        }
+        qi += art.joint_pos_dofs[i];
+        qdi += art.joint_vel_dofs[i];
+        q2di += art.joint_vel_dofs[i];
     }
 }
 
@@ -949,28 +1023,6 @@ void calc_velocities(const ArticulatedBodySpec& art, const real* q, const real* 
         glmx::rtransform Tinv = calc_Tinv(art.joints[i], art.links[i], q + cur_pos_dof);
         link_V[i] = Ad(Tinv, link_V[i_parent]) + calc_v0(art.joints[i], u + cur_vel_dof);
     }
-}
-
-Eigen::Matrix<real, 3, 3> glm_to_eigen(const glm::tmat3x3<real>& M) {
-    return Eigen::Map<Eigen::Matrix<real, 3, 3>>((real*)&M[0], 3, 3).transpose();
-}
-
-Eigen::Matrix<real, 3, 3> glm_to_eigen(const tsmat3x3<real>& M) {
-    Eigen::Matrix<real, 3, 3> Me;
-    Me(0, 0) = M.xx; Me(1, 1) = M.yy; Me(2, 2) = M.zz;
-    Me(1, 2) = Me(2, 1) = M.yz;
-    Me(2, 0) = Me(0, 2) = M.zx;
-    Me(0, 1) = Me(1, 0) = M.xy;
-    return Me;
-}
-
-Eigen::Matrix<real, 6, 6> glm_to_eigen(const tsmat6x6<real>& I) {
-    Eigen::Matrix<real, 6, 6> M;
-    M.block<3,3>(0, 0) = glm_to_eigen(I.I);
-    M.block<3,3>(3, 0) = glm_to_eigen(I.C);
-    M.block<3,3>(0, 3) = glm_to_eigen(I.C).transpose();
-    M.block<3,3>(3, 3) = glm_to_eigen(I.M);
-    return M;
 }
 
 void glm_to_dynmat(const tsmat3x3<real>& I, OUT dynmat_view<real> M) {
