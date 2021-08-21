@@ -8,27 +8,12 @@
 #define METHOD_GET_ID(TYPE, NAME, MEMBER) TYPE* get_##NAME(Id<TYPE> id) { return MEMBER.get(id); }
 #define METHOD_REMOVE_ID(TYPE, NAME, MEMBER) void remove_##NAME(Id<TYPE> id) { MEMBER.release(id); }
 
-#include <artsim/artsim.h>
+#include <artsim/material.h>
+#include <artsim/contact_point.h>
+#include <artsim/rigid_body.h>
+#include <artsim/art_body.h>
 
 namespace artsim {
-
-struct MaterialDB {
-    Arena<Material> materials;
-    std::unordered_map<std::pair<Id<Material>, Id<Material>>, Material, pair_hash> material_pairs;
-
-    void clear();
-
-    Id<Material> add_material(real default_friction = 1.0f,
-                              real default_restitution = 0.0f,
-                              real default_restitution_threshold = 0.01f);
-    METHOD_GET_ID(Material, material, materials)
-    METHOD_REMOVE_ID(Material, material, materials)
-
-    void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
-                           real friction, real restitution, real restitution_threshold);
-
-    Material get_material_pair(Id<Material> mat1_id, Id<Material> mat2_id);
-};
 
 enum class ContactSolverType {
     Proximal, NCP

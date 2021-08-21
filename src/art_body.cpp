@@ -1,174 +1,17 @@
 //
-// Created by lasagnaphil on 20. 5. 19..
+// Created by lasagnaphil on 8/21/21.
 //
 
-#include "artsim/artsim.h"
-#include "artsim/art_dynamics.h"
-#include "artsim/art_contacts.h"
-#include "artsim/math/se3.h"
-#include "artsim/math/eigen.h"
+#include <artsim/math/bullet.h>
+#include <artsim/art_body.h>
+#include <artsim/art_dynamics.h>
+#include <artsim/artsim.h>
 
-#include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
-#include <BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h>
-#include <BulletCollision/CollisionShapes/btStaticPlaneShape.h>
-#include <BulletCollision/CollisionShapes/btSphereShape.h>
-#include <BulletCollision/CollisionShapes/btBoxShape.h>
-
-#include <Discregrid/All>
-
-#include <queue>
 #include <random>
 
-#include <fmt/core.h>
-
-#include <Tracy.hpp>
-
-using namespace artsim;
 using namespace glmx;
 
-void CollisionMesh::init_bvh(const char* objfile) {
-    type = CollisionMesh::Type::BVH;
-    printf("Loading mesh %s...\n", objfile);
-    mesh = std::make_unique<Discregrid::TriangleMesh>(objfile);
-    printf("Initializing BVH structure for mesh %s...\n", objfile);
-    bvh = std::make_unique<Discregrid::MeshDistance>(mesh.get());
-}
-
-void CollisionMesh::init_sdf(const char* objfile, real sdf_grid_size) {
-    init_bvh(objfile);
-
-    type = CollisionMesh::Type::SDF;
-
-    Eigen::AlignedBox<real, 3> domain;
-    domain.setEmpty();
-    for (auto const& x : mesh->vertices())
-    {
-        domain.extend(x);
-    }
-    domain.max() += 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3r::Ones();
-    domain.min() -= 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3r::Ones();
-
-    Eigen::Vector3i res = ((domain.max() - domain.min()) / sdf_grid_size).array().ceil().cast<int>();
-    printf("Generating SDF of size (%d, %d, %d) for %s...\n", res[0], res[1], res[2], objfile);
-    sdf = std::make_unique<Discregrid::CubicLagrangeDiscreteGrid>(
-            domain, Eigen::Vector3r(sdf_grid_size, sdf_grid_size, sdf_grid_size));
-    // auto cell_size = sdf_grid.cellSize();
-    // fmt::print("Cell size = ({}, {}, {})\n", cell_size[0], cell_size[1], cell_size[2]);
-    auto func = [this](Eigen::Vector3r const& xi) {return bvh->signedDistanceCached(xi); };
-    sdf->addFunction(func, true);
-}
-
-real CollisionShape::mass(real density) {
-    switch (type) {
-        case Type::Box: return density * scale.x * scale.y * scale.z;
-        case Type::Sphere: return real(4.0 / 3.0) * density * glm::pi<real>() * scale.x * scale.y * scale.z;
-        default: return real(0);
-    }
-}
-
-tsmat3x3<real> CollisionShape::inertia(real density) {
-    switch (type) {
-        case Type::Box: {
-            const glm::tvec3<real>& s = scale;
-            glm::vec3 I = mass(density) * glm::tvec3<real>(s.y*s.y + s.z*s.z, s.z*s.z + s.x*s.x, s.x*s.x + s.y*s.y) / real(12);
-            return tsmat3x3<real>(I.x, I.y, I.z, 0, 0, 0);
-        }
-        case Type::Sphere: {
-            real r = scale.x;
-            glm::vec3 I = real(0.4) * mass(density) * glm::tvec3<real>(r*r);
-            return tsmat3x3<real>(I.x, I.y, I.z, 0, 0, 0);
-        }
-        default: return tsmat3x3<real>(0, 0, 0, 0, 0, 0);
-    }
-}
-
-CollisionShape CollisionShape::make_ground() {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Ground;
-    shape.scale = glm::rvec3(1);
-    shape.bt_shape = new btStaticPlaneShape(btVector3(0, 1, 0), 0);
-    return shape;
-}
-
-CollisionShape CollisionShape::make_box(glm::vec3 size) {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Box;
-    shape.scale = size;
-    shape.bt_shape = new btBoxShape(btconv(0.5f * size));
-    return shape;
-}
-
-CollisionShape CollisionShape::make_sphere(real radius) {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Sphere;
-    shape.scale = glm::rvec3(radius, radius, radius);
-    shape.bt_shape = new btSphereShape(radius);
-    return shape;
-}
-
-CollisionShape CollisionShape::make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 scale) {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Mesh;
-    shape.scale = scale;
-    shape.mesh.id = col_mesh;
-    shape.bt_shape = nullptr;
-    return shape;
-}
-
-CollisionShape CollisionShape::make_mesh_bvh(glm::rvec3 scale) {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Mesh;
-    shape.scale = scale;
-    shape.mesh.id = {};
-    shape.mesh.type = CollisionMesh::Type::BVH;
-    shape.bt_shape = nullptr;
-    return shape;
-}
-
-CollisionShape CollisionShape::make_mesh_sdf(real cell_size, glm::rvec3 scale) {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Mesh;
-    shape.scale = scale;
-    shape.mesh.id = {};
-    shape.mesh.type = CollisionMesh::Type::SDF;
-    shape.mesh.cell_size = cell_size;
-    shape.bt_shape = nullptr;
-    return shape;
-}
-
-void RigidBody::init(RigidBodySpec rb_spec) {
-    this->spec = rb_spec;
-    pos = glm::rvec3(0);
-    vel = glm::rvec3(0);
-    rot = glm::identity<glm::rquat>();
-    angvel = glm::rvec3(0);
-}
-
-void RigidBody::init(Id<RigidBody> rb_id, RigidBodySpec rb_spec, Id<Material> mat_id,
-                     btCollisionWorld* bt_collision_world) {
-    init(rb_spec);
-    this->mat_id = mat_id;
-    auto col_shape = spec.col_shape;
-    if (col_shape.type != CollisionShape::Type::Mesh) {
-        BodyLinkId body_id = BodyLinkId::from_rigid_body(rb_id);
-        bt_collision_object = new btCollisionObject;
-        bt_collision_object->setCollisionShape(spec.col_shape.bt_shape);
-        bt_collision_object->setWorldTransform(btTransform::getIdentity());
-        bt_collision_object->setUserIndex(body_id.index);
-        bt_collision_object->setUserIndex2(body_id.generation);
-        if (col_shape.type == CollisionShape::Type::Ground) {
-            bt_collision_world->addCollisionObject(bt_collision_object, btBroadphaseProxy::DefaultFilter, btBroadphaseProxy::AllFilter);
-        }
-        else {
-            bt_collision_world->addCollisionObject(bt_collision_object, 0b1000000, ~0);
-        }
-    }
-}
-
-void RigidBody::release(btCollisionWorld* bt_world) {
-    bt_world->removeCollisionObject(bt_collision_object);
-    delete bt_collision_object;
-}
+namespace artsim {
 
 Link Link::create(CollisionShape col_shape, real density,
                   ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
@@ -293,7 +136,7 @@ void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_s
                            btCollisionWorld* bt_collision_world,
                            int col_filter_group_mask, int col_filter_mask,
                            bool enable_self_collisions)
-{
+                           {
     this->is_self_collision_enabled = enable_self_collisions;
 
     init(art_spec);
@@ -313,9 +156,9 @@ void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_s
             bt_collision_objects[i] = col_obj;
         }
     }
-}
+                           }
 
-void ArticulatedBody::release(btCollisionWorld* bt_world) {
+                           void ArticulatedBody::release(btCollisionWorld* bt_world) {
     for (btCollisionObject* bt_col : bt_collision_objects) {
         bt_world->removeCollisionObject(bt_col);
         delete bt_col;
@@ -365,7 +208,7 @@ void ArticulatedBody::reset() {
 }
 
 void ArticulatedBody::randomize_positions() {
-    thread_local std::default_random_engine engine(0);
+    thread_local std::default_random_engine engine(std::time(nullptr));
 
     int num_joints = get_num_joints();
     const real pi = glm::pi<real>();
@@ -381,8 +224,8 @@ void ArticulatedBody::randomize_positions() {
                         std::uniform_real_distribution<real>(-1, 1)(engine),
                         std::uniform_real_distribution<real>(-1, 1)(engine),
                         std::uniform_real_distribution<real>(-1, 1)(engine)
-                );
-                glm::tquat<real> vexp = artsim::exp(len * normalize(dir));
+                        );
+                glm::tquat<real> vexp = glmx::exp(len * normalize(dir));
                 qp[0] = vexp[0]; qp[1] = vexp[1]; qp[2] = vexp[2]; qp[3] = vexp[3];
             } break;
             case JOINT_TYPE_FLOATING: {
@@ -395,8 +238,8 @@ void ArticulatedBody::randomize_positions() {
                         std::uniform_real_distribution<real>(-1, 1)(engine),
                         std::uniform_real_distribution<real>(-1, 1)(engine),
                         std::uniform_real_distribution<real>(-1, 1)(engine)
-                );
-                glm::tquat<real> vexp = artsim::exp(len * normalize(dir));
+                        );
+                glm::tquat<real> vexp = glmx::exp(len * normalize(dir));
                 qp[3] = vexp[0]; qp[4] = vexp[1]; qp[5] = vexp[2]; qp[6] = vexp[3];
             } break;
         }
@@ -545,4 +388,6 @@ glm::rvec3 ArticulatedBody::get_center_of_mass() const {
     }
     com /= total_mass;
     return com;
+}
+
 }

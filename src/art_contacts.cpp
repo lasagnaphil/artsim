@@ -2,10 +2,21 @@
 // Created by lasagnaphil on 1/26/21.
 //
 
-#include "artsim/art_contacts.h"
-#include "artsim/art_dynamics.h"
+#include <artsim/math/bullet.h>
+#include <artsim/art_contacts.h>
+#include <artsim/art_dynamics.h>
 
 #include <Eigen/Dense>
+
+/*
+ * Note: this file is deprecated; we have better solvers now
+ */
+
+#ifdef ARTSIM_USE_LOGGING
+#define output_log(...) printf(__VA_ARGS__)
+#else
+#define output_log(...)
+#endif
 
 using namespace glm;
 using namespace glmx;

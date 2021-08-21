@@ -7,6 +7,7 @@
 #include <artsim/art_dynamics.h>
 #include <artsim/math/se3.h>
 #include <artsim/math/eigen.h>
+#include <artsim/math/bullet.h>
 
 #include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
 #include <BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h>
@@ -30,42 +31,6 @@
 using namespace glmx;
 
 namespace artsim {
-
-void MaterialDB::clear() {
-    materials.clear();
-    material_pairs.clear();
-}
-
-Id<Material>
-MaterialDB::add_material(real default_friction, real default_restitution, real default_restitution_threshold) {
-    auto id = materials.make();
-    auto ptr = materials.get(id);
-    ptr->friction = default_friction;
-    ptr->restitution = default_restitution;
-    ptr->restitution_threshold = default_restitution_threshold;
-    return id;
-}
-
-void MaterialDB::set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id, real friction, real restitution,
-                                   real restitution_threshold) {
-    material_pairs[std::make_pair(mat1_id, mat2_id)] = Material{friction, restitution, restitution_threshold};
-}
-
-Material MaterialDB::get_material_pair(Id<Material> mat1_id, Id<Material> mat2_id) {
-    auto it = material_pairs.find({mat1_id, mat2_id});
-    if (it == material_pairs.end()) {
-        Material* mat1 = materials.get(mat1_id);
-        Material* mat2 = materials.get(mat2_id);
-        Material mat;
-        mat.friction = glm::max(mat1->friction, mat2->friction);
-        mat.restitution = glm::min(mat1->restitution, mat2->restitution);
-        mat.restitution_threshold = glm::max(mat1->restitution_threshold, mat2->restitution_threshold);
-        return mat;
-    }
-    else {
-        return it->second;
-    }
-}
 
 void World::init(WorldConfig world_cfg) {
     cfg = std::move(world_cfg);
@@ -222,9 +187,9 @@ void World::load_collision_meshes(ArticulatedBodySpec &spec) {
         real volume = 0;
         for (int tidx = 0; tidx < num_tris; tidx++) {
             auto tri = obj->face_data()[tidx];
-            auto v0 = eigen_to_glm(verts[tri[0]]);
-            auto v1 = eigen_to_glm(verts[tri[1]]);
-            auto v2 = eigen_to_glm(verts[tri[2]]);
+            auto v0 = rvec3(eigen_to_glm(verts[tri[0]]));
+            auto v1 = rvec3(eigen_to_glm(verts[tri[1]]));
+            auto v2 = rvec3(eigen_to_glm(verts[tri[2]]));
             cent[tidx] = (v0 + v1 + v2) / real(3);
             area_vec[tidx] = real(0.5) * glm::cross(v1 - v0, v2 - v0);
             area[tidx] = glm::length(area_vec[tidx]);

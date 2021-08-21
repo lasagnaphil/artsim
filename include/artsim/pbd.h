@@ -9,6 +9,7 @@
 
 #include <artsim/core/arena.h>
 #include <artsim/math/se3.h>
+#include <artsim/math/bullet.h>
 #include <artsim/types.h>
 #include <artsim/artsim.h>
 

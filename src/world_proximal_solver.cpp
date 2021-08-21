@@ -538,7 +538,7 @@ void World::proximal_solver() {
 
     auto t2 = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
-    output_log("Contact solver: %lld ns\n", duration.count());
+    printf("Contact solver: %lld ns\n", duration.count());
 
 }
 

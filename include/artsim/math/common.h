@@ -10,6 +10,10 @@
 #include <glm/gtx/norm.hpp>
 
 namespace glmx {
+    enum Identity {
+        IDENTITY
+    };
+
     template <class T>
     inline glm::tvec3<T> log(glm::tquat<T> q) {
         constexpr T pi = glm::pi<T>();

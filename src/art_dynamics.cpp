@@ -360,7 +360,6 @@ void multiply_mass_matrix(const ArticulatedBodySpec& art, real dt,
 
 struct FeatherstoneData {
     JointType joint_type;
-    bool has_parent;
 
     // IN
     ttransform<real> Tinv;
@@ -551,7 +550,6 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             int num_vel_dofs = art.joint_vel_dofs[i];
             data[i].joint_type = joint.type;
-            data[i].has_parent = i != 0;
             data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
             data[i].v0 = calc_v0(joint, u + cur_vel_dof);
             data[i].I_a = tsmat6x6<real>(link.I_j);
@@ -702,7 +700,6 @@ void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
             uint32_t cur_pos_dof = art.joint_pos_dof_starts[i];
             uint32_t cur_vel_dof = art.joint_vel_dof_starts[i];
             data[i].joint_type = joint.type;
-            data[i].has_parent = i != 0;
             data[i].Tinv = calc_Tinv(joint, link, q + cur_pos_dof);
             data[i].I_a = tsmat6x6<real>(link.I_j);
             data[i].kd = joint.kd;

@@ -5,7 +5,8 @@
 #ifndef ARTSIM_DYNMAT_H
 #define ARTSIM_DYNMAT_H
 
-#include <cstddef>
+#include <artsim/math/common.h>
+#include <cstdint>
 
 namespace glmx {
 

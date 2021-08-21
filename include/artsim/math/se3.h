@@ -5,7 +5,7 @@
 #ifndef ARTSIM_SE3_H
 #define ARTSIM_SE3_H
 
-#include "common.h"
+#include <artsim/math/common.h>
 
 #include <glm/vec3.hpp>
 #include <glm/mat3x3.hpp>
@@ -15,9 +15,7 @@
 #include <glm/gtx/norm.hpp>
 
 namespace glmx {
-    enum Identity {
-        IDENTITY
-    };
+
     template <class T>
     struct ttransform {
         glm::tvec3<T> v;

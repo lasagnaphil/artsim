@@ -31,24 +31,13 @@ endif()
 
 add_subdirectory(libs)
 
-add_library(artsim
-        src/artsim.cpp
-        src/world.cpp
-        src/art_dynamics.cpp
-        src/art_contacts.cpp
-        src/art_proximal_solver.cpp
-        src/art_newton_solver.cpp
-        src/ik.cpp
-        src/soft_body.cpp
-        src/soft_body_dynamics.cpp
-        src/art_with_soft_bodies.cpp
-        src/pbd.cpp
-        src/obj_file.cpp
-        src/tet_mesh.cpp
-        src/math/fastsvd.cpp
-        src/utils/example_articulations.cpp
-        src/utils/urdf.cpp src/utils/xml.cpp
-        src/utils/pymesh/MshLoader.cpp src/utils/pymesh/MshSaver.cpp src/utils/pymesh/IOUtils.cpp)
+file(GLOB ARTSIM_SOURCES
+        src/*.cpp
+        src/math/*.cpp
+        src/utils/*.cpp
+        src/utils/pymesh/*.cpp)
+
+add_library(artsim ${ARTSIM_SOURCES})
 
 target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
 set(ARTSIM_LIB
