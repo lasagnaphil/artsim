@@ -227,6 +227,8 @@ void PBDWorld::collect_collision_pairs() {
         for (int j = 0; j < num_contacts; j++) {
             auto& pt = manifold->getContactPoint(j);
             if (pt.getDistance() < 0.f) {
+                auto& rb1 = *rigid_bodies.get(rb_id1);
+                auto& rb2 = *rigid_bodies.get(rb_id2);
                 PBDRigidRigidContactConstraint con;
                 con.rb_id1 = rb_id1;
                 con.rb_id2 = rb_id2;
@@ -234,7 +236,7 @@ void PBDWorld::collect_collision_pairs() {
                 con.p2 = glmconv(pt.m_positionWorldOnB);
                 con.r1 = glmconv(pt.m_localPointA);
                 con.r2 = glmconv(pt.m_localPointB);
-                con.normal = glmconv(pt.m_normalWorldOnB);
+                con.normal = -glmconv(pt.m_normalWorldOnB);
                 con.normal_lambda = 0;
                 con.tangent_lambda = 0;
                 rb_rb_contact_constraints.push_back(con);
@@ -372,8 +374,8 @@ void PBDWorld::solve_positions(real h) {
         auto& mat1 = *materials.get(rb1.mat_id);
         auto& mat2 = *materials.get(rb2.mat_id);
         real d = glm::dot(con.p1 - con.p2, con.normal);
-        // real margin = rb1.col_shape->getMargin() + rb2.col_shape->getMargin();
-        if (d <= 0) { continue; }
+        real margin = rb1.col_shape->getMargin() + rb2.col_shape->getMargin();
+        if (d <= -margin) { continue; }
         glm::rvec3 dx = d * con.normal;
         project_positions(rb1, rb2, dx, 0, con.r1, con.r2, con.normal_lambda);
 
@@ -382,7 +384,7 @@ void PBDWorld::solve_positions(real h) {
         glm::rvec3 dp = (con.p1 - p1_bar) - (con.p2 - p2_bar);
         glm::rvec3 dp_t = dp - glm::dot(dp, con.normal);
         real mu_static = 0.5 * (mat1.mu_static + mat2.mu_static);
-        if (con.tangent_lambda < mu_static * con.normal_lambda) {
+        if (con.tangent_lambda < mu_static * -con.normal_lambda) {
             project_positions(rb1, rb2, dp_t, 0, con.r1, con.r2, con.tangent_lambda);
         }
     }
@@ -411,7 +413,7 @@ void project_angular_velocities(PBDRigidBody& rb1, PBDRigidBody& rb2, glm::rvec3
 }
 
 void PBDWorld::solve_velocities(real h) {
-    // TODO: Apply joint damping
+    // TODO: Apply joint damping (not tested yet)
     for (auto& con : constraints) {
         switch(con.type) {
             case PBDConstraintType::RevoluteJoint: {
@@ -432,6 +434,7 @@ void PBDWorld::solve_velocities(real h) {
     }
 
     // Apply contact forces
+    // TODO: something's wrong with here...
     for (auto& con : rb_rb_contact_constraints) {
         auto& rb1 = *rigid_bodies.get(con.rb_id1);
         auto& rb2 = *rigid_bodies.get(con.rb_id2);
@@ -444,7 +447,7 @@ void PBDWorld::solve_velocities(real h) {
         glm::rvec3 v_t = v - v_n * con.normal;
         real v_t_len = glm::length(v_t);
         if (v_t_len > glm::epsilon<real>()) {
-            glm::rvec3 dv = -glm::min(mu_dynamic * con.normal_lambda / h, v_t_len) * v_t / v_t_len;
+            glm::rvec3 dv = -glm::min(mu_dynamic * -con.normal_lambda / h, v_t_len) * v_t / v_t_len;
             project_velocities(rb1, rb2, dv, con.r1, con.r2);
         }
         glm::rvec3 v_next = (rb1.vel + glm::cross(rb1.angvel, con.r1)) - (rb2.vel + glm::cross(rb2.angvel, con.r2));

@@ -62,7 +62,7 @@ public:
 
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
-            world.simulate(sim_dt, 20);
+            world.simulate(sim_dt, 1);
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
             printf("Duration: %lld microsecs, %d constraints\n", duration.count(), world.get_num_rb_rb_collision_constraints());
@@ -79,13 +79,13 @@ public:
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // pbRenderer.queueRender({ground_mesh, ground_mat, rootTransform->getWorldTransform()});
-        // for (auto& link_id : links) {
-        //     auto& rb = *world.get_rigid_body(link_id);
-        //     glmx::transform trans = glmx::transform(rb.pos, glm::mat3_cast(rb.rot));
-        //     glm::mat4 world_trans = mat4_cast(trans);
-        //     pbRenderer.queueRender({link_mesh, link_mat, world_trans});
-        // }
+        pbRenderer.queueRender({ground_mesh, ground_mat, rootTransform->getWorldTransform()});
+        for (auto& link_id : links) {
+            auto& rb = *world.get_rigid_body(link_id);
+            glmx::transform trans = glmx::transform(rb.pos, glm::mat3_cast(rb.rot));
+            glm::mat4 world_trans = mat4_cast(trans);
+            pbRenderer.queueRender({link_mesh, link_mat, world_trans});
+        }
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
         world.debug_draw();
@@ -96,7 +96,7 @@ public:
             auto& contact = contacts[i];
             imRenderer.drawSphere(contact.p1, colors::Red, 0.01f, false);
             imRenderer.drawSphere(contact.p2, colors::Blue, 0.01f, false);
-            imRenderer.drawArrow(contact.p1, contact.p1 - 1e8 * contact.normal_lambda * contact.normal, colors::Red, 0.01f, false);
+            imRenderer.drawArrow(contact.p1, contact.p1 + contact.normal_lambda * contact.normal, colors::Red, 0.01f, false);
         }
 
         pbRenderer.render();
@@ -127,7 +127,7 @@ public:
         // links.push_back(link4_id);
         auto link1 = world.get_rigid_body(link1_id);
         // link1->is_dynamic = false;
-        // link1->rot = glmx::Rz(M_PI/8);
+        link1->rot = glmx::Rz<real>(M_PI/3);
         // auto link2 = world.get_rigid_body(link2_id);
         // link2->rot = glmx::Rz(M_PI/4) * glmx::Rx(M_PI/10);
         // auto link3 = world.get_rigid_body(link3_id);
@@ -153,7 +153,7 @@ public:
 
 private:
     Material material {1.0f, 0.0f, 0.01f};
-    float sim_dt = 1.0f / 60.0f;
+    float sim_dt = 1.0f / 360.0f;
     bool run_simulation = false;
 
     std::vector<Id<PBDRigidBody>> links;
