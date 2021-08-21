@@ -106,7 +106,7 @@ public:
         for (auto& art_renderer : art_renderers) {
             art_renderer.render(pbRenderer);
         }
-        world_debug_renderer.render(imRenderer);
+        // world_debug_renderer.render(imRenderer);
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
         /*

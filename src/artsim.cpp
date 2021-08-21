@@ -23,22 +23,14 @@
 
 #include <Tracy.hpp>
 
-static glm::rvec3 eigen_to_glm(const Eigen::Vector3d& v) {
-    return {v(0), v(1), v(2)};
-}
-
-static Eigen::Vector3i glm_to_eigen(const glm::ivec3& v) {
-    return Eigen::Vector3i(v[0], v[1], v[2]);
-}
-
 using namespace artsim;
 using namespace glmx;
 
 void CollisionMesh::init_bvh(const char* objfile) {
     type = CollisionMesh::Type::BVH;
-    fmt::print("Loading mesh {}...\n", objfile);
+    printf("Loading mesh %s...\n", objfile);
     mesh = std::make_unique<Discregrid::TriangleMesh>(objfile);
-    fmt::print("Initializing BVH structure for mesh {}...\n", objfile);
+    printf("Initializing BVH structure for mesh %s...\n", objfile);
     bvh = std::make_unique<Discregrid::MeshDistance>(mesh.get());
 }
 
@@ -57,7 +49,7 @@ void CollisionMesh::init_sdf(const char* objfile, real sdf_grid_size) {
     domain.min() -= 1.0e-3 * domain.diagonal().norm() * Eigen::Vector3r::Ones();
 
     Eigen::Vector3i res = ((domain.max() - domain.min()) / sdf_grid_size).array().ceil().cast<int>();
-    fmt::print("Generating SDF of size ({}, {}, {}) for {}...\n", res[0], res[1], res[2], objfile);
+    printf("Generating SDF of size (%d, %d, %d) for %s...\n", res[0], res[1], res[2], objfile);
     sdf = std::make_unique<Discregrid::CubicLagrangeDiscreteGrid>(
             domain, Eigen::Vector3r(sdf_grid_size, sdf_grid_size, sdf_grid_size));
     // auto cell_size = sdf_grid.cellSize();
