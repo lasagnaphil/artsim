@@ -67,6 +67,13 @@ using rquat = glm::rquat;
 using ivec2 = glm::ivec2;
 using ivec3 = glm::ivec3;
 using ivec4 = glm::ivec4;
+using rtransform = glmx::rtransform;
+using rquat_transform = glmx::rquat_transform;
+using rscrew = glmx::rscrew;
+using rsmat3x3 = glmx::rsmat3x3;
+using rspmat = glmx::rspmat;
+using rsmat6x6 = glmx::rsmat6x6;
+
 
 }
 

@@ -111,6 +111,25 @@ for (int i = 0; i < M1.rows(); i++) { \
     } \
 }
 
+template <class T>
+void compare_glm(const glm::tmat3x3<T>& m1, const glm::tmat3x3<T>& m2) {
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            INFO("Iteration (" << i << ", " << j << ")");
+            CHECK(m1[i][j] == doctest::Approx(m2[i][j]).epsilon(1e-6));
+        }
+    }
+}
+
+template <class T>
+void compare_glm(const glmx::tsmat3x3<T>& m1, const glmx::tsmat3x3<T>& m2) {
+    CHECK(m1.xx == doctest::Approx(m2.xx).epsilon(1e-6));
+    CHECK(m1.yy == doctest::Approx(m2.yy).epsilon(1e-6));
+    CHECK(m1.zz == doctest::Approx(m2.zz).epsilon(1e-6));
+    CHECK(m1.yz == doctest::Approx(m2.yz).epsilon(1e-6));
+    CHECK(m1.zx == doctest::Approx(m2.zx).epsilon(1e-6));
+    CHECK(m1.xy == doctest::Approx(m2.xy).epsilon(1e-6));
+}
 
 template <class T>
 Eigen::Matrix<T, 6, 1> to_eigen(const tscrew<T>& S) {

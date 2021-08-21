@@ -439,11 +439,48 @@ namespace glmx {
         return sqrt(m.xx*m.xx + m.yy*m.yy + m.zz*m.zz + m.yz*m.yz + m.zx*m.zx + m.xy*m.xy);
     }
 
-    // TODO: optimize rotate and inv_rotate (see Featherstone2008 A.5)
+    // R * I * R^T: Optimized rotations of 3x3 matrices (see Featherstone2008 A.5)
+
+#define ARTSIM_OPTIMIZED_ROTATE
+
+#ifdef ARTSIM_OPTIMIZED_ROTATE
     template <class T>
-    inline tsmat3x3<T> rotate(const tsmat3x3<T>& I, const glm::tmat3x3<T>& R) {
-        return smat3_cast(R * mat3_cast(I) * glm::transpose(R));
+    inline tsmat3x3<T> rotate(const glm::tmat3x3<T>& R, const tsmat3x3<T>& A) {
+        glm::tmat2x3<T> L;
+        L[0] = {A.xx - A.zz, A.xy, 2*A.zx};
+        L[1] = {A.xy, A.yy - A.zz, 2*A.yz};
+        T v0 = -A.yz, v1 = A.zx;
+        T y0_1 = R[0][1]*L[0][0] + R[1][1]*L[0][1] + R[2][1]*L[0][2];
+        T y0_2 = R[0][2]*L[0][0] + R[1][2]*L[0][1] + R[2][2]*L[0][2];
+        T y1_1 = R[0][1]*L[1][0] + R[1][1]*L[1][1] + R[2][1]*L[1][2];
+        T y1_2 = R[0][2]*L[1][0] + R[1][2]*L[1][1] + R[2][2]*L[1][2];
+        auto Rv = v0 * R[0] + v1 * R[1];
+        glmx::tsmat3x3<T> Z;
+        Z.yy = R[0][1] * y0_1 + R[1][1] * y1_1;
+        Z.zz = R[0][2] * y0_2 + R[1][2] * y1_2;
+        Z.xx = L[0][0] + L[1][1] - Z.yy - Z.zz + A.zz;
+        Z.yy += A.zz;
+        Z.zz += A.zz;
+        Z.xy = R[0][0] * y0_1 + R[1][0] * y1_1 + Rv[2];
+        Z.zx = R[0][0] * y0_2 + R[1][0] * y1_2 - Rv[1];
+        Z.yz = R[0][1] * y0_2 + R[1][1] * y1_2 + Rv[0];
+        return Z;
     }
+    template <class T>
+    inline tsmat3x3<T> inv_rotate(const glm::tmat3x3<T>& R, const tsmat3x3<T>& I) {
+        return rotate(glm::transpose(R), I);
+    }
+
+#else
+    template <class T>
+    inline tsmat3x3<T> rotate(const glm::tmat3x3<T>& R, const tsmat3x3<T>& A) {
+        return smat3_cast(R * mat3_cast(A) * glm::transpose(R));
+    }
+    template <class T>
+    inline tsmat3x3<T> inv_rotate(const glm::tmat3x3<T>& R, const tsmat3x3<T>& A) {
+        return smat3_cast(glm::transpose(R) * mat3_cast(A) * R);
+    }
+#endif
 
     template <class T>
     inline tsmat3x3<T> rotate_x(const tsmat3x3<T>& I, const glm::tmat3x3<T>& R) {
@@ -475,20 +512,49 @@ namespace glmx {
         return tsmat3x3(I.xx + alpha, I.yy - alpha, I.zz, c*I.yz - s*I.zx, c*I.zx + s*I.yz, beta);
     }
 
+#ifdef ARTSIM_OPTIMIZED_ROTATE
     template <class T>
-    inline tsmat3x3<T> inv_rotate(const tsmat3x3<T>& I, const glm::tmat3x3<T>& R) {
-        return smat3_cast(glm::transpose(R) * mat3_cast(I) * R);
+    inline glm::tmat3x3<T> rotate(const glm::tmat3x3<T>& R, const glm::tmat3x3<T>& A) {
+        glm::tmat2x3<T> L;
+        L[0] = {A[0][0] - A[2][2], A[0][1], A[0][2] + A[2][0]};
+        L[1] = {A[1][0], A[1][1] - A[2][2], A[1][2] + A[2][1]};
+        T v0 = -A[2][1], v1 = A[2][0];
+        auto y0 = R * L[0];
+        auto y1 = R * L[1];
+        glm::tmat3x3<T> Z;
+        Z[1] = R[0][1] * y0 + R[1][1] * y1;
+        Z[2] = R[0][2] * y0 + R[1][2] * y1;
+        Z[0][0] = L[0][0] + L[1][1] - Z[1][1] - Z[2][2];
+        Z[0][1] = R[0][0] * y0[1] + R[1][0] * y1[1];
+        Z[0][2] = R[0][0] * y0[2] + R[1][0] * y1[2];
+        auto Rv = v0 * R[0] + v1 * R[1];
+        Z[0][0] += A[2][2];
+        Z[1][1] += A[2][2];
+        Z[2][2] += A[2][2];
+        Z[1][2] += Rv[0];
+        Z[2][1] -= Rv[0];
+        Z[2][0] += Rv[1];
+        Z[0][2] -= Rv[1];
+        Z[0][1] += Rv[2];
+        Z[1][0] -= Rv[2];
+        return Z;
     }
 
     template <class T>
-    inline glm::tmat3x3<T> rotate(const glm::tmat3x3<T>& M, const glm::tmat3x3<T>& R) {
-        return R * M * glm::transpose(R);
+    inline glm::tmat3x3<T> inv_rotate(const glm::tmat3x3<T>& R, const glm::tmat3x3<T>& M) {
+        return rotate(glm::transpose(R), M);
     }
 
+#else
     template <class T>
-    inline glm::tmat3x3<T> inv_rotate(const glm::tmat3x3<T>& M, const glm::tmat3x3<T>& R) {
-        return glm::transpose(R) * M * R;
+    inline glm::tmat3x3<T> rotate(const glm::tmat3x3<T>& R, const glm::tmat3x3<T>& A) {
+        return R * A * glm::transpose(R);
     }
+    template <class T>
+    inline glm::tmat3x3<T> inv_rotate(const glm::tmat3x3<T>& R, const glm::tmat3x3<T>& A) {
+        return glm::transpose(R) * A * R;
+    }
+#endif
 
     template <class T>
     inline tsmat3x3<T> symmetric_cartesian_product(glm::tvec3<T> w) {
@@ -538,7 +604,7 @@ namespace glmx {
         tspmat<T> G_a;
         glm::tvec3<T> c = glm::transpose(T_ba.R) * G_b.c;
         glm::tvec3<T> cp = glm::transpose(T_ba.R) * (G_b.c - T_ba.v);
-        G_a.I = inv_rotate(G_b.I, T_ba.R);
+        G_a.I = inv_rotate(T_ba.R, G_b.I);
         G_a.I.xx += G_b.m*(-c.y*c.y - c.z*c.z + cp.y*cp.y + cp.z*cp.z);
         G_a.I.yy += G_b.m*(-c.z*c.z - c.x*c.x + cp.z*cp.z + cp.x*cp.x);
         G_a.I.zz += G_b.m*(-c.x*c.x - c.y*c.y + cp.x*cp.x + cp.y*cp.y);
@@ -658,9 +724,9 @@ namespace glmx {
         glm::tmat3x3<T> P = skew_symmetric(T_ba.v);
         glm::tmat3x3<T> PM = P * mat3_cast(G_b.M);
         glm::tmat3x3<T> CP = G_b.C * P;
-        G_a.I = inv_rotate(G_b.I + smat3_cast(CP + glm::transpose(CP) - PM*P), T_ba.R);
-        G_a.C = inv_rotate(G_b.C - PM, T_ba.R);
-        G_a.M = inv_rotate(G_b.M, T_ba.R);
+        G_a.I = inv_rotate(T_ba.R, G_b.I + smat3_cast(CP + glm::transpose(CP) - PM*P));
+        G_a.C = inv_rotate(T_ba.R, G_b.C - PM);
+        G_a.M = inv_rotate(T_ba.R, G_b.M);
         return G_a;
     }
 
@@ -669,9 +735,9 @@ namespace glmx {
         tsmat6x6<T> G_a;
         glm::tmat3x3<T> P = skew_symmetric(T_ba.v);
         glm::tmat3x3<T> PM = P * mat3_cast(M_b);
-        G_a.I = -inv_rotate(smat3_cast(PM*P), T_ba.R);
-        G_a.C = -inv_rotate(PM, T_ba.R);
-        G_a.M = inv_rotate(M_b, T_ba.R);
+        G_a.I = -inv_rotate(T_ba.R, smat3_cast(PM*P));
+        G_a.C = -inv_rotate(T_ba.R, PM);
+        G_a.M = inv_rotate(T_ba.R, M_b);
         return G_a;
     }
 

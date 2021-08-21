@@ -3,15 +3,40 @@
 //
 
 #include "doctest.h"
-#include "artsim/math/common.h"
-#include "artsim/math/se3.h"
-#include "utils/test_utils.h"
+#include <artsim/types.h>
+#include <artsim/math/common.h>
+#include <artsim/math/se3.h>
+#include <utils/test_utils.h>
 
 using namespace glm;
 
 static std::random_device random_dev;
 static std::default_random_engine engine(random_dev());
 using real = float;
+
+TEST_CASE("rotate mat3") {
+    glm::rmat3 A;
+    glm::rquat q;
+    glm::rmat3 R;
+    get_random<decltype(A), real>(engine, A);
+    get_random(engine, q);
+    R = mat3_cast(q);
+    auto M_prime1 = rotate(R, A);
+    auto M_prime2 = R * A * glm::transpose(R);
+    compare_glm(M_prime1, M_prime2);
+}
+
+TEST_CASE("rotate smat3") {
+    glmx::rsmat3x3 A;
+    glm::rquat q;
+    glm::rmat3 R;
+    get_random<decltype(A), real>(engine, A);
+    get_random(engine, q);
+    R = mat3_cast(q);
+    auto M_prime1 = rotate(R, A);
+    auto M_prime2 = smat3_cast(R * mat3_cast(A) * glm::transpose(R));
+    compare_glm(M_prime1, M_prime2);
+}
 
 TEST_CASE("spmat x screw") {
     tspmat<real> A;
