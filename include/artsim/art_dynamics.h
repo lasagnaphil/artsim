@@ -71,6 +71,13 @@ namespace artsim {
                                        const real*__restrict q_target,
                                        OUT real*__restrict udot);
 
+    void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
+                                       glm::tvec3<real> gravity, real dt,
+                                       const glmx::tscrew<real>*__restrict f_ext, const glmx::tscrew<real>*__restrict f_c,
+                                       const real*__restrict q, const real*__restrict u, const real*__restrict tau,
+                                       const real*__restrict q_target,
+                                       OUT real*__restrict udot);
+
     void multiply_inverse_mass_matrix(const ArticulatedBodySpec& art, real dt,
                                       const real* q, const real* x,
                                       OUT real* Minv_x);

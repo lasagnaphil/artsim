@@ -12,6 +12,8 @@
 #include <LinearMath/btQuaternion.h>
 #include <LinearMath/btTransform.h>
 
+namespace artsim {
+
 inline btVector3 btconv(const glm::rvec3& v) {
     return btVector3(v.x, v.y, v.z);
 }
@@ -42,6 +44,7 @@ inline glm::rmat3 glmconv(const btMatrix3x3& M) {
 
 inline glmx::rtransform glmconv(const btTransform& T) {
     return {glmconv(T.getOrigin()), glmconv(T.getBasis())};
+}
 }
 
 #endif //ARTSIM_BULLET_H

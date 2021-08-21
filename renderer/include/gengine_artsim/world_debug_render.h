@@ -7,13 +7,16 @@
 
 #include <artsim/world.h>
 
+namespace artsim {
+
 class WorldDebugRender {
+    friend class World;
 private:
-    artsim::World* world;
+    World* world;
 
 public:
     WorldDebugRender() = default;
-    WorldDebugRender(artsim::World* world) : world(world) {}
+    WorldDebugRender(World* world) : world(world) {}
 
     void render(DebugRenderer& debug_renderer) {
         auto& contact_points = world->get_contact_points();
@@ -26,6 +29,12 @@ public:
             // debug_renderer.drawArrow(cp.pos, cp.pos - 10.0f * disp, colors::Green, 1.0f * glm::length(disp), true);
         }
     }
+
+    void render_imgui() {
+;
+    }
 };
+
+}
 
 #endif //ARTSIM_WORLD_DEBUG_RENDER_H

@@ -43,7 +43,7 @@ public:
         });
         rbs.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
             auto body_id = BodyId::from_rigid_body(rb_id);
-            if (rb.spec.is_static) {
+            if (rb.is_static) {
                 this->data.insert({body_id, {cur_pos_dof, 0, cur_vel_dof, 0}});
             }
             else {
@@ -151,7 +151,7 @@ void World::newton_solver() {
         }
     });
     rigid_bodies.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
-        if (rb.spec.is_static) return;
+        if (rb.is_static) return;
         auto bid = BodyId::from_rigid_body(rb_id);
         auto [dof_start, dofs] = state_meta.get_vel_dof_starts_and_size(bid);
         // TODO
@@ -219,7 +219,7 @@ void World::newton_solver() {
             else if (bid.is_rigid_body()) {
                 auto sb_id = bid.get_rigid_body_id();
                 auto rb = get_rigid_body(sb_id);
-                if (rb->spec.is_static) {
+                if (rb->is_static) {
                     return J;
                 }
                 // TODO

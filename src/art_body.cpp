@@ -51,6 +51,20 @@ Link::create(CollisionShape col_shape, real mass, glmx::tsmat3x3<real> inertia, 
     return link;
 }
 
+void ArticulatedBodySpec::add_link_and_joint(Link link, Joint joint, const std::string& name) {
+    if (joint.type == JOINT_TYPE_FLOATING) {
+        if (!links.empty() || !joints.empty()) {
+            fprintf(stderr, "Error in ArticulatedBody::add_link_and_joint: "
+                            "Free joint can only be added at the root!\n");
+            return;
+        }
+        floating = true;
+    }
+    links.push_back(link);
+    joints.push_back(joint);
+    names.push_back(name);
+}
+
 void ArticulatedBodySpec::build() {
     int num_joints = get_num_joints();
     joint_pos_dofs.resize(num_joints);
@@ -108,6 +122,43 @@ void ArticulatedBodySpec::build() {
     build_finished = true;
 }
 
+int ArticulatedBodySpec::get_index(const char* name) const {
+    int i;
+    for (i = 0; i < names.size(); i++) {
+        if (names[i] == name) break;
+    }
+    if (i == names.size()) return -1;
+    else return i;
+}
+
+void ArticulatedBodySpec::scale_link(int link_idx, const rvec3& scale, bool scale_shapes) {
+    auto& link = links[link_idx];
+    if (scale_shapes) {
+        link.col_shape.scale *= scale;
+    }
+    link.local_link_pose.v = glm::rvec3(scale) * link.local_link_pose.v;
+    uint32_t num_children = get_num_children(link_idx);
+    const int* children = get_children(link_idx);
+    for (int i = 0; i < num_children; i++) {
+        uint32_t child_idx = children[i];
+        links[child_idx].local_joint_pose.v =
+                glm::rvec3(scale) * links[child_idx].local_joint_pose.v;
+    }
+}
+
+void ArticulatedBodySpec::scale_link(int link_idx, const rmat3& rot, const rvec3& scale) {
+    auto& link = links[link_idx];
+    auto T = rot * glm::rmat3(scale[0], 0, 0, 0, scale[1], 0, 0, 0, scale[2]) * glm::transpose(rot);
+    link.local_link_pose.v = T * link.local_link_pose.v;
+    uint32_t num_children = get_num_children(link_idx);
+    const int* children = get_children(link_idx);
+    for (int i = 0; i < num_children; i++) {
+        uint32_t child_idx = children[i];
+        links[child_idx].local_joint_pose.v =
+                T * links[child_idx].local_joint_pose.v;
+    }
+}
+
 void ArticulatedBody::init(artsim::ArticulatedBodySpec art_spec) {
     this->spec = std::move(art_spec);
     if (!spec.build_finished) {
@@ -123,6 +174,7 @@ void ArticulatedBody::init(artsim::ArticulatedBodySpec art_spec) {
     udot.resize(num_vel_dofs, 0);
     tau.resize(num_vel_dofs, 0);
     f_ext.resize(num_links, glmx::rscrew(glmx::IDENTITY));
+    f_c.resize(num_links, glmx::rscrew(glmx::IDENTITY));
     q_target.resize(num_pos_dofs, 0);
 
     global_link_trans.resize(num_links, glmx::rtransform(glmx::IDENTITY));
@@ -137,7 +189,7 @@ void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_s
                            int col_filter_group_mask, int col_filter_mask,
                            bool enable_self_collisions)
                            {
-    this->is_self_collision_enabled = enable_self_collisions;
+    this->_is_self_collision_enabled = enable_self_collisions;
 
     init(art_spec);
     this->mat_id = mat_id;
@@ -151,14 +203,13 @@ void ArticulatedBody::init(Id<ArticulatedBody> art_id, ArticulatedBodySpec art_s
             col_obj->setCollisionShape(spec.links[i].col_shape.bt_shape);
             col_obj->setUserIndex(body_id.index);
             col_obj->setUserIndex2(body_id.generation);
-            // bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0b1000000);
-            bt_collision_world->addCollisionObject(col_obj, 0b1000000, ~0);
+            bt_collision_world->addCollisionObject(col_obj, col_filter_group_mask, col_filter_mask);
             bt_collision_objects[i] = col_obj;
         }
     }
-                           }
+}
 
-                           void ArticulatedBody::release(btCollisionWorld* bt_world) {
+void ArticulatedBody::release(btCollisionWorld* bt_world) {
     for (btCollisionObject* bt_col : bt_collision_objects) {
         bt_world->removeCollisionObject(bt_col);
         delete bt_col;
@@ -203,6 +254,7 @@ void ArticulatedBody::reset() {
     std::fill(udot.begin(), udot.end(), 0);
     std::fill(tau.begin(), tau.end(), 0);
     std::fill(f_ext.begin(), f_ext.end(), glmx::rscrew(glmx::IDENTITY));
+    std::fill(f_c.begin(), f_c.end(), glmx::rscrew(glmx::IDENTITY));
 
     forward_kinematics();
 }
@@ -263,6 +315,11 @@ void ArticulatedBody::update_colliders() {
 
 void ArticulatedBody::forward_dynamics(const glm::rvec3& gravity, real dt) {
     artsim::featherstone_forward_dynamics(spec, gravity, dt, f_ext.data(), q.data(), u.data(), tau.data(), q_target.data(),
+                                          OUT udot.data());
+}
+
+void ArticulatedBody::forward_dynamics_with_contact(const rvec3& gravity, real dt) {
+    artsim::featherstone_forward_dynamics(spec, gravity, dt, f_ext.data(), f_c.data(), q.data(), u.data(), tau.data(), q_target.data(),
                                           OUT udot.data());
 }
 

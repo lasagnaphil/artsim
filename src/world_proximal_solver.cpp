@@ -36,12 +36,14 @@ void World::proximal_solver() {
 
     if (cfg.integration_type == IntegrationType::Midpoint) {
         articulated_bodies.foreach_id_val([&](Id<ArticulatedBody> art_id, ArticulatedBody& art) {
+            if (art.is_static()) return;
             integrate_positions(art.get_spec(), real(0.5)*cfg.dt, art.get_vel_buf(), art.get_pos_buf());
             art.forward_kinematics();
         });
 
         rigid_bodies.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
-            // TODO
+            if (rb.is_static) return;
+            rb.integrate_positions(real(0.5) * cfg.dt);
         });
     }
 
@@ -79,12 +81,13 @@ void World::proximal_solver() {
         if (bid.is_articulation()) {
             auto art_id = bid.get_art_id();
             auto& art = *get_articulated_body(art_id);
+            if (art.is_static()) continue;
             num_vel_dof = art.get_num_vel_dofs();
         }
         else {
             auto rb_id = bid.get_rigid_body_id();
             auto& rb = *get_rigid_body(rb_id);
-            if (rb.spec.is_static) continue;
+            if (rb.is_static) continue;
             num_vel_dof = 6;
         }
 
@@ -139,6 +142,7 @@ void World::proximal_solver() {
             if (bid.is_articulation()) {
                 auto art_id = bid.get_art_id();
                 ArticulatedBody& art = *articulated_bodies.get(art_id);
+                if (art.is_static()) continue;
 
                 const ArticulatedBodySpec& art_spec = art.get_spec();
                 int art_num_joints = art.get_num_joints();
@@ -187,7 +191,52 @@ void World::proximal_solver() {
                 }
             }
             else {
-                // TODO
+                auto rb_id = bid.get_rigid_body_id();
+                RigidBody& rb = *rigid_bodies.get(rb_id);
+                if (rb.is_static) continue;
+
+                Jt.resize(6, 3*contact_list.size());
+                Minv_Jt.resize(6, 3*contact_list.size());
+#ifdef PROXIMAL_SOLVER_LOCAL_R_STRATEGY
+                J_Minv_Jt.resize(3*contact_list.size(), 3*contact_list.size());
+#endif
+                b.resize(3*contact_list.size());
+                b.setZero();
+
+                auto body_T = rtransform(rb.pos, mat3_cast(rb.rot));
+
+                for (int k = 0; k < contact_list.size(); k++) {
+                    auto [cid, sign] = contact_list[k];
+                    const ContactPoint& cp = contact_points[cid];
+                    auto rb_T = rtransform(rb.pos, mat3_cast(rb.rot));
+                    auto contact_T = rtransform(cp.pos, rmat3(cp.tangent1, cp.tangent2, cp.normal));
+                    auto rel_T = rb_T / contact_T;
+                    Jt.block<1, 3>(0, 3*k) = real(sign) * glm_to_eigen(glm::cross(rel_T.v, rel_T.R[0]));
+                    Jt.block<1, 3>(1, 3*k) = real(sign) * glm_to_eigen(glm::cross(rel_T.v, rel_T.R[1]));
+                    Jt.block<1, 3>(2, 3*k) = real(sign) * glm_to_eigen(glm::cross(rel_T.v, rel_T.R[2]));
+                    Jt.block<1, 3>(3, 3*k) = real(sign) * glm_to_eigen(rel_T.R[0]);
+                    Jt.block<1, 3>(4, 3*k) = real(sign) * glm_to_eigen(rel_T.R[1]);
+                    Jt.block<1, 3>(5, 3*k) = real(sign) * glm_to_eigen(rel_T.R[2]);
+                    Minv_Jt.block<3, 3>(0, 3*k) = glm_to_eigen(rb.spec.inv_inertia) * Jt.block<3, 3>(3, 3*k);
+                    Minv_Jt.block<3, 3>(3, 3*k) = rb.spec.inv_mass * Jt.block<3, 3>(0, 3*k);
+                }
+#ifdef PROXIMAL_SOLVER_LOCAL_R_STRATEGY
+                J_Minv_Jt = Jt.transpose() * Minv_Jt;
+#endif
+                rb.forward_dynamics(cfg.gravity);
+                Eigen::Vector6r u, du;
+                u.head<3>() = glm_to_eigen(rb.angvel);
+                u.tail<3>() = glm_to_eigen(rb.vel);
+                du.head<3>() = glm_to_eigen(rb.angacc);
+                du.tail<3>() = glm_to_eigen(rb.acc);
+                VectorXr J_u = Jt.transpose() * u;
+                VectorXr J_du = Jt.transpose() * du;
+                for (int k = 0; k < contact_list.size(); k++) {
+                    auto [cid, sign] = contact_list[k];
+                    auto& mat = materials[cid];
+                    Vector3r E(real(1), real(1), real(1) + mat.restitution);
+                    b.middleRows<3>(3*k) += E.cwiseProduct(J_u.middleRows<3>(3*k)) + J_du.middleRows<3>(3*k);
+                }
             }
         }
     }
@@ -390,6 +439,7 @@ void World::proximal_solver() {
         ZoneNamedN(IntegrateVelocity, "IntegrateVelocity", true);
 
         articulated_bodies.foreach_id_val([&](Id<ArticulatedBody> art_id, ArticulatedBody& art) {
+            if (art.is_static()) return;
             BodyId bid = BodyId::from_articulated_body(art_id);
             auto it = body_id_to_entity_id.find(bid);
             if (it == body_id_to_entity_id.end()) {
@@ -399,26 +449,18 @@ void World::proximal_solver() {
                 int eid = it->second;
                 auto& contact_list = entity_id_to_contact_ids[eid];
                 int num_joints = art.get_num_joints();
-                std::vector<rscrew> f_ext_tot(num_joints);
-                std::copy_n(art.get_external_force_buf(), num_joints, f_ext_tot.data());
+                auto f_c = art.get_contact_force_buf();
+                std::fill_n(f_c, num_joints, rscrew(glmx::IDENTITY));
                 for (auto [cid, sign] : contact_list) {
                     auto& cp = contact_points[cid];
                     BodyLinkId blid = sign == 1? cp.body1_id : cp.body2_id;
                     auto [_, art_lidx] = blid.get_articulation_id();
                     auto contact_frame = rtransform(cp.pos, mat3(cp.tangent1, cp.tangent2, cp.normal));
                     auto contact_rel_frame = art.get_global_joint_trans(art_lidx) / contact_frame;
-                    glm::rvec3 lam_i = (real)sign * eigen_to_glm(lam.middleRows<3>(3*cid));
-                    f_ext_tot[art_lidx] += AdT(contact_rel_frame, rscrew(rvec3(0), lam_i / cfg.dt));
-                    // cp->bt_manifold_point->m_appliedImpulseLateral1 = lambda[cidx].x;
-                    // cp->bt_manifold_point->m_appliedImpulseLateral2 = lambda[cidx].y;
-                    // cp->bt_manifold_point->m_appliedImpulse = lambda[cidx].z;
+                    rscrew lam_c = rscrew(rvec3(0), real(sign) * eigen_to_glm(lam.middleRows<3>(3*cid)) / cfg.dt);
+                    f_c[art_lidx] += AdT(contact_rel_frame, lam_c);
                 }
-
-                auto& spec = art.get_spec();
-                featherstone_forward_dynamics(spec, cfg.gravity, cfg.dt,
-                                              f_ext_tot.data(), art.get_pos_buf(), art.get_vel_buf(),
-                                              art.get_internal_force_buf(), art.get_target_pos_buf(),
-                                              OUT art.get_acc_buf());
+                art.forward_dynamics_with_contact(cfg.gravity, cfg.dt);
             }
             if (cfg.integration_type == IntegrationType::SemiImplicitEuler) {
                 art.integrate(cfg.dt);
@@ -431,7 +473,32 @@ void World::proximal_solver() {
         });
 
         rigid_bodies.foreach_id_val([&](Id<RigidBody> rb_id, RigidBody& rb) {
-            // TODO
+            if (rb.is_static) return;
+            BodyId bid = BodyId::from_rigid_body(rb_id);
+            auto it = body_id_to_entity_id.find(bid);
+            if (it == body_id_to_entity_id.end()) {
+                rb.forward_dynamics(cfg.gravity);
+            }
+            else {
+                int eid = it->second;
+                auto& contact_list = entity_id_to_contact_ids[eid];
+                rb.f_c = glm::rvec3(0), rb.tau_c = glm::rvec3(0);
+                for (auto [cid, sign] : contact_list) {
+                    auto& cp = contact_points[cid];
+                    auto R = rmat3(cp.tangent1, cp.tangent2, cp.normal);
+                    glm::rvec3 lam_c = (real)sign * (R * eigen_to_glm(lam.middleRows<3>(3*cid) / cfg.dt));
+                    rb.f_c += lam_c;
+                    rb.tau_c += glm::cross(cp.pos - rb.pos, lam_c);
+                }
+                rb.forward_dynamics(cfg.gravity);
+            }
+            if (cfg.integration_type == IntegrationType::SemiImplicitEuler) {
+                rb.integrate(cfg.dt);
+            }
+            else if (cfg.integration_type == IntegrationType::Midpoint) {
+                rb.integrate_velocities(cfg.dt);
+                rb.integrate_positions(real(0.5) * cfg.dt);
+            }
         });
     }
 
@@ -526,11 +593,17 @@ void World::proximal_solver() {
                 if (bid.is_articulation()) {
                     auto art_id = bid.get_art_id();
                     auto& art = *get_articulated_body(art_id);
-                    integrate_positions(art.get_spec(), cfg.dt, u.data() + dof_start, art.get_pos_buf());
-                    art.forward_kinematics();
+                    if (!art.is_static()) {
+                        integrate_positions(art.get_spec(), cfg.dt, u.data() + dof_start, art.get_pos_buf());
+                        art.forward_kinematics();
+                    }
                 }
                 else {
-                    // TODO
+                    auto rb_id = bid.get_rigid_body_id();
+                    auto& rb = *get_rigid_body(rb_id);
+                    if (!rb.is_static) {
+                        rb.integrate_positions(cfg.dt);
+                    }
                 }
             }
         }
@@ -539,7 +612,6 @@ void World::proximal_solver() {
     auto t2 = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
     printf("Contact solver: %lld ns\n", duration.count());
-
 }
 
 Id<Material> World::get_material(BodyLinkId blid) {

@@ -532,7 +532,17 @@ glm::rvec3 spherical_joint_kp_force(real kp, const glm::rquat& q, const glm::rqu
 
 void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
                                    glm::tvec3<real> gravity, real dt,
-                                   const tscrew<real>* f_ext, const real* q, const real* u, const real* tau,
+                                   const tscrew<real>* f_ext,
+                                   const real* q, const real* u, const real* tau,
+                                   const real* q_target,
+                                   real*__restrict udot) {
+    featherstone_forward_dynamics(art, gravity, dt, f_ext, nullptr, q, u, tau, q_target, udot);
+}
+
+void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
+                                   glm::tvec3<real> gravity, real dt,
+                                   const tscrew<real>* f_ext, const tscrew<real>* f_c,
+                                   const real* q, const real* u, const real* tau,
                                    const real* q_target,
                                    real*__restrict udot) {
     ZoneScoped
@@ -558,6 +568,9 @@ void featherstone_forward_dynamics(const ArticulatedBodySpec& art,
             }
             else {
                 data[i].f_ext = tscrew<real>(IDENTITY);
+            }
+            if (f_c) {
+                data[i].f_ext += f_c[i];
             }
             if (!(i == 0 && art.floating)) {
                 switch (joint.type) {

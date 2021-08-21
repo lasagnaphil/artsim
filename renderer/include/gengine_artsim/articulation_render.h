@@ -15,8 +15,7 @@
 #include <gengine/PBRenderer.h>
 #include <gengine/DebugRenderer.h>
 
-using namespace artsim;
-
+namespace artsim {
 class ArticulationRender {
 public:
     ArticulationRender() = default;
@@ -174,5 +173,5 @@ public:
     std::vector<Ref<Mesh>> link_meshes;
     std::vector<Ref<Mesh>> joint_meshes;
 };
-
+}
 #endif //ARTSIM_ARTICULATION_RENDER_H

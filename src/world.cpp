@@ -43,10 +43,88 @@ void World::init(WorldConfig world_cfg) {
     this->bt_collision_world->getPairCache()->setOverlapFilterCallback(overlap_filter_callback);
 }
 
-void World::simulate(real dt) {
+void World::destroy() {
+    delete bt_collision_world;
+    delete overlap_filter_callback;
+    rigid_bodies.clear();
+    articulated_bodies.clear();
+    material_db.clear();
+}
+
+Id<RigidBody> World::add_rigid_body(const RigidBodySpec& spec, Id<Material> mat_id) {
+    auto id = rigid_bodies.make();
+    auto ptr = rigid_bodies.get(id);
+    ptr->init(id, spec, mat_id, bt_collision_world);
+    return id;
+}
+
+bool World::remove_rigid_body(Id<RigidBody> id) {
+    auto ptr = rigid_bodies.try_get(id);
+    if (!ptr) return false;
+    ptr->release(bt_collision_world);
+    rigid_bodies.release(id);
+    return true;
+}
+
+Id<RigidBody> World::add_plane(Id<Material> mat_id) {
+    RigidBodySpec spec;
+    const real inf = std::numeric_limits<real>::infinity();
+    spec.mass = inf;
+    spec.inertia = glmx::rsmat3x3(inf);
+    spec.col_shape = CollisionShape::make_ground();
+    auto body_id = add_rigid_body(spec, mat_id);
+    auto body = get_rigid_body(body_id);
+    body->is_static = true;
+    return body_id;
+}
+
+Id<ArticulatedBody>
+World::add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id, int col_filter_group,
+                            int col_filter_mask, bool enable_self_colisions) {
+    auto id = articulated_bodies.make();
+    auto ptr = articulated_bodies.get(id);
+    ptr->init(id, spec, mat_id, bt_collision_world, col_filter_group, col_filter_mask, enable_self_colisions);
+    load_collision_meshes(ptr->get_spec_mut());
+    return id;
+}
+
+bool World::remove_articulated_body(Id<ArticulatedBody> id) {
+    auto ptr = articulated_bodies.try_get(id);
+    if (!ptr) return false;
+    ptr->release(bt_collision_world);
+    articulated_bodies.release(id);
+    return true;
+}
+
+Id<CollisionMesh> World::add_collision_mesh_bvh(const char* objfile) {
+    auto id = col_meshes.make();
+    auto ptr = col_meshes.get(id);
+    ptr->init_bvh(objfile);
+    return id;
+}
+
+Id<CollisionMesh> World::add_collision_mesh_sdf(const char* objfile, real sdf_grid_size) {
+    auto id = col_meshes.make();
+    auto ptr = col_meshes.get(id);
+    ptr->init_sdf(objfile, sdf_grid_size);
+    return id;
+}
+
+bool World::remove_collision_mesh(Id<CollisionMesh> id) {
+    auto ptr = col_meshes.try_get(id);
+    if (!ptr) return false;
+    col_meshes.release(id);
+    return true;
+}
+
+void World::simulate() {
     for (auto& art : articulated_bodies) {
         art.forward_kinematics();
         art.update_colliders();
+    }
+    for (auto& rb : rigid_bodies) {
+        if (rb.is_static) continue;
+        rb.update_colliders();
     }
     bt_collision_world->performDiscreteCollisionDetection();
     integrate_with_contacts();
@@ -128,7 +206,10 @@ void World::integrate_with_contacts() {
         for (auto& art : articulated_bodies) {
             art.simulate(cfg.gravity, cfg.dt);
         }
-        // TODO: Update rigid bodies
+        for (auto& rb : rigid_bodies) {
+            if (rb.is_static) continue;
+            rb.simulate(cfg.gravity, cfg.dt);
+        }
         return;
     }
 
@@ -138,8 +219,6 @@ void World::integrate_with_contacts() {
         case ContactSolverType::NCP:
             newton_solver(); break;
     }
-    return;
-
 }
 
 void World::load_collision_meshes(ArticulatedBodySpec &spec) {
@@ -246,7 +325,7 @@ bool WorldOverlapFilterCallback::needBroadphaseCollision(btBroadphaseProxy* prox
             auto [aid2, lid2] = blid2.get_articulation_id();
             if (aid1 == aid2) {
                 auto art = world->get_articulated_body(aid1);
-                return art->self_collision_enabled();
+                return art->is_self_collision_enabled();
             }
             return aid1 != aid2;
         }

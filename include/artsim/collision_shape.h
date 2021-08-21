@@ -51,8 +51,8 @@ struct CollisionShape {
     static CollisionShape make_mesh_bvh(glm::rvec3 scale = glm::rvec3(1));
     static CollisionShape make_mesh_sdf(real cell_size, glm::rvec3 scale = glm::rvec3(1));
 
-    real mass(real density);
-    glmx::tsmat3x3<real> inertia(real density);
+    real mass(real density) const;
+    glmx::tsmat3x3<real> inertia(real density) const;
 };
 
 }

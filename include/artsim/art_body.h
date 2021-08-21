@@ -145,82 +145,27 @@ struct ArticulatedBodySpec {
 
     ArticulatedBodySpec() = default;
 
-    void add_link_and_joint(Link link, Joint joint, const std::string& name = "") {
-        if (joint.type == JOINT_TYPE_FLOATING) {
-            if (!links.empty() || !joints.empty()) {
-                fprintf(stderr, "Error in ArticulatedBody::add_link_and_joint: "
-                                "Free joint can only be added at the root!\n");
-                return;
-            }
-            floating = true;
-        }
-        links.push_back(link);
-        joints.push_back(joint);
-        names.push_back(name);
-    }
+    void add_link_and_joint(Link link, Joint joint, const std::string& name = "");
 
     void build();
 
-    int get_num_joints() const {
-        return joints.size();
-    }
+    int get_num_joints() const { return joints.size(); }
+    int get_num_links() const { return links.size(); }
 
-    int get_num_links() const {
-        return links.size();
-    }
-
-    int get_num_pos_dofs() const {
-        return num_pos_dofs;
-    };
-
-    int get_num_vel_dofs() const {
-        return num_vel_dofs;
-    };
+    int get_num_pos_dofs() const { return num_pos_dofs; };
+    int get_num_vel_dofs() const { return num_vel_dofs; };
 
     int get_num_children(int joint_idx) const {
         return children_buffer_starts[joint_idx+1] - children_buffer_starts[joint_idx];
     }
-
     const int * get_children(int joint_idx) const {
         return &children_buffer[children_buffer_starts[joint_idx]];
     }
 
-    int get_index(const char* name) const {
-        int i;
-        for (i = 0; i < names.size(); i++) {
-            if (names[i] == name) break;
-        }
-        if (i == names.size()) return -1;
-        else return i;
-    }
+    int get_index(const char* name) const;
 
-    void scale_link(int link_idx, const glm::rvec3& scale, bool scale_shapes) {
-        auto& link = links[link_idx];
-        if (scale_shapes) {
-            link.col_shape.scale *= scale;
-        }
-        link.local_link_pose.v = glm::rvec3(scale) * link.local_link_pose.v;
-        uint32_t num_children = get_num_children(link_idx);
-        const int* children = get_children(link_idx);
-        for (int i = 0; i < num_children; i++) {
-            uint32_t child_idx = children[i];
-            links[child_idx].local_joint_pose.v =
-                    glm::rvec3(scale) * links[child_idx].local_joint_pose.v;
-        }
-    }
-
-    void scale_link(int link_idx, const glm::rmat3& rot, const glm::rvec3& scale) {
-        auto& link = links[link_idx];
-        auto T = rot * glm::rmat3(scale[0], 0, 0, 0, scale[1], 0, 0, 0, scale[2]) * glm::transpose(rot);
-        link.local_link_pose.v = T * link.local_link_pose.v;
-        uint32_t num_children = get_num_children(link_idx);
-        const int* children = get_children(link_idx);
-        for (int i = 0; i < num_children; i++) {
-            uint32_t child_idx = children[i];
-            links[child_idx].local_joint_pose.v =
-                    T * links[child_idx].local_joint_pose.v;
-        }
-    }
+    void scale_link(int link_idx, const glm::rvec3& scale, bool scale_shapes);
+    void scale_link(int link_idx, const glm::rmat3& rot, const glm::rvec3& scale);
 };
 
 class ArticulatedBody {
@@ -233,6 +178,7 @@ private:
     std::vector<real> udot;
     std::vector<real> tau;
     std::vector<glmx::tscrew<real>> f_ext;
+    std::vector<glmx::tscrew<real>> f_c;
     std::vector<real> q_target;
 
     std::vector<glmx::ttransform<real>> global_link_trans;
@@ -241,7 +187,8 @@ private:
 
     std::vector<btCollisionObject*> bt_collision_objects;
 
-    bool is_self_collision_enabled = false;
+    bool _is_static = false;
+    bool _is_self_collision_enabled = false;
 
 public:
     void init(artsim::ArticulatedBodySpec art_spec);
@@ -269,6 +216,7 @@ public:
     real* get_acc_buf() { return udot.data(); }
     real* get_internal_force_buf() { return tau.data(); }
     glmx::rscrew* get_external_force_buf() { return f_ext.data(); }
+    glmx::rscrew* get_contact_force_buf() { return f_c.data(); }
     real* get_target_pos_buf() { return q_target.data(); }
 
     Id<Material> get_mat_id() { return mat_id; }
@@ -293,6 +241,7 @@ public:
     void update_colliders();
 
     void forward_dynamics(const glm::rvec3& gravity, real dt);
+    void forward_dynamics_with_contact(const glm::rvec3& gravity, real dt);
     void integrate(real dt);
     void simulate(const glm::rvec3& gravity, real dt);
 
@@ -315,9 +264,13 @@ public:
 
     glm::rvec3 get_center_of_mass() const;
 
-    bool self_collision_enabled() const { return is_self_collision_enabled; }
-    void enable_self_collisions() { is_self_collision_enabled = true; }
-    void disable_self_collisions() { is_self_collision_enabled = false; }
+    bool is_self_collision_enabled() const { return _is_self_collision_enabled; }
+    void enable_self_collisions() { _is_self_collision_enabled = true; }
+    void disable_self_collisions() { _is_self_collision_enabled = false; }
+
+    bool is_static() const { return _is_static; }
+    void set_static() { _is_static = true; }
+    void set_dynamic() { _is_static = false; }
 };
 
 }

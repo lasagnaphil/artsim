@@ -5,26 +5,29 @@
 #include <artsim/rigid_body.h>
 
 #include <artsim/types.h>
+#include <artsim/math/bullet.h>
 #include <artsim/collision_shape.h>
 #include <artsim/artsim.h>
 #include <artsim/material.h>
 
 #include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
 
+#include <random>
+#include <ctime>
+
 namespace artsim {
 
 void RigidBody::init(RigidBodySpec rb_spec) {
     this->spec = rb_spec;
-    pos = glm::rvec3(0);
-    vel = glm::rvec3(0);
-    rot = glm::identity<glm::rquat>();
-    angvel = glm::rvec3(0);
+    reset();
 }
 
 void RigidBody::init(Id<RigidBody> rb_id, RigidBodySpec rb_spec, Id<Material> mat_id,
-                     btCollisionWorld* bt_collision_world) {
-    init(rb_spec);
+                     btCollisionWorld* bt_collision_world,
+                     int col_filter_group_mask, int col_filter_mask) {
+    this->spec = rb_spec;
     this->mat_id = mat_id;
+    reset();
     auto col_shape = spec.col_shape;
     if (col_shape.type != CollisionShape::Type::Mesh) {
         BodyLinkId body_id = BodyLinkId::from_rigid_body(rb_id);
@@ -33,18 +36,76 @@ void RigidBody::init(Id<RigidBody> rb_id, RigidBodySpec rb_spec, Id<Material> ma
         bt_collision_object->setWorldTransform(btTransform::getIdentity());
         bt_collision_object->setUserIndex(body_id.index);
         bt_collision_object->setUserIndex2(body_id.generation);
-        if (col_shape.type == CollisionShape::Type::Ground) {
-            bt_collision_world->addCollisionObject(bt_collision_object, btBroadphaseProxy::DefaultFilter, btBroadphaseProxy::AllFilter);
-        }
-        else {
-            bt_collision_world->addCollisionObject(bt_collision_object, 0b1000000, ~0);
-        }
+        bt_collision_world->addCollisionObject(bt_collision_object, col_filter_group_mask, col_filter_mask);
     }
 }
 
 void RigidBody::release(btCollisionWorld* bt_world) {
     bt_world->removeCollisionObject(bt_collision_object);
     delete bt_collision_object;
+}
+
+void RigidBody::reset() {
+    pos = {};
+    rot = glm::identity<glm::rquat>();
+    vel = {};
+    angvel = {};
+    acc = {};
+    angacc = {};
+    f_ext = {};
+    tau_ext = {};
+    f_c = {};
+    tau_c = {};
+}
+
+void RigidBody::randomize_positions() {
+    thread_local std::default_random_engine engine(std::time(nullptr));
+
+    const real pi = glm::pi<real>();
+    {
+        real len = std::uniform_real_distribution<real>(-0.2*pi, 0.2*pi)(engine);
+        glm::tvec3<real> dir = glm::tvec3<real>(
+                std::uniform_real_distribution<real>(-1, 1)(engine),
+                std::uniform_real_distribution<real>(-1, 1)(engine),
+                std::uniform_real_distribution<real>(-1, 1)(engine)
+                );
+        rot = glmx::exp(len * normalize(dir));
+    }
+    {
+        pos[0] = std::uniform_real_distribution<real>(-0.2*pi, 0.2*pi)(engine);
+        pos[1] = std::uniform_real_distribution<real>(2-0.2*pi, 2+0.2*pi)(engine);
+        pos[2] = std::uniform_real_distribution<real>(-0.2*pi, 0.2*pi)(engine);
+    }
+}
+
+void RigidBody::update_colliders() {
+    bt_collision_object->setWorldTransform(btconv(rquat_transform(pos, rot)));
+}
+
+void RigidBody::forward_dynamics(const rvec3& gravity) {
+    acc = gravity + (f_ext + f_c) / spec.mass;
+    angacc = spec.inv_inertia * (tau_ext + tau_c - glm::cross(angvel, (spec.inertia * angvel)));
+}
+
+void RigidBody::integrate(real dt) {
+    integrate_velocities(dt);
+    integrate_positions(dt);
+}
+
+void RigidBody::integrate_positions(real dt) {
+    pos += vel * dt;
+    rot += glm::rquat(0, real(0.5)*dt*angvel) * rot;
+    rot = glm::normalize(rot);
+}
+
+void RigidBody::integrate_velocities(real dt) {
+    vel += acc * dt;
+    angvel += angacc * dt;
+}
+
+void RigidBody::simulate(const rvec3& gravity, real dt) {
+    forward_dynamics(gravity);
+    integrate(dt);
 }
 
 }

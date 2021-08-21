@@ -8,6 +8,7 @@
 #include "LinearMath/btIDebugDraw.h"
 #include "gengine/DebugRenderer.h"
 #include <artsim/artsim.h>
+#include <artsim/math/bullet.h>
 
 class BulletDebugRenderer : public btIDebugDraw {
     DebugRenderer* debugRenderer;

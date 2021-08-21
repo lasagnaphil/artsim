@@ -19,6 +19,10 @@ using VectorXr = Eigen::Matrix<artsim::real, Eigen::Dynamic, 1>;
 using Matrix3r = Eigen::Matrix<artsim::real, 3, 3>;
 using Vector3r = Eigen::Matrix<artsim::real, 3, 1>;
 
+using Matrix6r = Eigen::Matrix<artsim::real, 6, 6>;
+using Matrix6x3r = Eigen::Matrix<artsim::real, 6, 3>;
+using Vector6r = Eigen::Matrix<artsim::real, 6, 1>;
+
 }
 
 using Eigen::MatrixXr;
@@ -58,15 +62,7 @@ inline glmx::dynmat_view<artsim::real> get_view(Eigen::MatrixXr& mat) {
     return glmx::dynmat_view<artsim::real>(mat.data(), mat.rows(), mat.cols());
 }
 
-inline Eigen::Vector3r glm_to_eigen(const glm::rvec3& v) {
-    return {v.x, v.y, v.z};
-}
-
-inline Eigen::Matrix3r glm_to_eigen(const glm::tmat3x3<artsim::real>& M) {
-    return Eigen::Map<Eigen::Matrix3r>((artsim::real*)&M[0], 3, 3).transpose();
-}
-
-inline Eigen::Matrix3r glm_to_eigen(const glmx::tsmat3x3<artsim::real>& M) {
+inline Eigen::Matrix3r glm_to_eigen(const glmx::rsmat3x3& M) {
     Eigen::Matrix3r Me;
     Me(0, 0) = M.xx; Me(1, 1) = M.yy; Me(2, 2) = M.zz;
     Me(1, 2) = Me(2, 1) = M.yz;
@@ -75,7 +71,7 @@ inline Eigen::Matrix3r glm_to_eigen(const glmx::tsmat3x3<artsim::real>& M) {
     return Me;
 }
 
-inline Eigen::Matrix<artsim::real, 6, 6> glm_to_eigen(const glmx::tsmat6x6<artsim::real>& I) {
+inline Eigen::Matrix<artsim::real, 6, 6> glm_to_eigen(const glmx::rsmat6x6& I) {
     Eigen::Matrix<artsim::real, 6, 6> M;
     M.block<3,3>(0, 0) = glm_to_eigen(I.I);
     M.block<3,3>(3, 0) = glm_to_eigen(I.C);

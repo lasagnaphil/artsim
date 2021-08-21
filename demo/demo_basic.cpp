@@ -6,12 +6,14 @@
 
 #include <artsim/artsim.h>
 #include <artsim/utils/example_articulations.h>
+#include <artsim/utils/art_imgui.h>
 
 #include <imgui.h>
 #include <implot.h>
 #include <gengine/App.h>
 #include <gengine/InputManager.h>
 #include <gengine_artsim/articulation_render.h>
+#include <gengine_artsim/rigid_body_render.h>
 #include <gengine_artsim/world_debug_render.h>
 
 using namespace artsim;
@@ -63,14 +65,23 @@ public:
             run_simulation = !run_simulation;
         }
         if (inputMgr->isKeyEntered(SDL_SCANCODE_RETURN)) {
-            auto new_art_id = world.add_articulated_body(
-                    examples::create_free_link(art_type, true), default_mat_id);
-            // auto new_art_id = world.add_articulated_body(
-            //         examples::create_free_ball(0.1f), default_mat_id);
+            if (art_type == 1) {
+                auto spec = RigidBodySpec(CollisionShape::make_sphere(0.1f), 1000);
+                auto new_rb_id = world.add_rigid_body(spec, default_mat_id);
+                auto& rb = *world.get_rigid_body(new_rb_id);
+                rb.randomize_positions();
+                rb_renderers.push_back(RigidBodyRender(&world, new_rb_id, orig_mesh_mat));
+            }
+            else {
+                auto new_art_id = world.add_articulated_body(
+                        examples::create_free_link(art_type, true), default_mat_id);
+                // auto new_art_id = world.add_articulated_body(
+                //         examples::create_free_ball(0.1f), default_mat_id);
 
-            auto art = world.get_articulated_body(new_art_id);
-            art->randomize_positions();
-            art_renderers.push_back(ArticulationRender(&world, new_art_id, orig_mesh_mat, joint_mat));
+                auto& art = *world.get_articulated_body(new_art_id);
+                art.randomize_positions();
+                art_renderers.push_back(ArticulationRender(&world, new_art_id, orig_mesh_mat, joint_mat));
+            }
         }
 
         if (inputMgr->isKeyEntered(SDL_SCANCODE_1)) { demo_type = DemoType::Pendulum; art_type = 1; resetPhysics(); }
@@ -87,7 +98,7 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
             for (int i = 0; i < 10; i++) {
-                world.simulate(sim_dt);
+                world.simulate();
             }
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
@@ -106,7 +117,12 @@ public:
         for (auto& art_renderer : art_renderers) {
             art_renderer.render(pbRenderer);
         }
-        // world_debug_renderer.render(imRenderer);
+        for (auto& rb_renderer : rb_renderers) {
+            rb_renderer.render(pbRenderer);
+        }
+        if (debug_render) {
+            world_debug_renderer.render(imRenderer);
+        }
 
         imRenderer.drawXZSquareGrid(-5.0f, 5.0f, 0.01f, 1.0f, colors::LightGray, true);
         /*
@@ -114,6 +130,28 @@ public:
             imRenderer.drawSphere(contact_point.pos, colors::Red, 0.01f, false);
         }
         */
+        ImGui::Begin("Debug");
+        if (ImGui::CollapsingHeader("Renderer")) {
+            ImGui::Checkbox("Enable debug render", &debug_render);
+        }
+        if (!art_id.is_null() && ImGui::CollapsingHeader("Articulation")) {
+            bool pos_edited, vel_edited, acc_edited;
+            auto& art = *world.get_articulated_body(art_id);
+            articulated_body_imgui(art, pos_edited, vel_edited, acc_edited);
+        }
+        if (!rb_id.is_null() && ImGui::CollapsingHeader("Rigid Body")) {
+            auto& rb = *world.get_rigid_body(rb_id);
+            ImGui::DragScalarN("pos##rb_pos", ImGuiDataType_Real, &rb.pos, 3, 0.01f);
+            if (ImGui::DragScalarN("rot##rb_rot", ImGuiDataType_Real, &rb.rot, 4, 0.01f)) {
+                rb.rot = glm::normalize(rb.rot);
+            }
+            ImGui::DragScalarN("vel##rb_vel", ImGuiDataType_Real, &rb.vel, 3, 0.01f);
+            ImGui::DragScalarN("angvel##rb_angvel", ImGuiDataType_Real, &rb.angvel, 3, 0.01f);
+            ImGui::DragScalarN("acc##rb_acc", ImGuiDataType_Real, &rb.acc, 3, 0.01f);
+            ImGui::DragScalarN("angacc##rb_angacc", ImGuiDataType_Real, &rb.angacc, 3, 0.01f);
+            ImGui::DragScalarN("f_c##rb_f_c", ImGuiDataType_Real, &rb.f_c, 3, 0.01f);
+        }
+        ImGui::End();
 
         pbRenderer.render();
         imRenderer.render();
@@ -123,7 +161,9 @@ public:
     }
 
     void resetPhysics() {
+        art_id = {}; rb_id = {};
         art_renderers.clear();
+        rb_renderers.clear();
 
         world = World();
         WorldConfig world_cfg;
@@ -151,33 +191,46 @@ public:
 
                 auto art = world.get_articulated_body(art_id);
                 art->randomize_positions();
+                art_renderers.push_back(ArticulationRender(&world, art_id, orig_mesh_mat, joint_mat));
             } break;
             case DemoType::Contacts: {
                 world.add_plane(default_mat_id);
-                art_id = world.add_articulated_body(
-                        examples::create_free_link(art_type, true), default_mat_id);
+                if (art_type == 1) {
+                    auto spec = RigidBodySpec(CollisionShape::make_box({0.1f, 1.0f, 0.1f}), 1000);
+                    rb_id = world.add_rigid_body(spec, default_mat_id);
+                    auto& rb = *world.get_rigid_body(rb_id);
+                    rb.randomize_positions();
+                    rb_renderers.push_back(RigidBodyRender(&world, rb_id, orig_mesh_mat));
+                }
+                else {
+                    art_id = world.add_articulated_body(
+                            examples::create_free_link(art_type, true), default_mat_id);
 
-                auto art = world.get_articulated_body(art_id);
-                art->randomize_positions();
+                    auto art = world.get_articulated_body(art_id);
+                    art->randomize_positions();
+                    art_renderers.push_back(ArticulationRender(&world, art_id, orig_mesh_mat, joint_mat));
+                }
             } break;
         }
-        art_renderers.push_back(ArticulationRender(&world, art_id, orig_mesh_mat, joint_mat));
         world_debug_renderer = WorldDebugRender(&world);
     }
 
 private:
     World world;
-    Id<ArticulatedBody> art_id;
+    Id<ArticulatedBody> art_id = {};
+    Id<RigidBody> rb_id = {};
     Id<Material> default_mat_id;
     Material material {1.0f, 0.0f, 0.01f};
     float sim_dt = 1.0f / 600.0f;
     bool run_simulation = true;
+    bool debug_render = false;
 
     Ref<PBRMaterial> ground_mat;
     Ref<Mesh> ground_mesh;
 
     Ref<PBRMaterial> orig_mesh_mat, joint_mat;
     std::vector<ArticulationRender> art_renderers;
+    std::vector<RigidBodyRender> rb_renderers;
     WorldDebugRender world_debug_renderer;
 
     DemoType demo_type = DemoType::Contacts;

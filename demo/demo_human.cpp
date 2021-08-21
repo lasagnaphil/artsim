@@ -71,7 +71,7 @@ public:
         if (run_simulation) {
             auto t1 = std::chrono::high_resolution_clock::now();
             for (int i = 0; i < 10; i++) {
-                world.simulate(sim_dt);
+                world.simulate();
             }
             auto t2 = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);

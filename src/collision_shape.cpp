@@ -45,7 +45,7 @@ void CollisionMesh::init_sdf(const char* objfile, real sdf_grid_size) {
     sdf->addFunction(func, true);
 }
 
-real CollisionShape::mass(real density) {
+real CollisionShape::mass(real density) const {
     switch (type) {
         case Type::Box: return density * scale.x * scale.y * scale.z;
         case Type::Sphere: return real(4.0 / 3.0) * density * glm::pi<real>() * scale.x * scale.y * scale.z;
@@ -53,7 +53,7 @@ real CollisionShape::mass(real density) {
     }
 }
 
-tsmat3x3<real> CollisionShape::inertia(real density) {
+tsmat3x3<real> CollisionShape::inertia(real density) const {
     switch (type) {
         case Type::Box: {
             const glm::tvec3<real>& s = scale;
