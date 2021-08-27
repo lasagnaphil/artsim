@@ -144,30 +144,34 @@ void SoftBody::build_mass(real density, real dt) {
     A.resize(3 * num_vertices, 3 * num_vertices);
 
     std::vector<Eigen::Triplet<real>> A_triplets;
-    std::unordered_map<glm::ivec2, real> A_triplets_map;
+    std::unordered_set<glm::ivec2> A_triplets_set;
     for (int i = 0; i < num_tets; i++) {
-        real m = density * W[i] / real(20.0) / (dt * dt);
         glm::ivec4 tet = tets[i];
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
                 for (int l = 0; l < 3; l++) {
                     auto idx = glm::ivec2(3 * tet[j] + l, 3 * tet[k] + l);
-                    auto it = A_triplets_map.find(idx);
-                    if (it != A_triplets_map.end()) {
-                        it->second += j == k ? 2.0 * m : m;
-                    } else {
-                        A_triplets_map.insert({idx, j == k ? 2.0 * m : m});
-                    }
+                    A_triplets_set.insert(idx);
                 }
             }
         }
     }
-    A_triplets.reserve(A_triplets_map.size());
-    for (auto&[k, v] : A_triplets_map) {
-        A_triplets.emplace_back(k[0], k[1], v);
+    A_triplets.reserve(A_triplets_set.size());
+    for (auto& idx : A_triplets_set) {
+        A_triplets.emplace_back(idx[0], idx[1], 0);
+    }
+    A.setFromTriplets(A_triplets.begin(), A_triplets.end());
+
+    for (int i = 0; i < num_tets; i++) {
+        glm::ivec4 tet = tets[i];
+        real m = density * W[i] / real(4.0) / (dt * dt);
+        for (int j = 0; j < 4; j++) {
+            for (int l = 0; l < 3; l++) {
+                A.coeffRef(3*tet[j]+l, 3*tet[j]+l) += m;
+            }
+        }
     }
 
-    A.setFromTriplets(A_triplets.begin(), A_triplets.end());
     M = A;
 
     // Factorize mass matrix (not going to change over the course of simulation, so better do it now)

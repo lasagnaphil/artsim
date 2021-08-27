@@ -59,10 +59,10 @@ struct PositionalEmbedConstraint {
     glm::rvec3 target_pos;
 };
 
-struct SoftRigidCollisionConstraint {
+struct CollisionConstraint {
     int vert_id;
     real k;
-    glm::rvec3 closest_point;
+    glm::rvec3 target_pos;
     glm::rvec3 normal;
 };
 
@@ -86,7 +86,7 @@ struct PDConstraints {
     std::vector<LinearStrainEnergyConstraint> linear_strain_energy;
     std::vector<VolumePreservationEnergyConstraint> volume_preservation_energy;
     std::vector<PositionalConstraint> positional;
-    std::vector<SoftRigidCollisionConstraint> soft_rigid_collision;
+    std::vector<CollisionConstraint> soft_rigid_collision;
 
     int count() {
         return linear_strain_energy.size() + volume_preservation_energy.size() + positional.size()
