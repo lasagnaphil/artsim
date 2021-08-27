@@ -96,6 +96,19 @@ struct SoftBody {
         A.coeffRef(3*c.vert_id+2, 3*c.vert_id+2) += c.k;
     }
 
+    template <class Constraint>
+    void add_collision_constraint(const Constraint& c) {
+        A.coeffRef(3*c.vert_id+0, 3*c.vert_id+0) += c.k * c.normal[0] * c.normal[0];
+        A.coeffRef(3*c.vert_id+0, 3*c.vert_id+1) += c.k * c.normal[0] * c.normal[1];
+        A.coeffRef(3*c.vert_id+0, 3*c.vert_id+2) += c.k * c.normal[0] * c.normal[2];
+        A.coeffRef(3*c.vert_id+1, 3*c.vert_id+0) += c.k * c.normal[1] * c.normal[0];
+        A.coeffRef(3*c.vert_id+1, 3*c.vert_id+1) += c.k * c.normal[1] * c.normal[1];
+        A.coeffRef(3*c.vert_id+1, 3*c.vert_id+2) += c.k * c.normal[1] * c.normal[2];
+        A.coeffRef(3*c.vert_id+2, 3*c.vert_id+0) += c.k * c.normal[2] * c.normal[0];
+        A.coeffRef(3*c.vert_id+2, 3*c.vert_id+1) += c.k * c.normal[2] * c.normal[1];
+        A.coeffRef(3*c.vert_id+2, 3*c.vert_id+2) += c.k * c.normal[2] * c.normal[2];
+    }
+
     void factorize() {
         ZoneScoped
         A_LDLt.analyzePattern(A);

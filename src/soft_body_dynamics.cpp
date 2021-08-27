@@ -219,21 +219,23 @@ void projective_dynamics_positional_constraint_update_b(
     }
 }
 
-void projective_dynamics_soft_rigid_collision_constraint_update_b(
-        const SoftBody& body, const SoftRigidCollisionConstraint* constraints, uint32_t num_constraints, real dt,
+void projective_dynamics_collision_constraint_update_b(
+        const SoftBody& body, const CollisionConstraint* constraints, uint32_t num_constraints, real dt,
         const glm::rvec3* x, INOUT real* b) {
     for (int cidx = 0; cidx < num_constraints; cidx++) {
         auto& c = constraints[cidx];
         real k_s = c.k * dt * dt;
-        if (glm::dot(c.normal, x[c.vert_id] - c.closest_point) < 0) {
-            b[3*c.vert_id+0] += k_s * c.closest_point.x;
-            b[3*c.vert_id+1] += k_s * c.closest_point.y;
-            b[3*c.vert_id+2] += k_s * c.closest_point.z;
+        if (glm::dot(c.normal, x[c.vert_id] - c.target_pos) < 0) {
+            auto dotp = glm::dot(c.normal, c.target_pos);
+            b[3*c.vert_id+0] += k_s * c.normal.x * dotp;
+            b[3*c.vert_id+1] += k_s * c.normal.y * dotp;
+            b[3*c.vert_id+2] += k_s * c.normal.z * dotp;
         }
         else {
-            b[3*c.vert_id+0] += k_s * x[c.vert_id].x;
-            b[3*c.vert_id+1] += k_s * x[c.vert_id].y;
-            b[3*c.vert_id+2] += k_s * x[c.vert_id].z;
+            auto dotp = glm::dot(c.normal, x[c.vert_id]);
+            b[3*c.vert_id+0] += k_s * c.normal.x * dotp;
+            b[3*c.vert_id+1] += k_s * c.normal.y * dotp;
+            b[3*c.vert_id+2] += k_s * c.normal.z * dotp;
         }
     }
 }
@@ -355,9 +357,9 @@ void projective_dynamics(const SoftBody& body,
         projective_dynamics_positional_constraint_update_b(
                 body, constraints.positional.data(), constraints.positional.size(), dt, INOUT b.data());
 
-        projective_dynamics_soft_rigid_collision_constraint_update_b(
+        projective_dynamics_collision_constraint_update_b(
                 body, constraints.soft_rigid_collision.data(), constraints.soft_rigid_collision.size(), dt,
-                (glm::rvec3*)x.data(), INOUT b.data());
+                (glm::rvec3*) x.data(), INOUT b.data());
 
         x = body.A_LDLt.solve(b);
     }
@@ -394,7 +396,7 @@ void projective_dynamics_quasistatic(const SoftBody& body,
 #undef X
         projective_dynamics_positional_constraint_update_b(
                 body, constraints.positional.data(), constraints.positional.size(), 1.0, INOUT b.data());
-        projective_dynamics_soft_rigid_collision_constraint_update_b(
+        projective_dynamics_collision_constraint_update_b(
                 body, constraints.soft_rigid_collision.data(), constraints.soft_rigid_collision.size(), 1.0,
                 (glm::rvec3*) x.data(), INOUT b.data());
 
