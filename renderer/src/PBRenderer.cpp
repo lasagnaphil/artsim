@@ -3,6 +3,7 @@
 //
 
 #include "gengine/PBRenderer.h"
+#include "gengine/Camera.h"
 
 #include <imgui.h>
 #include <fmt/core.h>
@@ -47,6 +48,56 @@ PBRMaterial::quick(const std::string &albedo, const std::string &metallic, const
     mat->texRoughness = Texture::fromImage(roughnessImage);
     mat->texAO = Texture::fromImage(aoImage);
     mat->alpha = 1.0f;
+
+    return mat;
+}
+
+Ref<PBRMaterial> PBRMaterial::quick(glm::vec3 color) {
+    Ref<PBRMaterial> material = Resources::make<PBRMaterial>();
+    material->texAlbedo = defaultTexture;
+    material->texMetallic = defaultTexture;
+    material->texRoughness = defaultTexture;
+    material->texAO = defaultTexture;
+    material->albedo = color;
+    material->metallic = 0.0f;
+    material->roughness = 0.0f;
+    material->ao = 1.0f;
+    return material;
+}
+
+Ref<PBRMaterial> PBRMaterial::fromOBJ(const tinyobj::material_t& tmat, const char* directory) {
+    Ref<PBRMaterial> mat = Resources::make<PBRMaterial>();
+    if (tmat.diffuse_texname.empty()) {
+        mat->texAlbedo = defaultTexture;
+    }
+    else {
+        std::string file;
+        if (directory) file = std::string(directory) + "/" + tmat.diffuse_texname;
+        else file = tmat.diffuse_texname;
+        mat->texAlbedo = Texture::fromImage(Image::fromFile(file));
+    }
+    mat->albedo = glm::make_vec3(tmat.diffuse);
+    if (tmat.metallic_texname.empty()) {
+        mat->texMetallic = defaultTexture;
+    }
+    else {
+        std::string file;
+        if (directory) file = std::string(directory) + "/" + tmat.metallic_texname;
+        else file = tmat.metallic_texname;
+        mat->texMetallic = Texture::fromImage(Image::fromFile(file));
+    }
+    mat->metallic = tmat.metallic;
+    if (tmat.roughness_texname.empty()) {
+        mat->texRoughness = defaultTexture;
+    }
+    else {
+        std::string file;
+        if (directory) file = std::string(directory) + "/" + tmat.roughness_texname;
+        else file = tmat.roughness_texname;
+        mat->texRoughness = Texture::fromImage(Image::fromFile(file));
+    }
+    mat->texAO = defaultTexture;
+    mat->ao = 1.0f;
 
     return mat;
 }
@@ -154,6 +205,9 @@ void PBRenderer::init() {
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, lightUBO);
     glUniformBlockBinding(pbrTransparentShader->program, glGetUniformBlockIndex(pbrTransparentShader->program, "UniformBlock"), 0);
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, lightUBO);
+
+    debugRenderer.setCamera(camera);
+    debugRenderer.init();
 }
 
 void PBRenderer::render(bool shadows) {
@@ -161,6 +215,10 @@ void PBRenderer::render(bool shadows) {
     const unsigned int SCREEN_HEIGHT = ImGui::GetIO().DisplaySize.y;
     float near_plane = 0.1f;
     float far_plane = 1000.0f;
+
+    if (dirLightFollowingCamera) {
+        lights.dir.direction = -glm::vec3(camera->getGlobalTransform()[2]);
+    }
 
     glm::mat4 dirLightSpaceMatrix = calcDirLightSpaceMatrix();
     depthShader->use();
@@ -197,6 +255,10 @@ void PBRenderer::render(bool shadows) {
     setLightingUniforms(pbrSolidShader, true);
     renderPass(pbrSolidShader, renderSolidCommands);
 
+    // Solid render pass for debug renderer (with depth)
+    debugRenderer.drawDebugPoints(true);
+    debugRenderer.drawDebugLines(true);
+
     // Translucent render pass
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
@@ -231,7 +293,6 @@ void PBRenderer::render(bool shadows) {
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     screenShader->use();
     screenShader->setFloat("exposure", exposure);
     glActiveTexture(GL_TEXTURE0);
@@ -241,6 +302,15 @@ void PBRenderer::render(bool shadows) {
 
     renderSolidCommands.clear();
     renderTransparentCommands.clear();
+
+    // Overlay debug renderer (without depth)
+    debugRenderer.drawDebugPoints(false);
+    debugRenderer.drawDebugLines(false);
+
+    debugRenderer.endFrame();
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
 }
 
 void PBRenderer::renderImGui() {
@@ -252,6 +322,7 @@ void PBRenderer::renderImGui() {
     if (ImGui::CollapsingHeader("Directional Light Settings")) {
         auto& dirLight = lights.dir;
         ImGui::Checkbox("Enabled", (bool*) &dirLight.enabled);
+        ImGui::Checkbox("Follow Camera", &dirLightFollowingCamera);
         ImGui::DragFloat3("Direction", (float *) &dirLight.direction, 0.01f, -5.0f, 5.0f);
         ImGui::DragFloat3("Color", (float *) &dirLight.color, 0.01f, 0.0f, 1.0f);
     }

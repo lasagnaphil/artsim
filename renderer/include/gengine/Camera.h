@@ -45,6 +45,7 @@ struct Camera {
         return Ray {getGlobalPosition(), worldCoord};
     }
 
+    virtual glm::mat4 getGlobalTransform() const = 0;
     virtual glm::mat4 getPerspectiveMatrix() const = 0;
     virtual glm::mat4 getViewMatrix() const = 0;
     virtual glm::vec3 getPosition() const = 0;

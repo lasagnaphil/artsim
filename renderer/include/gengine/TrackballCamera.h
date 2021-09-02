@@ -22,12 +22,13 @@ public:
     void renderImGui() override;
     void processInput(SDL_Event& ev) override;
 
+    glm::mat4 getGlobalTransform() const override { return transform->getWorldTransform(); }
     glm::mat4 getPerspectiveMatrix() const override;
     glm::mat4 getViewMatrix() const override;
-    virtual glm::vec3 getPosition() const override {
+    glm::vec3 getPosition() const override {
         return transform->getPosition();
     }
-    virtual glm::vec3 getGlobalPosition() const override {
+    glm::vec3 getGlobalPosition() const override {
         return transform->getGlobalPosition();
     }
 

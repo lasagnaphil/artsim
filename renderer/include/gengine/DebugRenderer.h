@@ -66,9 +66,10 @@ struct DebugRenderer {
     void init();
     void reserveBuffers(int stringBufSize, int pointBufSize, int lineBufSize);
     void render();
+    void endFrame();
 
-    void drawDebugPoints();
-    void drawDebugLines();
+    void drawDebugPoints(bool depthEnabled);
+    void drawDebugLines(bool depthEnabled);
 
     // Immediate-mode rendering functions
     void drawPoint(glm::vec3 pos, glm::vec3 color, float size, bool depthEnabled);

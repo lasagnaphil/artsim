@@ -18,7 +18,7 @@
 
 void DebugRenderer::init() {
     if (camera == nullptr) {
-        fmt::print(stderr, "Camera not attached to PhongRenderer!\n");
+        fmt::print(stderr, "Camera not attached to DebugRenderer!\n");
         exit(EXIT_FAILURE);
     }
     vertexBuffer.resize(IM_VERTEX_BUFFER_SIZE);
@@ -63,58 +63,42 @@ void DebugRenderer::reserveBuffers(int stringBufSize, int pointBufSize, int line
 }
 
 void DebugRenderer::render() {
-    drawDebugPoints();
-    drawDebugLines();
+    drawDebugPoints(true);
+    drawDebugLines(true);
+    drawDebugPoints(false);
+    drawDebugLines(false);
+    endFrame();
 }
 
-void DebugRenderer::drawDebugPoints() {
+void DebugRenderer::endFrame() {
+    pointData.clear();
+    lineData.clear();
+}
+
+void DebugRenderer::drawDebugPoints(bool depthEnabled) {
     imPointShader->use();
     imPointShader->setCamera(camera);
     if (pointData.empty()) return;
 
-    int numDepthlessPoints = 0;
     for (auto& point : pointData) {
-        if (point.depthEnabled) {
+        if (point.depthEnabled == depthEnabled) {
             pushPointVert(point);
         }
-        numDepthlessPoints += !point.depthEnabled;
     }
-    flushPointVerts(true);
-
-    if (numDepthlessPoints > 0) {
-        for (auto& point : pointData) {
-            if (!point.depthEnabled) {
-                pushPointVert(point);
-            }
-        }
-        flushPointVerts(false);
-    }
-    pointData.clear();
+    flushPointVerts(depthEnabled);
 }
 
-void DebugRenderer::drawDebugLines() {
+void DebugRenderer::drawDebugLines(bool depthEnabled) {
     imLineShader->use();
     imLineShader->setCamera(camera);
     if (lineData.empty()) return;
 
-    int numDepthlessLines = 0;
     for (auto& line : lineData) {
-        if (line.depthEnabled) {
+        if (line.depthEnabled == depthEnabled) {
             pushLineVert(line);
         }
-        numDepthlessLines += !line.depthEnabled;
     }
-    flushLineVerts(true);
-
-    if (numDepthlessLines > 0) {
-        for (auto& line : lineData) {
-            if (!line.depthEnabled) {
-                pushLineVert(line);
-            }
-        }
-        flushLineVerts(false);
-    }
-    lineData.clear();
+    flushLineVerts(depthEnabled);
 }
 
 void DebugRenderer::pushPointVert(const ImPointData &point) {
@@ -142,10 +126,16 @@ void DebugRenderer::pushLineVert(const ImLineData &line) {
 void DebugRenderer::flushPointVerts(bool depthEnabled) {
     if (vertexBufferUsed == 0) return;
 
-    if (depthEnabled)
+    GLboolean origDepthEnabled;
+    glGetBooleanv(GL_DEPTH_TEST, &origDepthEnabled);
+
+    if (depthEnabled) {
         glEnable(GL_DEPTH_TEST);
-    else
+        glDepthMask(GL_TRUE);
+    }
+    else {
         glDisable(GL_DEPTH_TEST);
+    }
 
     glBindVertexArray(pointVao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -153,7 +143,13 @@ void DebugRenderer::flushPointVerts(bool depthEnabled) {
     glDrawArrays(GL_POINTS, 0, vertexBufferUsed);
     glBindVertexArray(0);
 
-    if (!depthEnabled) glEnable(GL_DEPTH_TEST);
+    if (origDepthEnabled) {
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
+    }
+    else {
+        glDisable(GL_DEPTH_TEST);
+    }
 
     vertexBufferUsed = 0;
 }
@@ -161,10 +157,16 @@ void DebugRenderer::flushPointVerts(bool depthEnabled) {
 void DebugRenderer::flushLineVerts(bool depthEnabled) {
     if (vertexBufferUsed == 0) return;
 
-    if (depthEnabled)
+    GLboolean origDepthEnabled;
+    glGetBooleanv(GL_DEPTH_TEST, &origDepthEnabled);
+
+    if (depthEnabled) {
         glEnable(GL_DEPTH_TEST);
-    else
+        glDepthMask(GL_TRUE);
+    }
+    else {
         glDisable(GL_DEPTH_TEST);
+    }
 
     glEnable(GL_LINE_SMOOTH);
     glEnable(GL_BLEND);
@@ -175,7 +177,13 @@ void DebugRenderer::flushLineVerts(bool depthEnabled) {
     glDrawArrays(GL_LINES, 0, vertexBufferUsed);
     glBindVertexArray(0);
 
-    if (!depthEnabled) glEnable(GL_DEPTH_TEST);
+    if (origDepthEnabled) {
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
+    }
+    else {
+        glDisable(GL_DEPTH_TEST);
+    }
 
     vertexBufferUsed = 0;
 }

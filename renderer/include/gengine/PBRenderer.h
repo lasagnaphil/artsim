@@ -14,10 +14,12 @@
 #include "gengine/Texture.h"
 #include "gengine/Mesh.h"
 #include "gengine/Colors.h"
+#include "gengine/DebugRenderer.h"
 
 #include <array>
 #include "artsim/math/rect.h"
 
+#include <glm/gtc/type_ptr.hpp>
 
 // TODO: Add normal texture (needed for normal mapping)
 struct PBRMaterial {
@@ -42,18 +44,9 @@ struct PBRMaterial {
             const std::string& roughness,
             const std::string& ao);
 
-    static Ref<PBRMaterial> quick(glm::vec3 color) {
-        Ref<PBRMaterial> material = Resources::make<PBRMaterial>();
-        material->texAlbedo = defaultTexture;
-        material->texMetallic = defaultTexture;
-        material->texRoughness = defaultTexture;
-        material->texAO = defaultTexture;
-        material->albedo = color;
-        material->metallic = 0.0f;
-        material->roughness = 0.0f;
-        material->ao = 1.0f;
-        return material;
-    }
+    static Ref<PBRMaterial> quick(glm::vec3 color);
+
+    static Ref<PBRMaterial> fromOBJ(const tinyobj::material_t& tmat, const char* directory = nullptr);
 };
 
 struct PBRDirLight {
@@ -119,6 +112,8 @@ public:
 
     void renderImGui();
 
+    DebugRenderer* getDebugRenderer() { return &debugRenderer; }
+
     glm::vec3 skyColor = {1.0f, 1.0f, 1.0f};
     float exposure = 5.0f;
 
@@ -129,10 +124,15 @@ public:
 
     PBRLights lights;
 
+    bool dirLightFollowingCamera = false;
+
 private:
     glm::mat4 calcDirLightSpaceMatrix();
     void setLightingUniforms(Ref<Shader> shader, bool shadows);
     void renderPass(Ref<Shader> shader, std::vector<PBRCommand>& commands);
+
+    // Includes a debug renderer, since we need to render debug info in opqaue pass
+    DebugRenderer debugRenderer;
 
     GLuint quadVAO, quadVBO;
 
