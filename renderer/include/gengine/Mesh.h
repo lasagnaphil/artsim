@@ -64,6 +64,7 @@ struct Mesh {
     static Ref<Mesh> fromOBJ(const artsim::OBJFile* objfile);
     static Ref<Mesh> fromOBJ(const char* filename);
     static Ref<Mesh> fromOBJ(const tinyobj::attrib_t& attrib, const tinyobj::shape_t* shapes, int num_shapes);
+    static Ref<Mesh> fromOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles);
     static Ref<Mesh> makeCube(const glm::vec3& scale = {1.0f, 1.0f, 1.0f});
     static Ref<Mesh> makePlane(float size = 1.0f, float uvSize = 1.0f);
     static Ref<Mesh> makeCylinder(unsigned int numQuads, float r, float h);

@@ -217,10 +217,38 @@ Ref<Mesh> Mesh::fromOBJ(const tinyobj::attrib_t& attrib, const tinyobj::shape_t*
                 };
             }
             mesh->vertices.push_back(vertex);
-            mesh->indices.push_back(mesh->indices.size());
         }
     }
 
+    mesh->initVBO(DrawMode::Dynamic);
+    return mesh;
+}
+
+Ref<Mesh> Mesh::fromOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles) {
+    Ref<Mesh> mesh = Resources::make<Mesh>();
+    for (int t = 0; t < num_triangles; t++) {
+        mesh->vertices[3*t+0].pos = vertices[triangles[t][0]];
+        mesh->vertices[3*t+0].normal = glm::vec3(0);
+        mesh->vertices[3*t+0].uv = glm::vec2(0);
+        mesh->vertices[3*t+1].pos = vertices[triangles[t][1]];
+        mesh->vertices[3*t+1].normal = glm::vec3(0);
+        mesh->vertices[3*t+1].uv = glm::vec2(0);
+        mesh->vertices[3*t+2].pos = vertices[triangles[t][2]];
+        mesh->vertices[3*t+2].normal = glm::vec3(0);
+        mesh->vertices[3*t+2].uv = glm::vec2(0);
+    }
+    for (int t = 0; t < num_triangles; t++) {
+        auto v0 = mesh->vertices[3*t+0].pos;
+        auto v1 = mesh->vertices[3*t+1].pos;
+        auto v2 = mesh->vertices[3*t+2].pos;
+        auto n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+        mesh->vertices[3*t+0].normal += n;
+        mesh->vertices[3*t+1].normal += n;
+        mesh->vertices[3*t+2].normal += n;
+    }
+    for (int i = 0; i < mesh->vertices.size(); i++) {
+        mesh->vertices[i].normal = glm::normalize(mesh->vertices[i].normal);
+    }
     mesh->initVBO();
     return mesh;
 }
