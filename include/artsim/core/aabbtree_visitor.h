@@ -26,6 +26,20 @@ struct AABBTreePairVisitor {
     virtual bool hit_prim_pair(int prim1_id, int prim2_id) = 0;
 };
 
+template <class T>
+struct PointInBounds : public AABBTreeVisitor<T> {
+    using AABB = glmx::tbox<3, T>;
+
+    glm::tvec3<T> point;
+    std::vector<int> bound_ids;
+
+    PointInBounds(glm::tvec3<T> point_) : point(point_) {}
+
+    bool hit_aabb(const AABB& aabb) { return aabb.contains(point); }
+    bool hit_prim(int prim) { bound_ids.push_back(prim); return true; }
+    bool check_left_first(const AABB& left, const AABB& right) { return true; }
+};
+
 // Point in tet
 template <class T>
 struct PointInTet : public AABBTreeVisitor<T> {
