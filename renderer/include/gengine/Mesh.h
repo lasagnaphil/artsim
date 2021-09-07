@@ -60,6 +60,7 @@ struct Mesh {
 
     void rotate(glm::quat rot);
     void sortVertices(glmx::transform meshTrans, glm::vec3 viewDir);
+    void updateOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles);
 
     static Ref<Mesh> fromOBJ(const artsim::OBJFile* objfile);
     static Ref<Mesh> fromOBJ(const char* filename);

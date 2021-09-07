@@ -157,6 +157,30 @@ void Mesh::sortVertices(glmx::transform meshTrans, glm::vec3 viewDir) {
     }
 }
 
+void Mesh::updateOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles) {
+    for (int t = 0; t < num_triangles; t++) {
+        this->vertices[3*t+0].pos = vertices[triangles[t][0]];
+        this->vertices[3*t+0].normal = glm::vec3(0);
+        this->vertices[3*t+1].pos = vertices[triangles[t][1]];
+        this->vertices[3*t+1].normal = glm::vec3(0);
+        this->vertices[3*t+2].pos = vertices[triangles[t][2]];
+        this->vertices[3*t+2].normal = glm::vec3(0);
+    }
+    for (int t = 0; t < num_triangles; t++) {
+        auto v0 = this->vertices[3*t+0].pos;
+        auto v1 = this->vertices[3*t+1].pos;
+        auto v2 = this->vertices[3*t+2].pos;
+        auto n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+        this->vertices[3*t+0].normal += n;
+        this->vertices[3*t+1].normal += n;
+        this->vertices[3*t+2].normal += n;
+    }
+    for (int i = 0; i < this->vertices.size(); i++) {
+        this->vertices[i].normal = glm::normalize(this->vertices[i].normal);
+    }
+    updateVBO();
+}
+
 Ref<Mesh> Mesh::fromOBJ(const artsim::OBJFile* objfile) {
     int num_tris = objfile->triangle_vertices.size();
     std::vector<Vertex> vertices(3*num_tris);
@@ -226,6 +250,7 @@ Ref<Mesh> Mesh::fromOBJ(const tinyobj::attrib_t& attrib, const tinyobj::shape_t*
 
 Ref<Mesh> Mesh::fromOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles) {
     Ref<Mesh> mesh = Resources::make<Mesh>();
+    mesh->vertices.resize(3*num_triangles);
     for (int t = 0; t < num_triangles; t++) {
         mesh->vertices[3*t+0].pos = vertices[triangles[t][0]];
         mesh->vertices[3*t+0].normal = glm::vec3(0);
@@ -499,4 +524,3 @@ Ref<Mesh> Mesh::makeCapsule(float radius, float height, unsigned int sectorCount
     mesh->initVBO();
     return mesh;
 }
-

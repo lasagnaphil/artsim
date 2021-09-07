@@ -20,6 +20,9 @@ class btBvhTriangleMeshShape;
 
 namespace artsim {
 
+void gen_surface_triangles_from_tet_mesh(const std::vector<glm::ivec4>& tetrahedrons,
+                                         OUT std::vector<glm::ivec3>& triangles);
+
 struct SoftBodyProperties {
     real density = 1000;
     real young_modulus = 1e8;
