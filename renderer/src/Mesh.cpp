@@ -67,8 +67,6 @@ float Mesh::planeVertices[8*6] = {
 };
 
 void Mesh::initVBO(DrawMode drawMode) {
-    std::scoped_lock<std::mutex> lock(g_mutex);
-
     int32_t drawModeGL = drawMode == DrawMode::Static? GL_STATIC_DRAW : GL_DYNAMIC_DRAW;
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
@@ -93,7 +91,6 @@ void Mesh::initVBO(DrawMode drawMode) {
 }
 
 void Mesh::updateVBO() {
-    std::scoped_lock<std::mutex> lock(g_mutex);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Mesh::Vertex) * vertices.size(), vertices.data());
 }
