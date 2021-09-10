@@ -121,19 +121,19 @@ void SoftBody::load(const TetMesh& mesh) {
     for (int i = 0; i < tets.size(); i++) {
         auto& V = verts;
         glm::ivec4& tet = tets[i];
-        glm::tmat3x3<real> D_m(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
+        glm::tmat3x3<real> D_m(V[tet[1]] - V[tet[0]], V[tet[2]] - V[tet[0]], V[tet[3]] - V[tet[0]]);
         W[i] = glm::determinant(D_m) / 6.0;
         if (W[i] < 0) {
             W[i] = -W[i];
             std::swap(tet[2], tet[3]);
-            D_m = glm::tmat3x3<real>(V[tet[0]] - V[tet[3]], V[tet[1]] - V[tet[3]], V[tet[2]] - V[tet[3]]);
+            std::swap(D_m[1], D_m[2]);
         }
         B_m[i] = glm::inverse(D_m);
         glm::tmat3x3<real> D_i = glm::transpose(B_m[i]);
-        D[i][0] = D_i[0];
-        D[i][1] = D_i[1];
-        D[i][2] = D_i[2];
-        D[i][3] = -D_i[0] - D_i[1] - D_i[2];
+        D[i][0] = -D_i[0] - D_i[1] - D_i[2];
+        D[i][1] = D_i[0];
+        D[i][2] = D_i[1];
+        D[i][3] = D_i[2];
     }
 }
 

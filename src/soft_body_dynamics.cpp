@@ -147,7 +147,7 @@ void soft_body_calc_deformation_field(const SoftBody& body, const glm::rvec3* x,
     int num_tets = body.tets.size();
     for (int tidx = 0; tidx < num_tets; tidx++) {
         auto& tet = body.tets[tidx];
-        F[tidx] = glm::rmat3(x[tet[0]] - x[tet[3]], x[tet[1]] - x[tet[3]], x[tet[2]] - x[tet[3]]) * body.B_m[tidx];
+        F[tidx] = glm::rmat3(x[tet[1]] - x[tet[0]], x[tet[2]] - x[tet[0]], x[tet[3]] - x[tet[0]]) * body.B_m[tidx];
     }
 }
 
@@ -155,7 +155,7 @@ void soft_body_calc_deformation_field(const SoftBody& body, const glm::rvec3* x,
     int num_tets = body.tets.size();
     for (int tidx = 0; tidx < num_tets; tidx++) {
         auto& tet = body.tets[tidx];
-        glm::rmat3 Dx = glm::rmat3(x[tet[0]] - x[tet[3]], x[tet[1]] - x[tet[3]], x[tet[2]] - x[tet[3]]) * body.B_m[tidx];
+        glm::rmat3 Dx = glm::rmat3(x[tet[1]] - x[tet[0]], x[tet[2]] - x[tet[0]], x[tet[3]] - x[tet[0]]) * body.B_m[tidx];
         F[tidx] = Dx + u[tidx];
     }
 }
