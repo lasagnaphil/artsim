@@ -30,6 +30,7 @@ public:
 
     bool empty() const { return nodes.empty(); }
     void reserve(size_t num_aabbs) { nodes.reserve(2*num_aabbs); }
+    void clear() { return nodes.clear(); }
 
     template <int PDIM>
     void init(const glm::rvec3* vertices, const glm::vec<PDIM, int>* indices, int num_prims);

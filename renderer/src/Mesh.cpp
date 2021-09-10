@@ -5,9 +5,12 @@
 #include "gengine/Mesh.h"
 #include <unordered_map>
 #include <algorithm>
+#include <mutex>
 
 #include "tiny_obj_loader.h"
 #include <glm/gtx/norm.hpp>
+
+static std::mutex g_mutex;
 
 float Mesh::cubeVertices[8*36] = {
         -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
@@ -64,6 +67,8 @@ float Mesh::planeVertices[8*6] = {
 };
 
 void Mesh::initVBO(DrawMode drawMode) {
+    std::scoped_lock<std::mutex> lock(g_mutex);
+
     int32_t drawModeGL = drawMode == DrawMode::Static? GL_STATIC_DRAW : GL_DYNAMIC_DRAW;
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
@@ -88,6 +93,7 @@ void Mesh::initVBO(DrawMode drawMode) {
 }
 
 void Mesh::updateVBO() {
+    std::scoped_lock<std::mutex> lock(g_mutex);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Mesh::Vertex) * vertices.size(), vertices.data());
 }
@@ -181,7 +187,7 @@ void Mesh::updateOBJ(const glm::vec3* vertices, int num_vertices, const glm::ive
     updateVBO();
 }
 
-Ref<Mesh> Mesh::fromOBJ(const artsim::OBJFile* objfile) {
+Ref<Mesh> Mesh::fromOBJ(const artsim::OBJFile* objfile, DrawMode mode) {
     int num_tris = objfile->triangle_vertices.size();
     std::vector<Vertex> vertices(3*num_tris);
     for (int i = 0; i < num_tris; i++) {
@@ -199,17 +205,17 @@ Ref<Mesh> Mesh::fromOBJ(const artsim::OBJFile* objfile) {
         vertices[3*i+2].uv = objfile->uvs[tri_uv[2]];
     }
     auto mesh = Resources::make<Mesh>(vertices);
-    mesh->initVBO();
+    mesh->initVBO(mode);
     return mesh;
 }
 
-Ref<Mesh> Mesh::fromOBJ(const char* filename) {
+Ref<Mesh> Mesh::fromOBJ(const char* filename, DrawMode mode) {
     using namespace tinyobj;
 
     ObjReader reader;
     reader.ParseFromFile(filename);
     if (reader.Valid()) {
-        return Mesh::fromOBJ(reader.GetAttrib(), reader.GetShapes().data(), reader.GetShapes().size());
+        return Mesh::fromOBJ(reader.GetAttrib(), reader.GetShapes().data(), reader.GetShapes().size(), mode);
     }
     else {
         fprintf(stderr, "Error in Mesh::fromOBJ: failed to parse OBJ file %s\n", filename);
@@ -218,7 +224,7 @@ Ref<Mesh> Mesh::fromOBJ(const char* filename) {
     }
 }
 
-Ref<Mesh> Mesh::fromOBJ(const tinyobj::attrib_t& attrib, const tinyobj::shape_t* shapes, int num_shapes) {
+Ref<Mesh> Mesh::fromOBJ(const tinyobj::attrib_t& attrib, const tinyobj::shape_t* shapes, int num_shapes, DrawMode mode) {
     Ref<Mesh> mesh = Resources::make<Mesh>();
     for (int sidx = 0; sidx < num_shapes; sidx++) {
         auto& shape = shapes[sidx];
@@ -244,11 +250,11 @@ Ref<Mesh> Mesh::fromOBJ(const tinyobj::attrib_t& attrib, const tinyobj::shape_t*
         }
     }
 
-    mesh->initVBO(DrawMode::Dynamic);
+    mesh->initVBO(mode);
     return mesh;
 }
 
-Ref<Mesh> Mesh::fromOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles) {
+Ref<Mesh> Mesh::fromOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles, DrawMode mode) {
     Ref<Mesh> mesh = Resources::make<Mesh>();
     mesh->vertices.resize(3*num_triangles);
     for (int t = 0; t < num_triangles; t++) {
@@ -274,7 +280,7 @@ Ref<Mesh> Mesh::fromOBJ(const glm::vec3* vertices, int num_vertices, const glm::
     for (int i = 0; i < mesh->vertices.size(); i++) {
         mesh->vertices[i].normal = glm::normalize(mesh->vertices[i].normal);
     }
-    mesh->initVBO();
+    mesh->initVBO(mode);
     return mesh;
 }
 

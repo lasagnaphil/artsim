@@ -30,18 +30,19 @@ OBJLoader::Object OBJLoader::loadPBRSingle(const char* filename) {
     auto& shapes = reader.GetShapes();
     auto& materials = reader.GetMaterials();
 
-    auto mesh = Mesh::fromOBJ(attrib, shapes.data(), shapes.size());
+    Ref<Mesh> mesh = {};
+    Ref<PBRMaterial> mat = {};
 
     if (materials.size() == 0) {
         fmt::print("OBJLoader error in {}: Material not found!\n", filename);
-        return {mesh, {}};
     }
 
     if (materials.size() > 1) {
         fmt::print("OBJLoader warning in {}: Too many materials! (using first one)\n", filename);
     }
 
-    auto mat = PBRMaterial::fromOBJ(materials[0], cfg.mtl_search_path.c_str());
+    mat = PBRMaterial::fromOBJ(materials[0], cfg.mtl_search_path.c_str());
+    mesh = Mesh::fromOBJ(attrib, shapes.data(), shapes.size());
 
     return {mesh, mat};
 }
