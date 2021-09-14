@@ -160,27 +160,43 @@ void Mesh::sortVertices(glmx::transform meshTrans, glm::vec3 viewDir) {
     }
 }
 
-void Mesh::updateOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles) {
+void Mesh::updateOBJInternal(const glm::vec3* vertices, const glm::ivec3* triangles, int num_triangles, OUT glm::vec3* normals) {
     for (int t = 0; t < num_triangles; t++) {
         this->vertices[3*t+0].pos = vertices[triangles[t][0]];
         this->vertices[3*t+0].normal = glm::vec3(0);
+        this->vertices[3*t+0].uv = glm::vec2(0);
         this->vertices[3*t+1].pos = vertices[triangles[t][1]];
         this->vertices[3*t+1].normal = glm::vec3(0);
+        this->vertices[3*t+1].uv = glm::vec2(0);
         this->vertices[3*t+2].pos = vertices[triangles[t][2]];
         this->vertices[3*t+2].normal = glm::vec3(0);
+        this->vertices[3*t+2].uv = glm::vec2(0);
+        normals[triangles[t][0]] = glm::vec3(0);
+        normals[triangles[t][1]] = glm::vec3(0);
+        normals[triangles[t][2]] = glm::vec3(0);
     }
     for (int t = 0; t < num_triangles; t++) {
         auto v0 = this->vertices[3*t+0].pos;
         auto v1 = this->vertices[3*t+1].pos;
         auto v2 = this->vertices[3*t+2].pos;
         auto n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
-        this->vertices[3*t+0].normal += n;
-        this->vertices[3*t+1].normal += n;
-        this->vertices[3*t+2].normal += n;
+        normals[triangles[t][0]] += n;
+        normals[triangles[t][1]] += n;
+        normals[triangles[t][2]] += n;
     }
-    for (int i = 0; i < this->vertices.size(); i++) {
-        this->vertices[i].normal = glm::normalize(this->vertices[i].normal);
+    // TODO: Remove repetitive normalization
+    for (int t = 0; t < num_triangles; t++) {
+        normals[triangles[t][0]] = glm::normalize(normals[triangles[t][0]]);
+        normals[triangles[t][1]] = glm::normalize(normals[triangles[t][1]]);
+        normals[triangles[t][2]] = glm::normalize(normals[triangles[t][2]]);
+        this->vertices[3*t+0].normal = normals[triangles[t][0]];
+        this->vertices[3*t+1].normal = normals[triangles[t][0]];
+        this->vertices[3*t+2].normal = normals[triangles[t][0]];
     }
+}
+
+void Mesh::updateOBJ(const glm::vec3* vertices, const glm::ivec3* triangles, int num_triangles, OUT glm::vec3* normals) {
+    updateOBJInternal(vertices, triangles, num_triangles, normals);
     updateVBO();
 }
 
@@ -251,32 +267,10 @@ Ref<Mesh> Mesh::fromOBJ(const tinyobj::attrib_t& attrib, const tinyobj::shape_t*
     return mesh;
 }
 
-Ref<Mesh> Mesh::fromOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles, DrawMode mode) {
+Ref<Mesh> Mesh::fromOBJ(const glm::vec3* vertices, const glm::ivec3* triangles, int num_triangles, OUT glm::vec3* normals, DrawMode mode) {
     Ref<Mesh> mesh = Resources::make<Mesh>();
     mesh->vertices.resize(3*num_triangles);
-    for (int t = 0; t < num_triangles; t++) {
-        mesh->vertices[3*t+0].pos = vertices[triangles[t][0]];
-        mesh->vertices[3*t+0].normal = glm::vec3(0);
-        mesh->vertices[3*t+0].uv = glm::vec2(0);
-        mesh->vertices[3*t+1].pos = vertices[triangles[t][1]];
-        mesh->vertices[3*t+1].normal = glm::vec3(0);
-        mesh->vertices[3*t+1].uv = glm::vec2(0);
-        mesh->vertices[3*t+2].pos = vertices[triangles[t][2]];
-        mesh->vertices[3*t+2].normal = glm::vec3(0);
-        mesh->vertices[3*t+2].uv = glm::vec2(0);
-    }
-    for (int t = 0; t < num_triangles; t++) {
-        auto v0 = mesh->vertices[3*t+0].pos;
-        auto v1 = mesh->vertices[3*t+1].pos;
-        auto v2 = mesh->vertices[3*t+2].pos;
-        auto n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
-        mesh->vertices[3*t+0].normal += n;
-        mesh->vertices[3*t+1].normal += n;
-        mesh->vertices[3*t+2].normal += n;
-    }
-    for (int i = 0; i < mesh->vertices.size(); i++) {
-        mesh->vertices[i].normal = glm::normalize(mesh->vertices[i].normal);
-    }
+    mesh->updateOBJInternal(vertices, triangles, num_triangles, normals);
     mesh->initVBO(mode);
     return mesh;
 }

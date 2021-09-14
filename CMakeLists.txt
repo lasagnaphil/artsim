@@ -59,7 +59,7 @@ endif()
 
 target_link_libraries(artsim PUBLIC ${ARTSIM_LIB})
 
-target_compile_definitions(artsim PRIVATE EIGEN_DONT_PARALLELIZE)
+# target_compile_definitions(artsim PRIVATE EIGEN_DONT_PARALLELIZE)
 
 if (ARTSIM_USE_LOGGING)
     target_compile_definitions(artsim PUBLIC ARTSIM_USE_LOGGING)

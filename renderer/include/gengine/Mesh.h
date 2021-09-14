@@ -60,17 +60,20 @@ struct Mesh {
 
     void rotate(glm::quat rot);
     void sortVertices(glmx::transform meshTrans, glm::vec3 viewDir);
-    void updateOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles);
+    void updateOBJ(const glm::vec3* vertices, const glm::ivec3* triangles, int num_triangles, OUT glm::vec3* normals);
 
     static Ref<Mesh> fromOBJ(const artsim::OBJFile* objfile, DrawMode mode = DrawMode::Static);
     static Ref<Mesh> fromOBJ(const char* filename, DrawMode mode = DrawMode::Static);
     static Ref<Mesh> fromOBJ(const tinyobj::attrib_t& attrib, const tinyobj::shape_t* shapes, int num_shapes, DrawMode mode = DrawMode::Static);
-    static Ref<Mesh> fromOBJ(const glm::vec3* vertices, int num_vertices, const glm::ivec3* triangles, int num_triangles, DrawMode mode = DrawMode::Static);
+    static Ref<Mesh> fromOBJ(const glm::vec3* vertices, const glm::ivec3* triangles, int num_triangles, OUT glm::vec3* normals, DrawMode mode = DrawMode::Static);
     static Ref<Mesh> makeCube(const glm::vec3& scale = {1.0f, 1.0f, 1.0f});
     static Ref<Mesh> makePlane(float size = 1.0f, float uvSize = 1.0f);
     static Ref<Mesh> makeCylinder(unsigned int numQuads, float r, float h);
     static Ref<Mesh> makeCone(unsigned int numTriangles, float r, float h);
     static Ref<Mesh> makeSphere(float radius = 1.0f, unsigned int sectorCount = 36, unsigned int stackCount = 18);
     static Ref<Mesh> makeCapsule(float radius = 1.0f, float height = 1.0f, unsigned int sectorCount = 36, unsigned int stackCount = 18);
+
+private:
+    void updateOBJInternal(const glm::vec3* vertices, const glm::ivec3* triangles, int num_triangles, OUT glm::vec3* normals);
 };
 #endif //MOTION_EDITING_UVMESH_H
