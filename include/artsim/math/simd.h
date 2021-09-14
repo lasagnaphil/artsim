@@ -5,6 +5,8 @@
 #ifndef ARTSIM_SIMD_H
 #define ARTSIM_SIMD_H
 
+#include <artsim/types.h>
+
 #include <experimental/simd>
 
 namespace stdx = std::experimental;
@@ -106,7 +108,7 @@ void load_simd(const glm::tvec3<T>*__restrict v, OUT glm::tvec3<stdx::native_sim
 }
 
 template <class T>
-void store_simd(const glm::tmat3x3<stdx::native_simd<T>>&__restrict A_simd, OUT glm::tmat3x3<T>*__restrict A) {
+void store_simd(glm::tmat3x3<stdx::native_simd<T>>&__restrict A_simd, OUT glm::tmat3x3<T>*__restrict A) {
     constexpr int simd_width = stdx::native_simd<T>::size();
     std::array<T, simd_width> buf;
     for (int i = 0; i < 3; i++) {
@@ -118,7 +120,7 @@ void store_simd(const glm::tmat3x3<stdx::native_simd<T>>&__restrict A_simd, OUT 
 }
 
 template <class T>
-void store_simd(const glm::tvec3<stdx::native_simd<T>>&__restrict v_simd, OUT glm::tvec3<T>*__restrict v) {
+void store_simd(glm::tvec3<stdx::native_simd<T>>&__restrict v_simd, OUT glm::tvec3<T>*__restrict v) {
     constexpr int simd_width = stdx::native_simd<T>::size();
     std::array<T, simd_width> buf;
     for (int i = 0; i < 3; i++) {

@@ -124,6 +124,53 @@ void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out, int num_th
     free(buf);
 }
 
+void fastsvd(const glm::tmat3x3<fsimd>& A, OUT SVD_mats<fsimd>& A_svd) {
+    ZoneScoped
+    using namespace Singular_Value_Decomposition;
+
+    float* a11 = (float*)&A[0][0];
+    float* a21 = (float*)&A[0][1];
+    float* a31 = (float*)&A[0][2];
+    float* a12 = (float*)&A[1][0];
+    float* a22 = (float*)&A[1][1];
+    float* a32 = (float*)&A[1][2];
+    float* a13 = (float*)&A[2][0];
+    float* a23 = (float*)&A[2][1];
+    float* a33 = (float*)&A[2][2];
+
+    float* u11 = (float*)&A_svd.U[0][0];
+    float* u21 = (float*)&A_svd.U[0][1];
+    float* u31 = (float*)&A_svd.U[0][2];
+    float* u12 = (float*)&A_svd.U[1][0];
+    float* u22 = (float*)&A_svd.U[1][1];
+    float* u32 = (float*)&A_svd.U[1][2];
+    float* u13 = (float*)&A_svd.U[2][0];
+    float* u23 = (float*)&A_svd.U[2][1];
+    float* u33 = (float*)&A_svd.U[2][2];
+
+    float* v11 = (float*)&A_svd.V[0][0];
+    float* v21 = (float*)&A_svd.V[0][1];
+    float* v31 = (float*)&A_svd.V[0][2];
+    float* v12 = (float*)&A_svd.V[1][0];
+    float* v22 = (float*)&A_svd.V[1][1];
+    float* v32 = (float*)&A_svd.V[1][2];
+    float* v13 = (float*)&A_svd.V[2][0];
+    float* v23 = (float*)&A_svd.V[2][1];
+    float* v33 = (float*)&A_svd.V[2][2];
+
+    float* sigma1 = (float*)&A_svd.Sigma[0];
+    float* sigma2 = (float*)&A_svd.Sigma[1];
+    float* sigma3 = (float*)&A_svd.Sigma[2];
+
+    Singular_Value_Decomposition_Size_Specific_Helper<float> task(fsimd::size(),
+                                                                  a11,a21,a31,a12,a22,a32,a13,a23,a33,
+                                                                  u11,u21,u31,u12,u22,u32,u13,u23,u33,
+                                                                  v11,v21,v31,v12,v22,v32,v13,v23,v33,
+                                                                  sigma1,sigma2,sigma3);
+
+    task.Run();
+}
+
 template void fastsvd(const glm::tmat3x3<artsim::real>* A, int A_count, SVD_mats<artsim::real>* out, int num_threads);
 
 }
