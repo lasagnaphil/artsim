@@ -266,9 +266,9 @@ void World::load_collision_meshes(ArticulatedBodySpec &spec) {
         real volume = 0;
         for (int tidx = 0; tidx < num_tris; tidx++) {
             auto tri = obj->face_data()[tidx];
-            auto v0 = rvec3(eigen_to_glm(verts[tri[0]]));
-            auto v1 = rvec3(eigen_to_glm(verts[tri[1]]));
-            auto v2 = rvec3(eigen_to_glm(verts[tri[2]]));
+            auto v0 = rvec3(to_glm_vec(verts[tri[0]]));
+            auto v1 = rvec3(to_glm_vec(verts[tri[1]]));
+            auto v2 = rvec3(to_glm_vec(verts[tri[2]]));
             cent[tidx] = (v0 + v1 + v2) / real(3);
             area_vec[tidx] = real(0.5) * glm::cross(v1 - v0, v2 - v0);
             area[tidx] = glm::length(area_vec[tidx]);

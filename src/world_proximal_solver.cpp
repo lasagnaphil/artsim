@@ -211,13 +211,13 @@ void World::proximal_solver() {
                     auto rb_T = rtransform(rb.pos, mat3_cast(rb.rot));
                     auto contact_T = rtransform(cp.pos, rmat3(cp.tangent1, cp.tangent2, cp.normal));
                     auto rel_T = rb_T / contact_T;
-                    Jt.block<1, 3>(0, 3*k) = real(sign) * glm_to_eigen(glm::cross(rel_T.v, rel_T.R[0]));
-                    Jt.block<1, 3>(1, 3*k) = real(sign) * glm_to_eigen(glm::cross(rel_T.v, rel_T.R[1]));
-                    Jt.block<1, 3>(2, 3*k) = real(sign) * glm_to_eigen(glm::cross(rel_T.v, rel_T.R[2]));
-                    Jt.block<1, 3>(3, 3*k) = real(sign) * glm_to_eigen(rel_T.R[0]);
-                    Jt.block<1, 3>(4, 3*k) = real(sign) * glm_to_eigen(rel_T.R[1]);
-                    Jt.block<1, 3>(5, 3*k) = real(sign) * glm_to_eigen(rel_T.R[2]);
-                    Minv_Jt.block<3, 3>(0, 3*k) = glm_to_eigen(rb.spec.inv_inertia) * Jt.block<3, 3>(3, 3*k);
+                    Jt.block<1, 3>(0, 3*k) = real(sign) * to_eigen(glm::cross(rel_T.v, rel_T.R[0]));
+                    Jt.block<1, 3>(1, 3*k) = real(sign) * to_eigen(glm::cross(rel_T.v, rel_T.R[1]));
+                    Jt.block<1, 3>(2, 3*k) = real(sign) * to_eigen(glm::cross(rel_T.v, rel_T.R[2]));
+                    Jt.block<1, 3>(3, 3*k) = real(sign) * to_eigen(rel_T.R[0]);
+                    Jt.block<1, 3>(4, 3*k) = real(sign) * to_eigen(rel_T.R[1]);
+                    Jt.block<1, 3>(5, 3*k) = real(sign) * to_eigen(rel_T.R[2]);
+                    Minv_Jt.block<3, 3>(0, 3*k) = to_eigen(rb.spec.inv_inertia) * Jt.block<3, 3>(3, 3*k);
                     Minv_Jt.block<3, 3>(3, 3*k) = rb.spec.inv_mass * Jt.block<3, 3>(0, 3*k);
                 }
 #ifdef PROXIMAL_SOLVER_LOCAL_R_STRATEGY
@@ -225,10 +225,10 @@ void World::proximal_solver() {
 #endif
                 rb.forward_dynamics(cfg.gravity);
                 Eigen::Vector6r u, du;
-                u.head<3>() = glm_to_eigen(rb.angvel);
-                u.tail<3>() = glm_to_eigen(rb.vel);
-                du.head<3>() = glm_to_eigen(rb.angacc);
-                du.tail<3>() = glm_to_eigen(rb.acc);
+                u.head<3>() = to_eigen(rb.angvel);
+                u.tail<3>() = to_eigen(rb.vel);
+                du.head<3>() = to_eigen(rb.angacc);
+                du.tail<3>() = to_eigen(rb.acc);
                 VectorXr J_u = Jt.transpose() * u;
                 VectorXr J_du = Jt.transpose() * du;
                 for (int k = 0; k < contact_list.size(); k++) {
@@ -432,7 +432,7 @@ void World::proximal_solver() {
 
     for (int cid = 0; cid < num_contact_points; cid++) {
         auto& cp = contact_points[cid];
-        cp.lam = eigen_to_glm(lam.middleRows<3>(3*cid));
+        cp.lam = to_glm_vec(lam.middleRows<3>(3*cid));
     }
 
     {
@@ -457,7 +457,7 @@ void World::proximal_solver() {
                     auto [_, art_lidx] = blid.get_articulation_id();
                     auto contact_frame = rtransform(cp.pos, mat3(cp.tangent1, cp.tangent2, cp.normal));
                     auto contact_rel_frame = art.get_global_joint_trans(art_lidx) / contact_frame;
-                    rscrew lam_c = rscrew(rvec3(0), real(sign) * eigen_to_glm(lam.middleRows<3>(3*cid)) / cfg.dt);
+                    rscrew lam_c = rscrew(rvec3(0), real(sign) * to_glm_vec(lam.middleRows<3>(3*cid)) / cfg.dt);
                     f_c[art_lidx] += AdT(contact_rel_frame, lam_c);
                 }
                 art.forward_dynamics_with_contact(cfg.gravity, cfg.dt);
@@ -486,7 +486,7 @@ void World::proximal_solver() {
                 for (auto [cid, sign] : contact_list) {
                     auto& cp = contact_points[cid];
                     auto R = rmat3(cp.tangent1, cp.tangent2, cp.normal);
-                    glm::rvec3 lam_c = (real)sign * (R * eigen_to_glm(lam.middleRows<3>(3*cid) / cfg.dt));
+                    glm::rvec3 lam_c = (real)sign * (R * to_glm_vec(lam.middleRows<3>(3*cid) / cfg.dt));
                     rb.f_c += lam_c;
                     rb.tau_c += glm::cross(cp.pos - rb.pos, lam_c);
                 }

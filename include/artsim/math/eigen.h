@@ -31,30 +31,44 @@ using Eigen::Matrix3r;
 using Eigen::Vector3r;
 
 template <class T, int Rows, int Cols>
-inline Eigen::Matrix<T, Rows, Cols> glm_to_eigen(const glm::mat<Cols, Rows, T>& M) {
+inline Eigen::Matrix<T, Rows, Cols> to_eigen(const glm::mat<Cols, Rows, T>& M) {
     Eigen::Matrix<T, Rows, Cols> ret;
     memcpy(ret.data(), glm::value_ptr(M), sizeof(T) * Rows * Cols);
     return ret;
 }
 
 template <class T, int Rows>
-inline Eigen::Matrix<T, Rows, 1> glm_to_eigen(const glm::vec<Rows, T>& v) {
+inline Eigen::Matrix<T, Rows, 1> to_eigen(const glm::vec<Rows, T>& v) {
     Eigen::Matrix<T, Rows, 1> ret;
     memcpy(ret.data(), glm::value_ptr(v), sizeof(T) * Rows);
     return ret;
 }
 
-template <class T, int Rows, int Cols>
-inline glm::mat<Cols, Rows, T> eigen_to_glm(const Eigen::Matrix<T, Rows, Cols>& M) {
-    glm::mat<Cols, Rows, T> ret;
-    memcpy(glm::value_ptr(ret), M.data(), sizeof(T) * Rows * Cols);
+template <class Derived>
+inline glm::mat<
+        Eigen::DenseBase<Derived>::ColsAtCompileTime,
+        Eigen::DenseBase<Derived>::RowsAtCompileTime,
+        typename Eigen::DenseBase<Derived>::Scalar>
+        to_glm_mat(const Eigen::DenseBase<Derived>& M) {
+
+    constexpr int Rows = Eigen::DenseBase<Derived>::RowsAtCompileTime;
+    constexpr int Cols = Eigen::DenseBase<Derived>::ColsAtCompileTime;
+    using Scalar = typename Eigen::internal::traits<Derived>::Scalar;
+    glm::mat<Cols, Rows, Scalar> ret;
+    std::copy(M.begin(), M.end(), glm::value_ptr(ret));
     return ret;
 }
 
-template <class T, int Rows>
-inline glm::vec<Rows, T> eigen_to_glm(const Eigen::Matrix<T, Rows, 1>& v) {
-    glm::vec<Rows, T> ret;
-    memcpy(glm::value_ptr(ret), v.data(), sizeof(T) * Rows);
+template <class Derived>
+inline glm::vec<
+        Eigen::DenseBase<Derived>::SizeAtCompileTime,
+        typename Eigen::DenseBase<Derived>::Scalar>
+        to_glm_vec(const Eigen::DenseBase<Derived>& v) {
+
+    constexpr int Size = Eigen::DenseBase<Derived>::SizeAtCompileTime;
+    using Scalar = typename Eigen::DenseBase<Derived>::Scalar;
+    glm::vec<Size, Scalar> ret;
+    std::copy(v.begin(), v.end(), glm::value_ptr(ret));
     return ret;
 }
 
@@ -62,7 +76,7 @@ inline glmx::dynmat_view<artsim::real> get_view(Eigen::MatrixXr& mat) {
     return glmx::dynmat_view<artsim::real>(mat.data(), mat.rows(), mat.cols());
 }
 
-inline Eigen::Matrix3r glm_to_eigen(const glmx::rsmat3x3& M) {
+inline Eigen::Matrix3r to_eigen(const glmx::rsmat3x3& M) {
     Eigen::Matrix3r Me;
     Me(0, 0) = M.xx; Me(1, 1) = M.yy; Me(2, 2) = M.zz;
     Me(1, 2) = Me(2, 1) = M.yz;
@@ -71,17 +85,13 @@ inline Eigen::Matrix3r glm_to_eigen(const glmx::rsmat3x3& M) {
     return Me;
 }
 
-inline Eigen::Matrix<artsim::real, 6, 6> glm_to_eigen(const glmx::rsmat6x6& I) {
+inline Eigen::Matrix<artsim::real, 6, 6> to_eigen(const glmx::rsmat6x6& I) {
     Eigen::Matrix<artsim::real, 6, 6> M;
-    M.block<3,3>(0, 0) = glm_to_eigen(I.I);
-    M.block<3,3>(3, 0) = glm_to_eigen(I.C);
-    M.block<3,3>(0, 3) = glm_to_eigen(I.C).transpose();
-    M.block<3,3>(3, 3) = glm_to_eigen(I.M);
+    M.block<3,3>(0, 0) = to_eigen(I.I);
+    M.block<3,3>(3, 0) = to_eigen(I.C);
+    M.block<3,3>(0, 3) = to_eigen(I.C).transpose();
+    M.block<3,3>(3, 3) = to_eigen(I.M);
     return M;
-}
-
-inline glm::rvec3 eigen_to_glm(const Eigen::Vector3r& v) {
-    return {v(0), v(1), v(2)};
 }
 
 #endif //EOS_SCAN_TO_HUMAN_EIGEN_H

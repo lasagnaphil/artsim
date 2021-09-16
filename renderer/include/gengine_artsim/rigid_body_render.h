@@ -36,14 +36,14 @@ public:
                 }
                 for (int k = 0; k < col_mesh->nFaces(); k++) {
                     auto& face = col_mesh->face(k);
-                    glm::rvec3 normal = eigen_to_glm(col_mesh->computeFaceNormal(k));
-                    render_mesh.vertices[3*k].pos = eigen_to_glm(col_mesh->vertex(face[0]));
+                    glm::rvec3 normal = to_glm_vec(col_mesh->computeFaceNormal(k));
+                    render_mesh.vertices[3*k].pos = to_glm_vec(col_mesh->vertex(face[0]));
                     render_mesh.vertices[3*k].normal += normal;
                     render_mesh.vertices[3*k].uv = glm::rvec2(0);
-                    render_mesh.vertices[3*k+1].pos = eigen_to_glm(col_mesh->vertex(face[1]));
+                    render_mesh.vertices[3*k+1].pos = to_glm_vec(col_mesh->vertex(face[1]));
                     render_mesh.vertices[3*k+1].normal += normal;
                     render_mesh.vertices[3*k+1].uv = glm::rvec2(0);
-                    render_mesh.vertices[3*k+2].pos = eigen_to_glm(col_mesh->vertex(face[2]));
+                    render_mesh.vertices[3*k+2].pos = to_glm_vec(col_mesh->vertex(face[2]));
                     render_mesh.vertices[3*k+2].normal += normal;
                     render_mesh.vertices[3*k+2].uv = glm::rvec2(0);
                 }
