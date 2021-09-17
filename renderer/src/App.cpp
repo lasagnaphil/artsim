@@ -6,6 +6,7 @@
 #include "gengine/InputManager.h"
 #include "gengine/Arena.h"
 #include "gengine/TrackballCamera.h"
+#include "gengine/FlyCamera.h"
 
 #include <imgui.h>
 #include <implot.h>

@@ -16,8 +16,8 @@
 #include "gengine/Shader.h"
 #include "gengine/PhongRenderer.h"
 #include "gengine/PBRenderer.h"
-#include "gengine/GizmosRenderer.h"
 #include "gengine/Camera.h"
+#include "gengine/Transform.h"
 #include "gengine/DebugRenderer.h"
 
 struct AppSettings {

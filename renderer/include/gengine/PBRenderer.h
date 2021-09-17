@@ -18,6 +18,7 @@
 
 #include <array>
 #include "artsim/math/rect.h"
+#include "ColoredMeshRenderer.h"
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -107,12 +108,21 @@ public:
             renderSolidCommands.push_back(command);
         }
     }
+    void queueRender(Ref<Mesh> mesh, Ref<PBRMaterial> mat, glm::mat4 modelMatrix) {
+        if (mat->transparent) {
+            renderTransparentCommands.push_back({mesh, mat, modelMatrix});
+        }
+        else {
+            renderSolidCommands.push_back({mesh, mat, modelMatrix});
+        }
+    }
 
     void render(bool shadows = false);
 
     void renderImGui();
 
     DebugRenderer* getDebugRenderer() { return &debugRenderer; }
+    ColoredMeshRenderer* getColoredMeshRenderer() { return &coloredMeshRenderer; }
 
     glm::vec3 skyColor = {1.0f, 1.0f, 1.0f};
     float exposure = 5.0f;
@@ -133,6 +143,7 @@ private:
 
     // Includes a debug renderer, since we need to render debug info in opqaue pass
     DebugRenderer debugRenderer;
+    ColoredMeshRenderer coloredMeshRenderer;
 
     GLuint quadVAO, quadVBO;
 

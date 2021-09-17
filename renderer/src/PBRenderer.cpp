@@ -208,6 +208,9 @@ void PBRenderer::init() {
 
     debugRenderer.setCamera(camera);
     debugRenderer.init();
+
+    coloredMeshRenderer.setCamera(camera);
+    coloredMeshRenderer.init();
 }
 
 void PBRenderer::render(bool shadows) {
@@ -220,51 +223,57 @@ void PBRenderer::render(bool shadows) {
         lights.dir.direction = -glm::vec3(camera->getGlobalTransform()[2]);
     }
 
-    glm::mat4 dirLightSpaceMatrix = calcDirLightSpaceMatrix();
-    depthShader->use();
-    depthShader->setMat4("dirLightSpaceMatrix", dirLightSpaceMatrix);
+    if (shadows) {
+        glm::mat4 dirLightSpaceMatrix = calcDirLightSpaceMatrix();
+        depthShader->use();
+        depthShader->setMat4("dirLightSpaceMatrix", dirLightSpaceMatrix);
 
-    GLint origViewport[4];
-    glGetIntegerv(GL_VIEWPORT, origViewport);
+        GLint origViewport[4];
+        glGetIntegerv(GL_VIEWPORT, origViewport);
 
-    glViewport(0, 0, shadowFramebufferSize.x, shadowFramebufferSize.y);
-    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    {
-        glClear(GL_DEPTH_BUFFER_BIT);
-        if (shadows) {
-            glCullFace(GL_FRONT);
-            renderPass(depthShader, renderSolidCommands);
-            glCullFace(GL_BACK);
+        glViewport(0, 0, shadowFramebufferSize.x, shadowFramebufferSize.y);
+        glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+        {
+            glClear(GL_DEPTH_BUFFER_BIT);
+            if (shadows) {
+                glCullFace(GL_FRONT);
+                renderPass(depthShader, renderSolidCommands);
+                glCullFace(GL_BACK);
+            }
         }
-    }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    glViewport(origViewport[0], origViewport[1], origViewport[2], origViewport[3]);
+        glViewport(origViewport[0], origViewport[1], origViewport[2], origViewport[3]);
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
 
-    // Solid render pass
+    // Configure render states
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+    // Solid render pass
     const GLenum opaqueDrawBuffers[] = {GL_COLOR_ATTACHMENT0};
     glDrawBuffers(1, opaqueDrawBuffers);
     glClearColor(skyColor.x, skyColor.y, skyColor.z, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     setLightingUniforms(pbrSolidShader, true);
     renderPass(pbrSolidShader, renderSolidCommands);
-
-    // Solid render pass for debug renderer (with depth)
     debugRenderer.drawDebugPoints(true);
     debugRenderer.drawDebugLines(true);
+    coloredMeshRenderer.renderOpaque();
 
-    // Translucent render pass
+    // Configure render states
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
     glBlendFunci(0, GL_ONE, GL_ONE);
     glBlendFunci(1, GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
     glBlendEquation(GL_FUNC_ADD);
+
+    // Translucent render pass
     glm::vec4 zeroFillerVec(0.0f);
     glm::vec4 oneFillerVec(1.0f);
     const GLenum transparentDrawBuffers[] = {GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2};
@@ -273,11 +282,14 @@ void PBRenderer::render(bool shadows) {
     glClearBufferfv(GL_COLOR, 1, &oneFillerVec[0]);
     setLightingUniforms(pbrTransparentShader, false);
     renderPass(pbrTransparentShader, renderTransparentCommands);
+    coloredMeshRenderer.renderTransparent();
 
-    // Composite the solid and transparent render results
+    // Configure render states
     glDepthFunc(GL_ALWAYS);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Composite the solid and transparent render results
     const GLenum compositeDrawBuffers[] = {GL_COLOR_ATTACHMENT0};
     glDrawBuffers(1, compositeDrawBuffers);
     compositeShader->use();
@@ -288,10 +300,12 @@ void PBRenderer::render(bool shadows) {
     glBindVertexArray(quadVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
-    // Draw to backbuffer (final pass)
+    // Configure render states
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
+
+    // Draw to backbuffer (final pass)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     screenShader->use();
     screenShader->setFloat("exposure", exposure);

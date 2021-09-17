@@ -186,12 +186,9 @@ void Mesh::updateOBJInternal(const glm::vec3* vertices, const glm::ivec3* triang
     }
     // TODO: Remove repetitive normalization
     for (int t = 0; t < num_triangles; t++) {
-        normals[triangles[t][0]] = glm::normalize(normals[triangles[t][0]]);
-        normals[triangles[t][1]] = glm::normalize(normals[triangles[t][1]]);
-        normals[triangles[t][2]] = glm::normalize(normals[triangles[t][2]]);
-        this->vertices[3*t+0].normal = normals[triangles[t][0]];
-        this->vertices[3*t+1].normal = normals[triangles[t][0]];
-        this->vertices[3*t+2].normal = normals[triangles[t][0]];
+        this->vertices[3*t+0].normal = glm::normalize(normals[triangles[t][0]]);
+        this->vertices[3*t+1].normal = glm::normalize(normals[triangles[t][1]]);
+        this->vertices[3*t+2].normal = glm::normalize(normals[triangles[t][2]]);
     }
 }
 

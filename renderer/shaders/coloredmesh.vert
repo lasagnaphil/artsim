@@ -7,10 +7,10 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 proj;
 
+out vec3 worldPos;
 out vec4 color;
 
-void main()
-{
+void main() {
     gl_Position = proj * view * model * vec4(inPos, 1.0);
     color = inColor;
 }
