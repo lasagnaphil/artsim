@@ -18,6 +18,7 @@
 
 #include <gengine/App.h>
 #include <gengine/InputManager.h>
+#include <gengine/FlyCamera.h>
 #include <gengine_artsim/articulation_render.h>
 
 

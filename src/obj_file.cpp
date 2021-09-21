@@ -161,7 +161,7 @@ void OBJFile::load_msh(const char* filename) {
     for (int i = 0; i < num_elems; i++) {
         tetrahedrons[i] = {elems[4*i+0], elems[4*i+1], elems[4*i+2], elems[4*i+3]};
     }
-    printf("Loading msh %s: nodes = %d, elems = %d\n", filename, num_nodes, num_elems);
+    printf("Loading msh %s: nodes = %d, tets = %d\n", filename, num_nodes, num_elems);
 }
 
 }

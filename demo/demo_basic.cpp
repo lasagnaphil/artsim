@@ -11,6 +11,7 @@
 #include <imgui.h>
 #include <implot.h>
 #include <gengine/App.h>
+#include <gengine/FlyCamera.h>
 #include <gengine/InputManager.h>
 #include <gengine_artsim/articulation_render.h>
 #include <gengine_artsim/rigid_body_render.h>

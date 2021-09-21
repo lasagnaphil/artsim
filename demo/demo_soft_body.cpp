@@ -13,6 +13,7 @@
 #include <implot.h>
 #include <gengine/App.h>
 #include <gengine/InputManager.h>
+#include <gengine/FlyCamera.h>
 #include <gengine_artsim/soft_body_render.h>
 #include <omp.h>
 
