@@ -121,7 +121,7 @@ public:
         for (int i = 0; i < sphereTransforms.size(); i++) {
             pbRenderer.queueRender({sphereMesh, sphereMats[i], sphereTransforms[i]->getWorldTransform()});
         }
-        pbRenderer.render();
+        pbRenderer.render(true);
 
         for (auto& light : pbRenderer.lights.point) {
             if (light.enabled) {
