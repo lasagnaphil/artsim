@@ -159,6 +159,24 @@ void ArticulatedBodySpec::scale_link(int link_idx, const rmat3& rot, const rvec3
     }
 }
 
+PoseTree ArticulatedBodySpec::get_pose_tree() {
+    PoseTree poseTree;
+    int num_links = get_num_links();
+    poseTree.allNodes.resize(num_links);
+    for (int i = 0; i < num_links; i++) {
+        auto& node = poseTree.allNodes[i];
+        node.name = names[i];
+        node.parent = parents[i];
+        node.childJoints.resize(get_num_children(i));
+        auto children_data = get_children(i);
+        for (int k = 0; k < node.childJoints.size(); k++) {
+            node.childJoints[k] = children_data[k];
+        }
+        node.offset = links[i].local_joint_pose.v;
+    }
+    return poseTree;
+}
+
 void ArticulatedBody::init(artsim::ArticulatedBodySpec art_spec) {
     this->spec = std::move(art_spec);
     if (!spec.build_finished) {

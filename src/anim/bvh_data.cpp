@@ -2,7 +2,7 @@
 // Created by lasagnaphil on 2019-03-10.
 //
 
-#include "gengine/BVHData.h"
+#include "artsim/anim/bvh_data.h"
 
 #include <iomanip>
 #include <fstream>
@@ -13,6 +13,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/euler_angles.hpp>
 #include <glm/gtx/quaternion.hpp>
+
+namespace artsim {
 
 std::optional<BVHData::ChannelType> stringToChannelType(const std::string& name) {
     switch (name[0]) {
@@ -33,7 +35,7 @@ std::optional<BVHData::ChannelType> stringToChannelType(const std::string& name)
     }
 }
 
-bool BVHData::loadFromFile(const char* filename, BVHData& data, float scale) {
+bool BVHData::loadFromFile(const char* filename, BVHData& bvhData, float scale) {
     std::ifstream file(filename);
 
     std::string line;
@@ -103,7 +105,7 @@ bool BVHData::loadFromFile(const char* filename, BVHData& data, float scale) {
                         break;
                     }
                 }
-                numBVHChannels += 6; data.poseTree.numJoints++; data.poseTree.numNodes++; // CHANNELS
+                numBVHChannels += 6; bvhData.pose_tree.numJoints++; bvhData.pose_tree.numNodes++; // CHANNELS
                 childJointID = curJointID;
 
                 newLine() >> keyword;
@@ -113,13 +115,13 @@ bool BVHData::loadFromFile(const char* filename, BVHData& data, float scale) {
                 else if (keyword == "End") {
                     state = ParseState::EndSite;
                 }
-                data.poseTree.allNodes.push_back(curJoint);
+                bvhData.pose_tree.allNodes.push_back(curJoint);
                 break;
             }
             case ParseState::Joint: {
                 PoseTreeNode childJoint;
-                childJointID = data.poseTree.allNodes.size();
-                PoseTreeNode& curJoint = data.poseTree.allNodes[curJointID];
+                childJointID = bvhData.pose_tree.allNodes.size();
+                PoseTreeNode& curJoint = bvhData.pose_tree.allNodes[curJointID];
 
                 iss >> childJoint.name;
                 newLine() >> keyword;
@@ -156,7 +158,7 @@ bool BVHData::loadFromFile(const char* filename, BVHData& data, float scale) {
                         break;
                     }
                 }
-                numBVHChannels += channels; data.poseTree.numJoints++; data.poseTree.numNodes++; // CHANNELS
+                numBVHChannels += channels; bvhData.pose_tree.numJoints++; bvhData.pose_tree.numNodes++; // CHANNELS
                 curJoint.childJoints.push_back(childJointID);
                 childJoint.parent = curJointID;
                 curJointID = childJointID;
@@ -168,14 +170,14 @@ bool BVHData::loadFromFile(const char* filename, BVHData& data, float scale) {
                 else if (keyword == "End") {
                     state = ParseState::EndSite;
                 }
-                data.poseTree.allNodes.push_back(childJoint);
+                bvhData.pose_tree.allNodes.push_back(childJoint);
                 break;
             }
             case ParseState::EndSite: {
                 PoseTreeNode childJoint;
                 curJointID = childJointID;
                 uint32_t endSiteID = endSites.size();
-                PoseTreeNode& curJoint = data.poseTree.allNodes[curJointID];
+                PoseTreeNode& curJoint = bvhData.pose_tree.allNodes[curJointID];
 
                 childJoint.name = "End Site";
                 newLine() >> keyword;
@@ -186,7 +188,7 @@ bool BVHData::loadFromFile(const char* filename, BVHData& data, float scale) {
                 }
                 newLine() >> keyword >> childJoint.offset.x >> childJoint.offset.y >> childJoint.offset.z;
                 childJoint.offset *= scale;
-                data.poseTree.numNodes++;
+                bvhData.pose_tree.numNodes++;
                 // The most significant bit tells if the id is an end site or not
                 curJoint.childJoints.push_back(endSiteID + (1 << 31));
                 childJoint.parent = curJointID;
@@ -201,7 +203,7 @@ bool BVHData::loadFromFile(const char* filename, BVHData& data, float scale) {
                 newLine() >> keyword;
                 while (keyword == "}") {
                     childJointID = curJointID;
-                    curJointID = data.poseTree.allNodes[curJointID].parent;
+                    curJointID = bvhData.pose_tree.allNodes[curJointID].parent;
                     newLine() >> keyword;
                 }
                 if (keyword == "JOINT") {
@@ -221,10 +223,10 @@ bool BVHData::loadFromFile(const char* filename, BVHData& data, float scale) {
                 std::string _;
                 newLine() >> keyword >> _ >> frameTime;
 
-                data.clip = MotionClip::empty(data.poseTree.numJoints, numFrames, frameTime);
+                bvhData.clip = MotionClip::empty(bvhData.pose_tree.numJoints, numFrames, frameTime);
                 float num;
                 int offset = 0;
-                float* dataPtr = data.clip.data.data();
+                float* dataPtr = bvhData.clip.data.data();
                 for (int f = 0; f < numFrames; f++) {
                     int rotCount = 0;
                     newLine();
@@ -291,18 +293,18 @@ bool BVHData::loadFromFile(const char* filename, BVHData& data, float scale) {
     // and end site indices need to be in numJoints...numNodes-1.
     // So need to make sure the highest bit of the end site ids are set back to zero,
     // and then add numJoints to set the index in the right location.
-    data.poseTree.allNodes.reserve(data.poseTree.allNodes.size() + endSites.size());
-    data.poseTree.allNodes.insert(data.poseTree.allNodes.end(), endSites.begin(), endSites.end());
-    for (uint32_t i = 0; i < data.poseTree.numJoints; i++) {
-        auto& joint = data.poseTree.allNodes[i];
+    bvhData.pose_tree.allNodes.reserve(bvhData.pose_tree.allNodes.size() + endSites.size());
+    bvhData.pose_tree.allNodes.insert(bvhData.pose_tree.allNodes.end(), endSites.begin(), endSites.end());
+    for (uint32_t i = 0; i < bvhData.pose_tree.numJoints; i++) {
+        auto& joint = bvhData.pose_tree.allNodes[i];
         for (auto& childJointID : joint.childJoints) {
             if (childJointID & (1 << 31)) {
-                childJointID = (childJointID & ~(1 << 31)) + data.poseTree.numJoints;
+                childJointID = (childJointID & ~(1 << 31)) + bvhData.pose_tree.numJoints;
             }
         }
     }
 
-    data.poseTree.constructNodeNameMapping();
+    bvhData.pose_tree.constructNodeNameMapping();
 
     return true;
 }
@@ -312,7 +314,7 @@ void BVHData::print() const {
 }
 
 void BVHData::printRecursive(uint32_t jointID, int depth) const {
-    const PoseTreeNode& joint = poseTree.allNodes[jointID];
+    const PoseTreeNode& joint = pose_tree.allNodes[jointID];
     if (!joint.isEndSite()) {
         for (int i = 0; i < depth; i++) { std::cout << "    "; }
         std::cout << "Name: " << joint.name << std::endl;
@@ -378,7 +380,7 @@ void BVHData::saveToFile(const std::string& filename, int eulerOrd) {
 
 void BVHData::saveToFileRecursive(uint32_t jointIdx, std::ostream& ofs, int depth, int eulerOrd) {
     using std::endl;
-    PoseTreeNode& node = poseTree[jointIdx];
+    PoseTreeNode& node = pose_tree[jointIdx];
 
     std::string tabs;
     for (int i = 0; i < depth; i++) {
@@ -460,7 +462,7 @@ void BVHData::saveToFileRecursive(uint32_t jointIdx, std::ostream& ofs, int dept
     ofs << tabs << "}" << endl;
 }
 
-void BVHData::switchZtoYup() {
+void BVHData::switchZToYUp() {
     for (int f = 0; f < clip.numFrames; f++) {
         glmx::pose_view pose = clip.getFrame(f);
         pose.v() = glmx::Rx_quat<float>(-M_PI/2) * pose.v();
@@ -468,7 +470,7 @@ void BVHData::switchZtoYup() {
             pose.q(i) = glmx::Rx_quat<float>(-M_PI/2) * pose.q(i) * glmx::Rx_quat<float>(M_PI/2);
         }
     }
-    for (auto& node : poseTree.allNodes) {
+    for (auto& node : pose_tree.allNodes) {
         node.offset = glmx::Rx(-M_PI/2) * node.offset;
     }
 }
@@ -479,19 +481,19 @@ bool BVHData::removeJoint(uint32_t nodeIdx) {
         return false;
     }
 
-    auto& node = poseTree[nodeIdx];
+    auto& node = pose_tree[nodeIdx];
     std::string nodeName = node.name;
-    uint32_t parentIdx = poseTree[nodeIdx].parent;
-    auto& parentNode = poseTree[parentIdx];
+    uint32_t parentIdx = pose_tree[nodeIdx].parent;
+    auto& parentNode = pose_tree[parentIdx];
 
-    uint32_t numChildren = poseTree[nodeIdx].childJoints.size();
+    uint32_t numChildren = pose_tree[nodeIdx].childJoints.size();
     if (numChildren != 1) {
         fprintf(stderr, "Only joints with one child can be removed!\n");
         return false;
     }
 
-    uint32_t childIdx = poseTree[nodeIdx].childJoints[0];
-    poseTree[childIdx].parent = parentIdx;
+    uint32_t childIdx = pose_tree[nodeIdx].childJoints[0];
+    pose_tree[childIdx].parent = parentIdx;
 
     for (uint32_t& i : parentNode.childJoints) {
         if (i == nodeIdx) {
@@ -499,12 +501,12 @@ bool BVHData::removeJoint(uint32_t nodeIdx) {
             break;
         }
     }
-    poseTree.numJoints--;
-    poseTree.numNodes--;
-    poseTree.allNodes.erase(poseTree.allNodes.begin() + nodeIdx);
+    pose_tree.numJoints--;
+    pose_tree.numNodes--;
+    pose_tree.allNodes.erase(pose_tree.allNodes.begin() + nodeIdx);
 
     for (int f = 0; f < clip.numFrames; f++) {
-        if (childIdx < poseTree.numJoints) {
+        if (childIdx < pose_tree.numJoints) {
             glmx::pose_view pose = clip.getFrame(f);
             pose.q(childIdx) = pose.q(nodeIdx) * pose.q(childIdx);
         }
@@ -512,7 +514,7 @@ bool BVHData::removeJoint(uint32_t nodeIdx) {
 
     clip.removeJoint(nodeIdx);
 
-    for (auto& node : poseTree.allNodes) {
+    for (auto& node : pose_tree.allNodes) {
         if (node.parent > nodeIdx) {
             node.parent--;
         }
@@ -523,8 +525,8 @@ bool BVHData::removeJoint(uint32_t nodeIdx) {
         }
     }
 
-    poseTree.nodeNameMap.erase(nodeName);
-    for (auto& [key, i] : poseTree.nodeNameMap) {
+    pose_tree.nodeNameMap.erase(nodeName);
+    for (auto& [key, i] : pose_tree.nodeNameMap) {
         if (i > nodeIdx) {
             i--;
         }
@@ -534,7 +536,7 @@ bool BVHData::removeJoint(uint32_t nodeIdx) {
 }
 
 bool BVHData::removeJoint(const std::string& nodeName) {
-    uint32_t nodeIdx = poseTree.findIdx(nodeName);
+    uint32_t nodeIdx = pose_tree.findIdx(nodeName);
     if (nodeIdx != (uint32_t)-1) {
         return removeJoint(nodeIdx);
     }
@@ -560,7 +562,7 @@ bool BVHData::removeCMUPhantomJoints() {
 }
 
 bool BVHData::checkValidity() {
-    for (auto& node : poseTree.allNodes) {
+    for (auto& node : pose_tree.allNodes) {
         if (std::isnan(node.offset.x) || std::isnan(node.offset.y) || std::isnan(node.offset.z)) {
             return false;
         }
@@ -585,3 +587,4 @@ glmx::pose BVHData::samplePose(float time) {
     return pose;
 }
 
+}

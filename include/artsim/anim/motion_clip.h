@@ -5,6 +5,7 @@
 #ifndef DEEPMIMIC_MOTIONCLIP_H
 #define DEEPMIMIC_MOTIONCLIP_H
 
+#include <cstring>
 #include <artsim/types.h>
 #include <artsim/math/pose.h>
 
@@ -262,7 +263,6 @@ struct MotionClip {
             v_ptr[0] = p.v().x;
             v_ptr[1] = p.v().y;
             v_ptr[2] = p.v().z;
-            int jp = 0;
             for (int j = 0; j < jointIdx; j++) {
                 float* q_ptr = data.data() + f * (numChannels-4) + 4 + 4*j;
                 q_ptr[0] = p.q(j).x;

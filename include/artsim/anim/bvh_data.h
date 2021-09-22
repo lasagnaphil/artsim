@@ -6,9 +6,8 @@
 #define MOTION_EDITING_POSEDATA_H
 
 #include <artsim/math/pose.h>
-#include <gengine/Arena.h>
-#include <gengine/PoseTree.h>
-#include <gengine/MotionClip.h>
+#include <artsim/anim/pose_tree.h>
+#include <artsim/anim/motion_clip.h>
 
 #include <string>
 #include <vector>
@@ -19,8 +18,10 @@
 #include <span.hpp>
 #include <stack>
 
+namespace artsim {
+
 struct BVHData {
-    PoseTree poseTree;
+    PoseTree pose_tree;
     MotionClip clip;
 
     // Motion data
@@ -34,7 +35,7 @@ struct BVHData {
 
     void saveToFile(const std::string& filename, int eulerOrd);
 
-    void switchZtoYup();
+    void switchZToYUp();
 
     bool removeJoint(uint32_t nodeIdx);
 
@@ -51,5 +52,7 @@ private:
     void printRecursive(uint32_t jointID, int depth) const;
     void saveToFileRecursive(uint32_t jointID, std::ostream& ofs, int depth, int eulerOrd);
 };
+
+}
 
 #endif //MOTION_EDITING_POSEDATA_H

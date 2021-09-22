@@ -12,6 +12,8 @@
 #include <vector>
 #include <glm/vec3.hpp>
 
+namespace artsim {
+
 struct PoseTreeNode {
     std::string name;
     glm::vec3 offset;
@@ -125,5 +127,7 @@ struct PoseTree {
         }
     }
 };
+
+}
 
 #endif //GENGINE_POSETREE_H

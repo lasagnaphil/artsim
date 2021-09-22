@@ -346,7 +346,7 @@ tinyxml2::XMLError load_from_xml(const char* filename, OUT ArticulatedBodySpec& 
         return err;
     }
     else {
-        return err;
+        return XMLError::XML_ERROR_PARSING_UNKNOWN;
     }
 }
 

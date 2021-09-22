@@ -5,9 +5,10 @@
 #ifndef ARTSIM_ART_BODY_H
 #define ARTSIM_ART_BODY_H
 
-#include <artsim/math/dynmat.h>
 #include <artsim/types.h>
 #include <artsim/collision_shape.h>
+#include <artsim/math/dynmat.h>
+#include <artsim/anim/pose_tree.h>
 
 #include <BulletCollision/CollisionDispatch/btCollisionObject.h>
 #include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
@@ -166,6 +167,8 @@ struct ArticulatedBodySpec {
 
     void scale_link(int link_idx, const glm::rvec3& scale, bool scale_shapes);
     void scale_link(int link_idx, const glm::rmat3& rot, const glm::rvec3& scale);
+
+    PoseTree get_pose_tree();
 };
 
 class ArticulatedBody {
