@@ -4,6 +4,8 @@
 
 #include "gengine/PoseFK.h"
 
+namespace artsim {
+
 glmx::quat_transform calcFK(const PoseTree &poseTree, glmx::const_pose_view pose, uint32_t mIdx) {
     uint32_t i = mIdx;
     if (poseTree[i].isEndSite()) {
@@ -57,4 +59,4 @@ std::vector<glmx::quat_transform> calcFK(const PoseTree& poseTree, glmx::const_p
     return transforms;
 }
 
-
+}
