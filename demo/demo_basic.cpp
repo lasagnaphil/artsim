@@ -136,9 +136,8 @@ public:
             ImGui::Checkbox("Enable debug render", &debug_render);
         }
         if (!art_id.is_null() && ImGui::CollapsingHeader("Articulation")) {
-            bool pos_edited, vel_edited, acc_edited;
             auto& art = *world.get_articulated_body(art_id);
-            articulated_body_imgui(art, pos_edited, vel_edited, acc_edited);
+            auto [pos_edited, vel_edited, acc_edited] = articulated_body_imgui(art);
         }
         if (!rb_id.is_null() && ImGui::CollapsingHeader("Rigid Body")) {
             auto& rb = *world.get_rigid_body(rb_id);

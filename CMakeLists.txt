@@ -43,7 +43,7 @@ target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${G
 set(ARTSIM_LIB
         tbb
         Eigen3::Eigen
-        tinyxml2::tinyxml2
+        pugixml::pugixml
         bullet_collision
         fastsvd
         Discregrid

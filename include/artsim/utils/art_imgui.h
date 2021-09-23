@@ -13,8 +13,8 @@
 
 namespace artsim {
 
-void articulated_body_imgui(ArticulatedBody& art, bool& pos_edited, bool& vel_edited, bool& force_edited) {
-    pos_edited = false;
+std::tuple<bool, bool, bool> articulated_body_imgui(ArticulatedBody& art) {
+    bool pos_edited = false, vel_edited = false, force_edited = false;
     auto& art_spec = art.get_spec();
     real* pos_buf = art.get_pos_buf();
     real* vel_buf = art.get_vel_buf();
@@ -102,6 +102,7 @@ void articulated_body_imgui(ArticulatedBody& art, bool& pos_edited, bool& vel_ed
         }
         ImGui::TreePop();
     }
+    return {pos_edited, vel_edited, force_edited};
 }
 
 }

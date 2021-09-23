@@ -119,6 +119,14 @@ void ArticulatedBodySpec::build() {
         }
     }
 
+    if (!initial_state.empty()) {
+        if (initial_state.size() != num_pos_dofs) {
+            fprintf(stderr, "Error in ArticulatedBody::build(): "
+                            "Invalid initial state!\n");
+            return;
+        }
+    }
+
     build_finished = true;
 }
 
@@ -159,8 +167,8 @@ void ArticulatedBodySpec::scale_link(int link_idx, const rmat3& rot, const rvec3
     }
 }
 
-void ArticulatedBody::init(artsim::ArticulatedBodySpec art_spec) {
-    this->spec = std::move(art_spec);
+void ArticulatedBody::init(artsim::ArticulatedBodySpec _art_spec) {
+    spec = std::move(_art_spec);
     if (!spec.build_finished) {
         fprintf(stderr, "ArticulatedBodySpec not built! Call build() before creating articulation\n");
         exit(EXIT_FAILURE);
@@ -169,6 +177,7 @@ void ArticulatedBody::init(artsim::ArticulatedBodySpec art_spec) {
     int num_vel_dofs = get_num_vel_dofs();
     int num_links = get_num_links();
     int num_joints = get_num_joints();
+
     q.resize(num_pos_dofs, 0);
     u.resize(num_vel_dofs, 0);
     udot.resize(num_vel_dofs, 0);
@@ -219,20 +228,25 @@ void ArticulatedBody::release(btCollisionWorld* bt_world) {
 void ArticulatedBody::reset() {
     int num_joints = get_num_joints();
     real* qp = q.data();
-    for (int i = 0; i < num_joints; i++) {
-        switch (spec.joints[i].type) {
-            JOINT_DOF_1_CASE {
-                qp[0] = 0;
-            } break;
-            case JOINT_TYPE_FLOATING: {
-                qp[0] = 0; qp[1] = 0; qp[2] = 0;
-                qp[3] = 0; qp[4] = 0; qp[5] = 0; qp[6] = 1;
-            } break;
-            case JOINT_TYPE_SPHERICAL: {
-                qp[0] = 0; qp[1] = 0; qp[2] = 0; qp[3] = 1;
-            } break;
+    if (spec.initial_state.empty()) {
+        for (int i = 0; i < num_joints; i++) {
+            switch (spec.joints[i].type) {
+                JOINT_DOF_1_CASE {
+                    qp[0] = 0;
+                } break;
+                case JOINT_TYPE_FLOATING: {
+                    qp[0] = 0; qp[1] = 0; qp[2] = 0;
+                    qp[3] = 0; qp[4] = 0; qp[5] = 0; qp[6] = 1;
+                } break;
+                case JOINT_TYPE_SPHERICAL: {
+                    qp[0] = 0; qp[1] = 0; qp[2] = 0; qp[3] = 1;
+                } break;
+            }
+            qp += spec.joint_pos_dofs[i];
         }
-        qp += spec.joint_pos_dofs[i];
+    }
+    else {
+        q = spec.initial_state;
     }
     qp = q_target.data();
     for (int i = 0; i < num_joints; i++) {

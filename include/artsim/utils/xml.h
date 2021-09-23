@@ -6,18 +6,18 @@
 #define ARTSIM_XML_H
 
 #include <artsim/artsim.h>
-#include <tinyxml2.h>
+#include <pugixml.hpp>
 
 namespace artsim {
 
-bool load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT ArticulatedBodySpec& art);
-tinyxml2::XMLError load_from_xml_legacy(const char* filename, OUT ArticulatedBodySpec& art);
+bool load_from_xml_legacy(pugi::xml_node root_el, OUT ArticulatedBodySpec& art);
+pugi::xml_parse_result load_from_xml_legacy(const char* filename, OUT ArticulatedBodySpec& art);
 
-bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT ArticulatedBodySpec& spec);
-tinyxml2::XMLError load_from_xml(const char* filename, OUT ArticulatedBodySpec& spec);
+bool load_from_xml(pugi::xml_node art_elem, const char* current_dir, OUT ArticulatedBodySpec& spec);
+pugi::xml_parse_result load_from_xml(const char* filename, OUT ArticulatedBodySpec& spec);
 
-tinyxml2::XMLElement* save_to_xml(tinyxml2::XMLDocument& doc, ArticulatedBodySpec& spec);
-tinyxml2::XMLError save_to_xml(const char* filename, ArticulatedBodySpec& art);
+pugi::xml_node save_to_xml(pugi::xml_document& doc, ArticulatedBodySpec& spec);
+void save_to_xml(const char* filename, ArticulatedBodySpec& art);
 
 }
 

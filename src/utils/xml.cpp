@@ -5,11 +5,10 @@
 #include "artsim/utils/xml.h"
 
 #include <iostream>
-#include <tinyxml2.h>
+#include <pugixml.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <filesystem>
 
-using namespace tinyxml2;
 using namespace glmx;
 namespace fs = std::filesystem;
 
@@ -54,7 +53,7 @@ static std::string to_string(artsim::real v) {
 
 namespace artsim {
 
-bool load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT ArticulatedBodySpec& art) {
+bool load_from_xml_legacy(pugi::xml_node root_el, OUT ArticulatedBodySpec& art) {
     std::unordered_map<std::string, ttransform<real>> T_global_body_map;
     std::unordered_map<std::string, ttransform<real>> T_global_joint_map;
     std::unordered_map<std::string, int> idx_map;
@@ -63,62 +62,61 @@ bool load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT ArticulatedBodySpec
     T_global_joint_map["None"] = ttransform<real>(IDENTITY);
     idx_map["None"] = -1;
 
-    XMLElement *skeleton_elem = root_el;
-    std::string skel_name = skeleton_elem->Attribute("name");
+    auto skeleton_elem = root_el;
+    std::string skel_name = skeleton_elem.attribute("name").as_string();
 
     int current_idx = 0;
-    for(XMLElement* node = skeleton_elem->FirstChildElement("Node"); node != nullptr; node = node->NextSiblingElement("Node"))
-    {
+    for (auto node : skeleton_elem.child("Node")) {
         artsim::Joint joint;
         artsim::Link link;
 
-        std::string name = node->Attribute("name");
+        std::string name = node.attribute("name").as_string();
 
-        std::string parent_name = node->Attribute("parent");
+        std::string parent_name = node.attribute("parent").as_string();
 
-        XMLElement* body_elem = node->FirstChildElement("Body");
+        auto body_elem = node.child("Body");
         std::string obj_file = "None";
-        if(body_elem->Attribute("obj"))
-            obj_file = body_elem->Attribute("obj");
+        if(body_elem.attribute("obj"))
+            obj_file = body_elem.attribute("obj").as_string();
 
-        real mass = std::stod(body_elem->Attribute("mass"));
+        real mass = body_elem.attribute("mass").as_double();
 
-        std::string body_type = body_elem->Attribute("type");
+        std::string body_type = body_elem.attribute("type").as_string();
         CollisionShape shape;
         if (body_type == "Box") {
-            glm::rvec3 size = string_to_vector3d(body_elem->Attribute("size"));
+            glm::rvec3 size = string_to_vector3d(body_elem.attribute("size").as_string());
             shape = CollisionShape::make_box(size);
         }
         else if (body_type == "Sphere") {
-            double radius = std::stod(body_elem->Attribute("radius"));
+            double radius = body_elem.attribute("radius").as_double();
             shape = CollisionShape::make_sphere(radius);
         }
         else if (body_type == "Capsule") {
-            double radius = std::stod(body_elem->Attribute("radius"));
-            double height = std::stod(body_elem->Attribute("height"));
+            double radius = body_elem.attribute("radius").as_double();
+            double height = body_elem.attribute("height").as_double();
             printf("Capsule not supported!\n");
             exit(EXIT_FAILURE);
         }
 
-        real volume = shape.mass(real(1));
+        real volume = shape.mass(1);
         real density = mass / volume;
-        tsmat3x3<real> inertia = shape.inertia(density);
+        auto inertia = shape.inertia(density);
 
         bool contact = false;
-        if(body_elem->Attribute("contact") != nullptr){
-            std::string c = body_elem->Attribute("contact");
+        if(body_elem.attribute("contact") != nullptr){
+            std::string c = body_elem.attribute("contact").as_string();
             if(c == "On") contact = true;
         }
 
         ttransform<real> T_global_body;
-        T_global_body.R = string_to_matrix3d(body_elem->FirstChildElement("Transformation")->Attribute("linear"));
-        T_global_body.v = string_to_vector3d(body_elem->FirstChildElement("Transformation")->Attribute("translation"));
+        T_global_body.R = string_to_matrix3d(body_elem.child("Transformation").attribute("linear").as_string());
+        T_global_body.v = string_to_vector3d(body_elem.child("Transformation").attribute("translation").as_string());
 
-        XMLElement* joint_elem = node->FirstChildElement("Joint");
-        std::string joint_type = joint_elem->Attribute("type");
+        auto joint_elem = node.child("Joint");
+        std::string joint_type = joint_elem.attribute("type").as_string();
         ttransform<real> T_global_joint;
-        T_global_joint.R = string_to_matrix3d(joint_elem->FirstChildElement("Transformation")->Attribute("linear"));
-        T_global_joint.v = string_to_vector3d(joint_elem->FirstChildElement("Transformation")->Attribute("translation"));
+        T_global_joint.R = string_to_matrix3d(joint_elem.child("Transformation").attribute("linear").as_string());
+        T_global_joint.v = string_to_vector3d(joint_elem.child("Transformation").attribute("translation").as_string());
 
         T_global_body_map[name] = T_global_body;
         T_global_joint_map[name] = T_global_joint;
@@ -128,16 +126,8 @@ bool load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT ArticulatedBodySpec
 
         link = Link::create(shape, mass, inertia, local_joint_pose, local_link_pose, idx_map[parent_name], {});
 
-        real kp = 0.0;
-        real kd = 0.0;
-        auto kp_str = joint_elem->Attribute("kp");
-        if (kp_str) {
-            kp = std::stod(kp_str);
-        }
-        auto kd_str = joint_elem->Attribute("kd");
-        if (kd_str) {
-            kd = std::stod(kd_str);
-        }
+        real kp = joint_elem.attribute("kp").as_double(0.0);
+        real kd = joint_elem.attribute("kd").as_double(0.0);
         if(joint_type == "Free")
         {
             // TODO: Should we also put kd on floating joints?
@@ -149,7 +139,7 @@ bool load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT ArticulatedBodySpec
         }
         else if(joint_type == "Revolute")
         {
-            glm::rvec3 axis = string_to_vector3d(joint_elem->Attribute("axis"));
+            glm::rvec3 axis = string_to_vector3d(joint_elem.attribute("axis").as_string());
             if (glm::epsilonEqual<real>(axis.x, 1.0, 1e-8)) {
                 joint = Joint::revolute_x(kp, kd);
             }
@@ -170,23 +160,23 @@ bool load_from_xml_legacy(tinyxml2::XMLElement* root_el, OUT ArticulatedBodySpec
     return true;
 }
 
-XMLError load_from_xml_legacy(const char* filename, OUT ArticulatedBodySpec& art) {
-    XMLDocument doc;
-    XMLError err = doc.LoadFile(filename);
-    if (err != XMLError::XML_SUCCESS) {
+pugi::xml_parse_result load_from_xml_legacy(const char* filename, OUT ArticulatedBodySpec& art) {
+    pugi::xml_document doc;
+    pugi::xml_parse_result result = doc.load_file(filename);
+    if (!result) {
         std::cout << "Can't open file : " << filename << std::endl;
-        return err;
+        return result;
     }
     // TODO: better error checking
-    if (load_from_xml_legacy(doc.RootElement(), art)) {
-        return err;
+    if (load_from_xml_legacy(doc.document_element(), art)) {
+        return result;
     }
     else {
-        return err;
+        return result;
     }
 }
 
-bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT ArticulatedBodySpec& spec) {
+bool load_from_xml(pugi::xml_node art_elem, const char* current_dir, OUT ArticulatedBodySpec& spec) {
     std::unordered_map<std::string, ttransform<real>> T_global_body_map;
     std::unordered_map<std::string, ttransform<real>> T_global_joint_map;
     std::unordered_map<std::string, int> idx_map;
@@ -195,83 +185,82 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
     T_global_joint_map["none"] = ttransform<real>(IDENTITY);
     idx_map["none"] = -1;
 
-    std::string art_name = art_elem->Attribute("name");
-    std::string art_xform_mode = art_elem->Attribute("xform_mode");
+    std::string art_name = art_elem.attribute("name").as_string();
+    std::string art_xform_mode = art_elem.attribute("xform_mode").as_string();
     if (art_xform_mode != "global") {
         std::cout << "Only xform_mode = global supported!" << std::endl;
         exit(EXIT_FAILURE);
     }
 
     int current_idx = 0;
-    for(XMLElement* node = art_elem->FirstChildElement("node"); node != nullptr; node = node->NextSiblingElement("node"))
+    for (auto node : art_elem.children("node"))
     {
         artsim::Joint joint;
         artsim::Link link;
 
-        std::string name = node->Attribute("name");
+        std::string name = node.attribute("name").as_string();
 
-        std::string parent_name = node->Attribute("parent");
+        std::string parent_name = node.attribute("parent").as_string();
 
-        XMLElement* link_elem = node->FirstChildElement("link");
+        auto link_elem = node.child("link");
 
-        std::string body_type = link_elem->Attribute("type");
+        std::string body_type = link_elem.attribute("type").as_string();
         CollisionShape col_shape;
         std::string obj_filename = "";
         if (body_type == "box") {
-            glm::rvec3 size = string_to_vector3d(link_elem->Attribute("size"));
+            glm::rvec3 size = string_to_vector3d(link_elem.attribute("size").as_string());
             col_shape = CollisionShape::make_box(size);
         }
         else if (body_type == "sphere") {
-            double radius = std::stod(link_elem->Attribute("radius"));
+            double radius = link_elem.attribute("radius").as_double();
             col_shape = CollisionShape::make_sphere(radius);
         }
         else if (body_type == "mesh") {
-            fs::path filepath = fs::path(current_dir) / link_elem->Attribute("obj");
+            fs::path filepath = fs::path(current_dir) / link_elem.attribute("obj").as_string();
             obj_filename = filepath.string();
             col_shape = CollisionShape::make_mesh_bvh();
         }
         else if (body_type == "mesh_sdf") {
-            auto cell_size_str = link_elem->Attribute("cell_size");
+            auto cell_size_str = link_elem.attribute("cell_size");
             real cell_size;
             if (cell_size_str) {
-                cell_size = std::stod(cell_size_str);
+                cell_size = cell_size_str.as_double();
             }
             else {
                 // Default to 0.5cm grid size
                 cell_size = 0.005;
             }
-            fs::path filepath = fs::path(current_dir) / link_elem->Attribute("obj");
+            fs::path filepath = fs::path(current_dir) / link_elem.attribute("obj").as_string();
             obj_filename = filepath.string();
             col_shape = CollisionShape::make_mesh_sdf(cell_size);
         }
         else if (body_type == "capsule") {
-            double radius = std::stod(link_elem->Attribute("radius"));
-            double height = std::stod(link_elem->Attribute("height"));
+            double radius = link_elem.attribute("radius").as_double();
+            double height = link_elem.attribute("height").as_double();
             printf("Capsule not supported!");
             return false;
         }
 
         real density;
-        if (link_elem->Attribute("density")) {
-            density = std::stod(link_elem->Attribute("density"));
-            real volume = col_shape.mass(real(1));
+        if (link_elem.attribute("density")) {
+            density = link_elem.attribute("density").as_double();
         }
-        else if (link_elem->Attribute("mass")) {
-            real mass = std::stod(link_elem->Attribute("mass"));
+        else if (link_elem.attribute("mass")) {
+            real mass = link_elem.attribute("mass").as_double();
             real volume = col_shape.mass(real(1));
             density = mass / volume;
         }
 
         ttransform<real> T_global_body;
-        T_global_body.R = glmx::exp_mat(string_to_vector3d(link_elem->Attribute("rot")));
-        T_global_body.v = string_to_vector3d(link_elem->Attribute("pos"));
+        T_global_body.R = glmx::exp_mat(string_to_vector3d(link_elem.attribute("rot").as_string()));
+        T_global_body.v = string_to_vector3d(link_elem.attribute("pos").as_string());
 
-        XMLElement* joint_elem = node->FirstChildElement("joint");
-        std::string joint_type = joint_elem->Attribute("type");
+        auto joint_elem = node.child("joint");
+        std::string joint_type = joint_elem.attribute("type").as_string();
 
         ttransform<real> T_global_joint;
-        T_global_joint.R = glmx::exp_mat(string_to_vector3d(joint_elem->Attribute("rot")));
-        T_global_joint.v = string_to_vector3d(joint_elem->Attribute("pos"));
+        T_global_joint.R = glmx::exp_mat(string_to_vector3d(joint_elem.attribute("rot").as_string()));
+        T_global_joint.v = string_to_vector3d(joint_elem.attribute("pos").as_string());
 
         T_global_body_map[name] = T_global_body;
         T_global_joint_map[name] = T_global_joint;
@@ -287,16 +276,9 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
 
         link = Link::create(col_shape, density, local_joint_pose, local_link_pose, idx_map[parent_name], {}, obj_filename);
 
-        real kp = 0.0;
-        real kd = 0.0;
-        auto kp_str = joint_elem->Attribute("kp");
-        if (kp_str) {
-            kp = std::stod(kp_str);
-        }
-        auto kd_str = joint_elem->Attribute("kd");
-        if (kd_str) {
-            kd = std::stod(kd_str);
-        }
+        real kp = joint_elem.attribute("kp").as_double();
+        real kd = joint_elem.attribute("kd").as_double();
+
         if(joint_type == "free" || joint_type == "floating")
         {
             // TODO: Should we also put kd on floating joints?
@@ -308,7 +290,7 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
         }
         else if(joint_type == "revolute")
         {
-            glm::rvec3 axis = string_to_vector3d(joint_elem->Attribute("axis"));
+            glm::rvec3 axis = string_to_vector3d(joint_elem.attribute("axis").as_string());
             if (glm::epsilonEqual<real>(axis.x, 1.0, 1e-8)) {
                 joint = Joint::revolute_x(kp, kd);
             }
@@ -329,132 +311,138 @@ bool load_from_xml(tinyxml2::XMLElement* art_elem, const char* current_dir, OUT 
         current_idx++;
     }
 
+    // Load articulation state
+    auto initial_state_elem = art_elem.child("initial_state");
+    if (initial_state_elem != nullptr) {
+        std::stringstream ss(initial_state_elem.text().as_string());
+        std::string token;
+        while (ss >> token) {
+            spec.initial_state.push_back(std::stod(token));
+        }
+    }
+
     spec.build();
     return true;
 }
 
-tinyxml2::XMLError load_from_xml(const char* filename, OUT ArticulatedBodySpec& spec) {
-    XMLDocument doc;
-    XMLError err = doc.LoadFile(filename);
-    if (err != XMLError::XML_SUCCESS) {
+pugi::xml_parse_result load_from_xml(const char* filename, OUT ArticulatedBodySpec& spec) {
+    pugi::xml_document doc;
+    pugi::xml_parse_result result = doc.load_file(filename);
+    if (!result) {
         std::cout << "Can't open file : " << filename << std::endl;
-        return err;
+        return result;
     }
     // TODO: better error checking
     auto parent_folder = fs::path(filename).parent_path().string();
-    if (load_from_xml(doc.RootElement(), parent_folder.c_str(), spec)) {
-        return err;
+    if (load_from_xml(doc.document_element(), parent_folder.c_str(), spec)) {
+        return result;
     }
     else {
-        return err;
+        return result;
     }
 }
 
-tinyxml2::XMLElement* save_to_xml(tinyxml2::XMLDocument& doc, ArticulatedBodySpec& spec) {
-    auto el_art = doc.NewElement("articulation");
-    el_art->SetAttribute("name", "default");
-    el_art->SetAttribute("xform_mode", "global");
+pugi::xml_node save_to_xml(pugi::xml_document& doc, ArticulatedBodySpec& spec) {
+    auto el_art = doc.append_child("articulation");
+    el_art.append_attribute("name") = "default";
+    el_art.append_attribute("xform_mode") = "global";
     int num_nodes = spec.get_num_joints();
     for (int i = 0; i < num_nodes; i++) {
         auto& link = spec.links[i];
         auto& joint = spec.joints[i];
         auto& name = spec.names[i];
-        auto el_node = doc.NewElement("node");
-        el_art->InsertEndChild(el_node);
-        el_node->SetAttribute("name", name.c_str());
+        auto el_node = el_art.append_child("node");
+        el_node.append_attribute("name") = name.c_str();
         if (spec.parents[i] == -1) {
-            el_node->SetAttribute("parent", "none");
+            el_node.append_attribute("parent") = "none";
         }
         else {
-            el_node->SetAttribute("parent", spec.names[spec.parents[i]].c_str());
+            el_node.append_attribute("parent") = spec.names[spec.parents[i]].c_str();
         }
 
         ArticulatedBody art;
         art.init(spec);
         art.forward_kinematics();
 
-        auto el_link = doc.NewElement("link");
-        el_node->InsertEndChild(el_link);
+        auto el_link = el_art.append_child("link");
 
         switch (link.col_shape.type) {
             case CollisionShape::Type::Ground:
-                el_link->SetAttribute("type", "ground");
+                el_link.append_attribute("type") = "ground";
                 break;
             case CollisionShape::Type::Sphere:
-                el_link->SetAttribute("type", "sphere");
-                el_link->SetAttribute("radius", link.col_shape.scale[0]);
+                el_link.append_attribute("type") = "sphere";
+                el_link.append_attribute("radius") = link.col_shape.scale[0];
                 break;
             case CollisionShape::Type::Box: {
-                el_link->SetAttribute("type", "box");
+                el_link.append_attribute("type") = "box";
                 auto size_str = to_string(link.col_shape.scale);
-                el_link->SetAttribute("size", size_str.c_str());
+                el_link.append_attribute("size") = size_str.c_str();
             } break;
             case CollisionShape::Type::Mesh: {
-                el_link->SetAttribute("type", "mesh");
+                el_link.append_attribute("type") = "mesh";
                 auto scale_str = to_string(link.col_shape.scale);
-                el_link->SetAttribute("scale", scale_str.c_str()); // TODO
+                el_link.append_attribute("scale") = scale_str.c_str(); // TODO
             } break;
         }
 
         real volume = link.col_shape.mass(real(1));
         real density = link.mass / volume;
 
-        el_link->SetAttribute("mass", link.mass);
+        el_link.append_attribute("mass") = link.mass;
         auto link_pos_str = to_string(art.get_global_link_trans(i).v);
-        el_link->SetAttribute("pos", link_pos_str.c_str());
+        el_link.append_attribute("pos") = link_pos_str.c_str();
         auto link_rot_str = to_string(glmx::log_mat(art.get_global_link_trans(i).R));
-        el_link->SetAttribute("rot", link_rot_str.c_str());
+        el_link.append_attribute("rot") = link_rot_str.c_str();
 
-        auto el_joint = doc.NewElement("joint");
-        el_node->InsertEndChild(el_joint);
+        auto el_joint = el_art.append_child("joint");
 
         switch (joint.type) {
             case JOINT_TYPE_FLOATING: {
-                el_joint->SetAttribute("type", "free");
+                el_joint.append_attribute("type") = "free";
             } break;
             case JOINT_TYPE_PRISMATIC_X: {
-                el_joint->SetAttribute("type", "prismatic");
-                el_joint->SetAttribute("axis", "1 0 0");
+                el_joint.append_attribute("type") = "prismatic";
+                el_joint.append_attribute("axis") = "1 0 0";
             } break;
             case JOINT_TYPE_PRISMATIC_Y: {
-                el_joint->SetAttribute("type", "prismatic");
-                el_joint->SetAttribute("axis", "0 1 0");
+                el_joint.append_attribute("type") = "prismatic";
+                el_joint.append_attribute("axis") = "0 1 0";
             } break;
             case JOINT_TYPE_PRISMATIC_Z: {
-                el_joint->SetAttribute("type", "prismatic");
-                el_joint->SetAttribute("axis", "0 0 1");
+                el_joint.append_attribute("type") = "prismatic";
+                el_joint.append_attribute("axis") = "0 0 1";
             } break;
             case JOINT_TYPE_REVOLUTE_X:  {
-                el_joint->SetAttribute("type", "revolute");
-                el_joint->SetAttribute("axis", "1 0 0");
+                el_joint.append_attribute("type") = "revolute";
+                el_joint.append_attribute("axis") = "1 0 0";
             } break;
             case JOINT_TYPE_REVOLUTE_Y: {
-                el_joint->SetAttribute("type", "revolute");
-                el_joint->SetAttribute("axis", "0 1 0");
+                el_joint.append_attribute("type") = "revolute";
+                el_joint.append_attribute("axis") = "0 1 0";
             } break;
             case JOINT_TYPE_REVOLUTE_Z: {
-                el_joint->SetAttribute("type", "revolute");
-                el_joint->SetAttribute("axis", "0 0 1");
+                el_joint.append_attribute("type") = "revolute";
+                el_joint.append_attribute("axis") = "0 0 1";
             } break;
             case JOINT_TYPE_SPHERICAL: {
-                el_joint->SetAttribute("type", "spherical");
+                el_joint.append_attribute("type") = "spherical";
             } break;
         }
-        el_joint->SetAttribute("kp", joint.kp);
-        el_joint->SetAttribute("kd", joint.kd);
+        el_joint.append_attribute("kp") = joint.kp;
+        el_joint.append_attribute("kd") = joint.kd;
         auto joint_pos_str = to_string(art.get_global_joint_trans(i).v);
-        el_joint->SetAttribute("pos", joint_pos_str.c_str());
+        el_joint.append_attribute("pos") = joint_pos_str.c_str();
         auto joint_rot_str = to_string(glmx::log_mat(art.get_global_joint_trans(i).R));
-        el_joint->SetAttribute("rot", joint_rot_str.c_str());
+        el_joint.append_attribute("rot") = joint_rot_str.c_str();
     }
     return el_art;
 }
 
-XMLError save_to_xml(const char* filename, ArticulatedBodySpec& art) {
-    XMLDocument doc;
-    XMLElement* el_art = save_to_xml(doc, art);
-    doc.InsertEndChild(el_art);
-    return doc.SaveFile(filename);
+void save_to_xml(const char* filename, ArticulatedBodySpec& art) {
+    pugi::xml_document doc;
+    auto el_art = save_to_xml(doc, art);
+    doc.save_file(filename);
 }
 
 }

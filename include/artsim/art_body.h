@@ -127,6 +127,8 @@ struct ArticulatedBodySpec {
     std::vector<Link> links;
     std::vector<Joint> joints;
 
+    std::vector<float> initial_state;
+
     bool floating = false;
 
     std::vector<int> joint_pos_dofs;

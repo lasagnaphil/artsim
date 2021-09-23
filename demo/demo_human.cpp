@@ -108,8 +108,7 @@ public:
         imRenderer.render();
 
         auto art = world.get_articulated_body(art_id);
-        bool pos_edited, vel_edited, force_edited;
-        articulated_body_imgui(*art, pos_edited, vel_edited, force_edited);
+        auto [pos_edited, vel_edited, force_edited] = articulated_body_imgui(*art);
     }
 
     void release() override {
@@ -127,7 +126,7 @@ public:
         world.add_plane(default_mat_id);
 
         ArticulatedBodySpec art_spec;
-        if (load_from_xml("demo/resources/human.xml", art_spec) != tinyxml2::XML_SUCCESS) {
+        if (!load_from_xml("demo/resources/human.xml", art_spec)) {
             fmt::print("Failed to load articulation!\n");
             exit(EXIT_FAILURE);
         }
