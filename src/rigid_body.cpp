@@ -6,7 +6,7 @@
 
 #include <artsim/types.h>
 #include <artsim/math/bullet.h>
-#include <artsim/collision_shape.h>
+#include <artsim/collision/collision_shape.h>
 #include <artsim/artsim.h>
 #include <artsim/material.h>
 

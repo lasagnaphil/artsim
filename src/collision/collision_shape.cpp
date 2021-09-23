@@ -2,7 +2,7 @@
 // Created by lasagnaphil on 8/21/21.
 //
 
-#include <artsim/collision_shape.h>
+#include <artsim/collision/collision_shape.h>
 #include <artsim/math/eigen.h>
 #include <artsim/math/bullet.h>
 
@@ -67,58 +67,4 @@ tsmat3x3<real> CollisionShape::inertia(real density) const {
         }
         default: return tsmat3x3<real>(0, 0, 0, 0, 0, 0);
     }
-}
-
-CollisionShape CollisionShape::make_ground() {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Ground;
-    shape.scale = glm::rvec3(1);
-    shape.bt_shape = new btStaticPlaneShape(btVector3(0, 1, 0), 0);
-    return shape;
-}
-
-CollisionShape CollisionShape::make_box(glm::vec3 size) {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Box;
-    shape.scale = size;
-    shape.bt_shape = new btBoxShape(btconv(0.5f * size));
-    return shape;
-}
-
-CollisionShape CollisionShape::make_sphere(real radius) {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Sphere;
-    shape.scale = glm::rvec3(radius, radius, radius);
-    shape.bt_shape = new btSphereShape(radius);
-    return shape;
-}
-
-CollisionShape CollisionShape::make_mesh(Id<CollisionMesh> col_mesh, glm::rvec3 scale) {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Mesh;
-    shape.scale = scale;
-    shape.mesh.id = col_mesh;
-    shape.bt_shape = nullptr;
-    return shape;
-}
-
-CollisionShape CollisionShape::make_mesh_bvh(glm::rvec3 scale) {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Mesh;
-    shape.scale = scale;
-    shape.mesh.id = {};
-    shape.mesh.type = CollisionMesh::Type::BVH;
-    shape.bt_shape = nullptr;
-    return shape;
-}
-
-CollisionShape CollisionShape::make_mesh_sdf(real cell_size, glm::rvec3 scale) {
-    CollisionShape shape;
-    shape.type = CollisionShape::Type::Mesh;
-    shape.scale = scale;
-    shape.mesh.id = {};
-    shape.mesh.type = CollisionMesh::Type::SDF;
-    shape.mesh.cell_size = cell_size;
-    shape.bt_shape = nullptr;
-    return shape;
 }

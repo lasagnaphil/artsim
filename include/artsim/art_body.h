@@ -6,7 +6,7 @@
 #define ARTSIM_ART_BODY_H
 
 #include <artsim/types.h>
-#include <artsim/collision_shape.h>
+#include <artsim/collision/collision_shape.h>
 #include <artsim/math/dynmat.h>
 #include <artsim/anim/pose_tree.h>
 

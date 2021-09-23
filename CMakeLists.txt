@@ -34,6 +34,7 @@ add_subdirectory(libs)
 file(GLOB ARTSIM_SOURCES
         src/*.cpp
         src/math/*.cpp
+        src/collision/*.cpp
         src/anim/*.cpp
         src/utils/*.cpp
         src/utils/pymesh/*.cpp)

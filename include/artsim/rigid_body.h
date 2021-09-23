@@ -7,7 +7,7 @@
 
 #include <artsim/math/se3.h>
 #include <artsim/types.h>
-#include <artsim/collision_shape.h>
+#include <artsim/collision/collision_shape.h>
 #include <artsim/material.h>
 
 #include <BulletCollision/BroadphaseCollision/btBroadphaseProxy.h>

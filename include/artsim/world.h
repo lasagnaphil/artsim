@@ -12,6 +12,7 @@
 #include <artsim/contact_point.h>
 #include <artsim/rigid_body.h>
 #include <artsim/art_body.h>
+#include <artsim/collision/collision_manager.h>
 
 namespace artsim {
 

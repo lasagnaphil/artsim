@@ -1,0 +1,209 @@
+//
+// Created by lasagnaphil on 21. 9. 23..
+//
+
+#include <artsim/collision/collision_bvh.h>
+
+#include <numeric>
+#include <fmt/core.h>
+
+namespace artsim {
+
+void CollisionBVH::init(const CollisionBVH::AABB* aabbs, int num_aabbs) {
+    nodes.clear();
+    nodes.reserve(2*num_aabbs);
+    nodes.push_back(Node{});
+    std::vector<AABB> leaf_aabb(num_aabbs);
+    std::vector<glm::rvec3> leaf_centroids(num_aabbs, glm::rvec3(0));
+    for (int i = 0; i < num_aabbs; i++) {
+        auto& aabb = aabbs[i];
+        leaf_aabb[i].extend(aabb);
+        leaf_centroids[i] = aabb.center();
+    }
+    for (int i = 0; i < num_aabbs; i++) {
+        nodes[0].aabb.extend(leaf_aabb[i]);
+    }
+
+    std::vector<int> queue(num_aabbs);
+    std::iota(queue.begin(), queue.end(), 0);
+    create_children(0, queue, leaf_aabb, leaf_centroids);
+}
+
+
+void CollisionBVH::create_children(int node_id, std::vector<int>& queue, const std::vector<AABB>& leaves,
+                                   const std::vector<glm::rvec3>& centroids) {
+    // fmt::print("create_children({})\n", node_id);
+    Node& node = nodes[node_id];
+    int n_queue = queue.size();
+    if (n_queue == 0) {
+        fmt::print("Error in BVH::create_children(): empty queue\n");
+        exit(EXIT_FAILURE);
+    }
+    if (n_queue == 1) {
+        int qidx = queue[0];
+        node.prim_id = qidx;
+        node.aabb = leaves[qidx];
+        return;
+    }
+
+    // Compute the splitting plane
+    AABB tempAABB;
+    for (int i = 0; i < n_queue; ++i) { tempAABB.extend(centroids[queue[i]]); }
+    auto sizes = tempAABB.size();
+    int split = 0;
+    if (sizes[1] >= sizes[0] && sizes[1] >= sizes[2]) { split = 1; }
+    else if (sizes[2] >= sizes[0] && sizes[2] >= sizes[1]) { split = 2; }
+
+    // If two elements, make left and right
+    if (n_queue == 2) {
+        node.left_id = nodes.size();
+        node.right_id = nodes.size() + 1;
+        Node left_node, right_node;
+        int idx0 = queue[0];
+        int idx1 = queue[1];
+        const glm::rvec3& cent0 = centroids[idx0];
+        const glm::rvec3& cent1 = centroids[idx1];
+
+        if (cent0[split] < cent1[split]) {
+            left_node.prim_id = idx0;
+            left_node.aabb = leaves[idx0];
+            right_node.prim_id = idx1;
+            right_node.aabb = leaves[idx1];
+        } else {
+            left_node.prim_id = idx1;
+            left_node.aabb = leaves[idx1];
+            right_node.prim_id = idx0;
+            right_node.aabb = leaves[idx0];
+        }
+        nodes.push_back(left_node);
+        nodes.push_back(right_node);
+        return;
+    }
+
+    // Split the queue into left and right
+    T center = tempAABB.center()[split];
+    // fmt::print("split on axis {} with center {}\n", split, center);
+    AABB left_aabb, right_aabb;
+    std::vector<int> left_queue, right_queue;
+    for (int i = 0; i < n_queue; ++i) {
+        int idx = queue[i];
+        const glm::rvec3& cent = centroids[idx];
+        if (cent[split] < center) {
+            // fmt::print("insert on left {}\n", glm::to_string(cent));
+            left_queue.push_back(idx);
+            left_aabb.extend(leaves[idx]);
+        } else {
+            // fmt::print("insert on right {}\n", glm::to_string(cent));
+            right_queue.push_back(idx);
+            right_aabb.extend(leaves[idx]);
+        }
+    }
+
+    // This could possibly happen if the geometry left in the queue are all the same.
+    // When this happens, just split the right queue in half and share.
+    if (left_queue.size() == 0) {
+        int N = right_queue.size();
+        for (int i = 0; i < N/2; i++) {
+            left_queue.push_back(right_queue[N-1-i]);
+        }
+        for (int i = 0; i < N/2; i++) {
+            right_queue.pop_back();
+        }
+    }
+
+    // This should not happen!
+    if (right_queue.size() == 0) {
+        fmt::print("CollisionBVH::init() error: problem splitting geometry\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Create the left child
+    node.left_id = nodes.size();
+    Node left_node;
+    left_node.aabb = left_aabb;
+    nodes.push_back(left_node);
+    create_children(node.left_id, left_queue, leaves, centroids);
+
+    // Create the right child
+    node.right_id = nodes.size();
+    Node right_node;
+    right_node.aabb = right_aabb;
+    nodes.push_back(right_node);
+    create_children(node.right_id, right_queue, leaves, centroids);
+}
+
+
+bool CollisionBVH::traverse_children(int node_id, CollisionBVHVisitor& visitor) const {
+    auto& node = nodes[node_id];
+    if (!visitor.hit_aabb(node.aabb)) {
+        return false;
+    }
+    if (node.left_id != -1 && node.right_id != -1) {
+        auto& left_node = nodes[node.left_id];
+        auto& right_node = nodes[node.right_id];
+        bool check_left_first = visitor.check_left_first(left_node.aabb, right_node.aabb);
+        if (check_left_first) {
+            if (traverse_children(node.left_id, visitor)) return true;
+            else return traverse_children(node.right_id, visitor);
+        }
+        else {
+            if (traverse_children(node.right_id, visitor)) return true;
+            else return traverse_children(node.left_id, visitor);
+        }
+    }
+    if (node.left_id != -1) return traverse_children(node.left_id, visitor);
+    if (node.right_id != -1) return traverse_children(node.right_id, visitor);
+    if (node.prim_id == -1) {
+        fmt::print("CollisionBVH::traverse() error: leaf has no primitive\n");
+        exit(EXIT_FAILURE);
+    }
+    return visitor.hit_prim(node.prim_id);
+}
+
+template <class T>
+template <class PairVisitor>
+void CollisionBVH::find_collisions(const CollisionBVH& tree1, const CollisionBVH& tree2, PairVisitor&& visitor) {
+    return find_collisions(tree1, tree2, 0, 0, visitor);
+}
+
+template <class T>
+template <class PairVisitor>
+void CollisionBVH::find_collisions(const CollisionBVH& tree1, const CollisionBVH& tree2, int node1_id, int node2_id,
+                                   PairVisitor&& visitor) {
+    auto& node1 = tree1.nodes[node1_id];
+    auto& node2 = tree2.nodes[node2_id];
+    if (node1.aabb.collides_with(node2.aabb)) {
+        bool node1_leaf = node1.left_id == -1 && node1.right_id == -1;
+        bool node2_leaf = node2.left_id == -1 && node2.right_id == -1;
+        if (node1_leaf && node2_leaf) {
+            if (node1.prim_id == -1 || node2.prim_id == -1) {
+                fmt::print("CollisionBVH::find_collisions() error: leaf has no primitive\n");
+                exit(EXIT_FAILURE);
+            }
+            visitor(node1.aabb, node2.aabb, node1.prim_id, node2.prim_id);
+            return;
+        }
+        real volume1 = node1.aabb.volume();
+        real volume2 = node2.aabb.volume();
+        if (node1_leaf) {
+            find_collisions(tree1, tree2, node1_id, node2.left_id, visitor);
+            find_collisions(tree1, tree2, node1_id, node2.right_id, visitor);
+        }
+        else if (node2_leaf) {
+            find_collisions(tree1, tree2, node1.left_id, node2_id, visitor);
+            find_collisions(tree1, tree2, node1.right_id, node2_id, visitor);
+        }
+        else {
+            if (volume1 < volume2) {
+                find_collisions(tree1, tree2, node1_id, node2.left_id, visitor);
+                find_collisions(tree1, tree2, node1_id, node2.right_id, visitor);
+            }
+            else {
+                find_collisions(tree1, tree2, node1.left_id, node2_id, visitor);
+                find_collisions(tree1, tree2, node1.right_id, node2_id, visitor);
+            }
+        }
+    }
+}
+
+}
