@@ -36,6 +36,7 @@ struct WorldConfig {
 class World {
 private:
     Arena<RigidBody> rigid_bodies;
+    Arena<ArticulatedBodySpec> art_body_specs;
     Arena<ArticulatedBody> articulated_bodies;
     MaterialDB material_db;
 
@@ -68,6 +69,14 @@ public:
     bool remove_rigid_body(Id<RigidBody> id);
 
     Id<RigidBody> add_plane(Id<Material> mat_id);
+
+    Id<ArticulatedBodySpec> add_art_body_spec(const ArticulatedBodySpec& spec) {
+        return art_body_specs.insert(spec);
+    }
+
+    ArticulatedBodySpec* get_art_body_spec(Id<ArticulatedBodySpec> id) {
+        return art_body_specs.get(id);
+    }
 
     Id<ArticulatedBody> add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id,
                                              int col_filter_group = btBroadphaseProxy::DefaultFilter,

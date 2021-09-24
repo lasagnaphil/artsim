@@ -27,6 +27,7 @@ namespace glmx {
         explicit ttransform(glm::tquat<T> q) : v(0), R(glm::mat3_cast(q)) {}
         explicit ttransform(glm::tmat3x3<T> R) : v(0), R(R) {}
         ttransform(glm::tvec3<T> v, glm::tmat3x3<T> R) : v(v), R(R) {}
+        ttransform(glm::tvec3<T> v, glm::tquat<T> q) : v(v), R(glm::mat3_cast(q)) {}
 
         template <class U>
         explicit operator ttransform<U>() const { return ttransform<U>(v, R); }
@@ -276,8 +277,34 @@ namespace glmx {
     }
 
     template <class T>
+    inline tscrew<T> Ad(tquat_transform<T> t, tscrew<T> V) {
+        auto R = glm::mat3_cast(t.q);
+        glm::tvec3<T> w = R * V.w;
+        return tscrew<T>(w, glm::cross(t.v, w) + R * V.v);
+    }
+
+    template <class T>
+    inline tscrew<T> Ad_inv(tquat_transform<T> t, tscrew<T> V) {
+        auto R = glm::mat3_cast(glm::inverse(t.q));
+        glm::tvec3<T> w = R * V.w;
+        return tscrew<T>(w, glm::cross(w, t.v) + R * V.v);
+    }
+
+    template <class T>
     inline tscrew<T> AdT(ttransform<T> t, tscrew<T> V) {
         return tscrew<T>(glm::transpose(t.R) * (V.w + glm::cross(V.v, t.v)), glm::transpose(t.R) * V.v);
+    }
+
+    template <class T>
+    inline tscrew<T> AdT(tquat_transform<T> t, tscrew<T> V) {
+        auto Rinv = glm::mat3_cast(glm::inverse(t.q));
+        return tscrew<T>(Rinv * (V.w + glm::cross(V.v, t.v)), Rinv * V.v);
+    }
+
+    template <class T>
+    inline tscrew<T> AdT_inv(tquat_transform<T> t, tscrew<T> V) {
+        auto Rinv = glm::mat3_cast(t.q);
+        return tscrew<T>(Rinv * (V.w + glm::cross(t.v, V.v)), Rinv * V.v);
     }
 
     template <class T>

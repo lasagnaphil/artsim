@@ -255,11 +255,38 @@ public:
     }
 
     template <class Fun>
-    void foreach_id_val(Fun&& fun) {
+    void foreach_id(Fun&& fun) const {
+        for (int i = 0; i < dense_to_sparse_map.size(); i++) {
+            const auto& id = free_list[dense_to_sparse_map[i]];
+            fun(id);
+        }
+    }
+
+
+    template <class Fun>
+    void foreach_id_val(Fun&& fun) const {
+        for (int i = 0; i < dense_to_sparse_map.size(); i++) {
+            const auto& id = free_list[dense_to_sparse_map[i]];
+            const auto& val = items[i];
+            fun(id, val);
+        }
+    }
+
+    template <class Fun>
+    void enumerate_id_val(Fun&& fun) {
         for (int i = 0; i < dense_to_sparse_map.size(); i++) {
             auto& id = free_list[dense_to_sparse_map[i]];
             auto& val = items[i];
-            fun(id, val);
+            fun(i, id, val);
+        }
+    }
+
+    template <class Fun>
+    void enumerate_id_val(Fun&& fun) const {
+        for (int i = 0; i < dense_to_sparse_map.size(); i++) {
+            const auto& id = free_list[dense_to_sparse_map[i]];
+            const auto& val = items[i];
+            fun(i, id, val);
         }
     }
 

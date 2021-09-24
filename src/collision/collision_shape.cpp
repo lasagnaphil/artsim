@@ -22,7 +22,9 @@ void CollisionMesh::init_bvh(const char* objfile) {
 }
 
 void CollisionMesh::init_sdf(const char* objfile, real sdf_grid_size) {
-    init_bvh(objfile);
+    if (!bvh) {
+        init_bvh(objfile);
+    }
 
     type = CollisionMesh::Type::SDF;
 

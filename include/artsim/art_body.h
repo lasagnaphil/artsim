@@ -6,9 +6,10 @@
 #define ARTSIM_ART_BODY_H
 
 #include <artsim/types.h>
-#include <artsim/collision/collision_shape.h>
+#include <artsim/rigid_body.h>
 #include <artsim/math/dynmat.h>
 #include <artsim/anim/pose_tree.h>
+#include <artsim/collision/collision_shape.h>
 
 #include <BulletCollision/CollisionDispatch/btCollisionObject.h>
 #include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
@@ -16,6 +17,7 @@
 namespace artsim {
 
 struct Material;
+struct World;
 
 enum JointType : int {
     JOINT_TYPE_REVOLUTE_X = 0,
@@ -108,8 +110,8 @@ struct Link {
     real density;
     real mass;
     CollisionShape col_shape;
-    glmx::ttransform<real> local_joint_pose;
-    glmx::ttransform<real> local_link_pose;
+    glmx::rquat_transform local_joint_pose;
+    glmx::rquat_transform local_link_pose;
     int parent_idx;
     Id<Material> mat_id;
     std::string obj_filename;
@@ -175,57 +177,41 @@ struct ArticulatedBodySpec {
 
 class ArticulatedBody {
 private:
-    artsim::ArticulatedBodySpec spec;
-    Id<Material> mat_id;
+    World* world;
+
+    Id<ArticulatedBodySpec> spec_id;
+
+    CollisionFlags collision_flags;
+
+    std::vector<Id<RigidBody>> bodies;
+
+    int num_pos_dofs;
+    int num_vel_dofs;
 
     std::vector<real> q;
     std::vector<real> u;
     std::vector<real> udot;
     std::vector<real> tau;
-    std::vector<glmx::tscrew<real>> f_ext;
-    std::vector<glmx::tscrew<real>> f_c;
     std::vector<real> q_target;
 
-    std::vector<glmx::ttransform<real>> global_link_trans;
-    std::vector<glmx::ttransform<real>> global_joint_trans;
-    std::vector<glmx::tscrew<real>> global_link_vel;
-
-    std::vector<btCollisionObject*> bt_collision_objects;
-
-    bool _is_static = false;
-    bool _is_self_collision_enabled = false;
-
 public:
-    void init(artsim::ArticulatedBodySpec art_spec);
-    void init(Id<ArticulatedBody> art_id, artsim::ArticulatedBodySpec art_spec, Id<Material> mat_id,
-              btCollisionWorld* bt_collision_world,
-              int col_filter_group_mask = btBroadphaseProxy::DefaultFilter,
-              int col_filter_mask = btBroadphaseProxy::AllFilter,
-              bool enable_self_collisions = false);
-
-    void release(btCollisionWorld* bt_collision_world);
+    void init(World* world, Id<ArticulatedBodySpec> art_spec_id);
 
     void reset();
     void randomize_positions();
 
-    const ArticulatedBodySpec& get_spec() const { return spec; }
-    ArticulatedBodySpec& get_spec_mut() { return spec; }
+    int get_num_pos_dofs() const { return num_pos_dofs; }
+    int get_num_vel_dofs() const { return num_vel_dofs; }
+    int get_num_joints() const { return bodies.size(); }
+    int get_num_links() const { return bodies.size(); }
 
-    int get_num_pos_dofs() const { return spec.get_num_pos_dofs(); }
-    int get_num_vel_dofs() const { return spec.get_num_vel_dofs(); }
-    int get_num_joints() const { return spec.get_num_joints(); }
-    int get_num_links() const { return spec.get_num_links(); }
+    CollisionFlags get_collision_flags() const { return collision_flags; }
 
     real* get_pos_buf() { return q.data(); }
     real* get_vel_buf() { return u.data(); }
     real* get_acc_buf() { return udot.data(); }
     real* get_internal_force_buf() { return tau.data(); }
-    glmx::rscrew* get_external_force_buf() { return f_ext.data(); }
-    glmx::rscrew* get_contact_force_buf() { return f_c.data(); }
     real* get_target_pos_buf() { return q_target.data(); }
-
-    Id<Material> get_mat_id() { return mat_id; }
-    void set_mat_id(Id<Material> new_mat_id) { mat_id = new_mat_id; }
 
     real get_joint_pos_1dof(int joint_idx) const;
     glm::rquat get_joint_pos_spherical(int joint_idx) const;
@@ -253,29 +239,7 @@ public:
     void mass_matrix(OUT glmx::dynmat_view<real> M, real dt = 0);
     void multiply_inverse_mass_matrix(glmx::dynmat_view<real> X, OUT glmx::dynmat_view<real> Minv_X, real dt = 0);
 
-    glmx::rtransform* get_global_joint_trans_buf() { return global_joint_trans.data(); }
-    glmx::rtransform* get_global_link_trans_buf() { return global_link_trans.data(); }
-
-    glmx::rtransform get_global_joint_trans(int joint_idx) const;
-    glmx::rtransform get_global_link_trans(int link_idx) const;
-
-    glmx::rscrew get_global_link_body_vel(int link_idx) const { return global_link_vel[link_idx]; }
-    glm::rvec3 get_global_link_linvel(int link_idx) const {
-        return global_link_trans[link_idx].R * global_link_vel[link_idx].v;
-    }
-    glm::rvec3 get_global_link_angvel(int link_idx) const {
-        return global_link_trans[link_idx].R * global_link_vel[link_idx].w;
-    }
-
     glm::rvec3 get_center_of_mass() const;
-
-    bool is_self_collision_enabled() const { return _is_self_collision_enabled; }
-    void enable_self_collisions() { _is_self_collision_enabled = true; }
-    void disable_self_collisions() { _is_self_collision_enabled = false; }
-
-    bool is_static() const { return _is_static; }
-    void set_static() { _is_static = true; }
-    void set_dynamic() { _is_static = false; }
 };
 
 }

@@ -17,34 +17,6 @@
 
 namespace artsim {
 
-void RigidBody::init(RigidBodySpec rb_spec) {
-    this->spec = rb_spec;
-    reset();
-}
-
-void RigidBody::init(Id<RigidBody> rb_id, RigidBodySpec rb_spec, Id<Material> mat_id,
-                     btCollisionWorld* bt_collision_world,
-                     int col_filter_group_mask, int col_filter_mask) {
-    this->spec = rb_spec;
-    this->mat_id = mat_id;
-    reset();
-    auto col_shape = spec.col_shape;
-    if (col_shape.type != CollisionShape::Type::Mesh) {
-        BodyLinkId body_id = BodyLinkId::from_rigid_body(rb_id);
-        bt_collision_object = new btCollisionObject;
-        bt_collision_object->setCollisionShape(spec.col_shape.bt_shape);
-        bt_collision_object->setWorldTransform(btTransform::getIdentity());
-        bt_collision_object->setUserIndex(body_id.index);
-        bt_collision_object->setUserIndex2(body_id.generation);
-        bt_collision_world->addCollisionObject(bt_collision_object, col_filter_group_mask, col_filter_mask);
-    }
-}
-
-void RigidBody::release(btCollisionWorld* bt_world) {
-    bt_world->removeCollisionObject(bt_collision_object);
-    delete bt_collision_object;
-}
-
 void RigidBody::reset() {
     pos = {};
     rot = glm::identity<glm::rquat>();
@@ -83,8 +55,8 @@ void RigidBody::update_colliders() {
 }
 
 void RigidBody::forward_dynamics(const rvec3& gravity) {
-    acc = gravity + (f_ext + f_c) / spec.mass;
-    angacc = spec.inv_inertia * (tau_ext + tau_c - glm::cross(angvel, (spec.inertia * angvel)));
+    acc = gravity + (f_ext + f_c) / mass;
+    angacc = inv_inertia * (tau_ext + tau_c - glm::cross(angvel, (inertia * angvel)));
 }
 
 void RigidBody::integrate(real dt) {
