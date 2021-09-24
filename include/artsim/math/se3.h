@@ -745,6 +745,20 @@ namespace glmx {
                         symmetric_cartesian_product(V.v));
     }
 
+
+    template <class T>
+    inline tsmat6x6<T> transform_smat(const tquat_transform<T>& T_ab, const tsmat6x6<T>& G_b) {
+        tsmat6x6<T> G_a;
+        glm::tmat3x3<T> P = skew_symmetric(T_ab.v);
+        glm::tmat3x3<T> PM = P * mat3_cast(G_b.M);
+        glm::tmat3x3<T> CP = G_b.C * P;
+        auto R = glm::mat3_cast(T_ab.q);
+        G_a.I = rotate(R, G_b.I - smat3_cast(CP + glm::transpose(CP) + PM*P));
+        G_a.C = rotate(R, G_b.C + PM);
+        G_a.M = rotate(R, G_b.M);
+        return G_a;
+    }
+
     template <class T>
     inline tsmat6x6<T> inv_transform(const tsmat6x6<T>& G_b, const ttransform<T>& T_ba) {
         tsmat6x6<T> G_a;

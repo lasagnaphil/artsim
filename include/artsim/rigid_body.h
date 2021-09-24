@@ -19,11 +19,19 @@ class btCollisionObject;
 
 namespace artsim {
 
-enum class CollisionFlags {
+enum CollisionFlags : uint32_t {
     CF_DYNAMIC_OBJECT = 0,
     CF_STATIC_OBJECT = 1,
     CF_KINEMATIC_OBJECT = 2,
     CF_DETECT_SELF_COLLISIONS = 4
+};
+
+enum CollisionMask : uint32_t {
+    CM_DEFAULT = 1,
+    CM_STATIC = 2,
+    CM_KINEMATIC = 4,
+    CM_CHARACTER = 8,
+    CM_ALL = 0xffffffff,
 };
 
 struct World;
@@ -35,22 +43,24 @@ struct RigidBody {
     Id<Material> mat_id;
 
     CollisionFlags collision_flags;
+    CollisionMask filter_group;
+    CollisionMask filter_mask;
+
+    real mass;
+    glmx::rsmat3x3 inertia;
+    glmx::rquat_transform offset_from_com;
 
     glmx::tbox<3, real> bounds;
     glm::rvec3 bounds_center;
+    int bvh_id = -1;
 
-    glmx::rsmat3x3 inertia, inv_inertia;
-    real mass, inv_mass;
-    glmx::rquat_transform offset_from_com;
+    glmx::rsmat6x6 I;
 
     glmx::rquat_transform world_trans;
     glmx::rscrew body_vel;
-    glm::rvec3 acc;
-    glm::rvec3 angacc;
-    glm::rvec3 f_ext;
-    glm::rvec3 tau_ext;
-    glm::rvec3 f_c;
-    glm::rvec3 tau_c;
+    glmx::rscrew body_acc;
+    glmx::rscrew body_f_ext;
+    glmx::rscrew body_f_c;
 
     void reset();
     void randomize_positions();

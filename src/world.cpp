@@ -51,50 +51,85 @@ void World::destroy() {
     material_db.clear();
 }
 
-Id<RigidBody> World::add_rigid_body(const RigidBodySpec& spec, Id<Material> mat_id) {
-    auto id = rigid_bodies.make();
-    auto ptr = rigid_bodies.get(id);
-    ptr->init(id, spec, mat_id, bt_collision_world);
-    return id;
+Id<CollisionShape> World::add_ground_shape() {
+    CollisionShape shape;
+    shape.type = CollisionShape::Type::Ground;
+    shape.scale = glm::rvec3(1);
+    return col_shapes.insert(shape);
 }
 
-bool World::remove_rigid_body(Id<RigidBody> id) {
-    auto ptr = rigid_bodies.try_get(id);
-    if (!ptr) return false;
-    ptr->release(bt_collision_world);
-    rigid_bodies.release(id);
-    return true;
+Id<CollisionShape> World::add_box_shape(glm::rvec3 size) {
+    CollisionShape shape;
+    shape.type = CollisionShape::Type::Box;
+    shape.scale = size;
+    return col_shapes.insert(shape);
+}
+
+Id<CollisionShape> World::add_sphere_shape(real radius) {
+    CollisionShape shape;
+    shape.type = CollisionShape::Type::Sphere;
+    shape.scale = glm::rvec3(radius, radius, radius);
+    return col_shapes.insert(shape);
+}
+
+Id<CollisionShape> World::add_mesh_shape_bvh(const char* objfile, glm::rvec3 scale) {
+    CollisionShape shape;
+    shape.type = CollisionShape::Type::Mesh;
+    shape.scale = scale;
+    shape.mesh = add_collision_mesh_bvh(objfile);
+    return col_shapes.insert(shape);
+}
+
+Id<CollisionShape> World::add_mesh_shape_sdf(const char* objfile, real cell_size, glm::rvec3 scale) {
+    CollisionShape shape;
+    shape.type = CollisionShape::Type::Mesh;
+    shape.scale = scale;
+    shape.mesh = add_collision_mesh_sdf(objfile, cell_size);
+    return col_shapes.insert(shape);
+}
+
+Id<RigidBody> World::add_rigid_body(Id<CollisionShape> shape_id, Id<Material> mat_id,
+                             real mass, glmx::rsmat3x3 inertia, glmx::rquat_transform offset_from_com,
+                             CollisionFlags collision_flags,
+                             CollisionMask filter_group,
+                             CollisionMask filter_mask) {
+    RigidBody rb;
+    rb.world = this;
+    rb.shape_id = shape_id;
+    rb.mat_id = mat_id;
+
+    rb.mass = mass;
+    rb.inertia = inertia;
+    auto I = glmx::rsmat6x6(inertia, glm::rmat3(0), mass);
+    rb.I = glmx::transform_smat(offset_from_com, I);
+    rb.offset_from_com = offset_from_com;
+
+    rb.collision_flags = collision_flags;
+    rb.filter_group = filter_group;
+    rb.filter_mask = filter_mask;
+
+    rb.reset();
 }
 
 Id<RigidBody> World::add_plane(Id<Material> mat_id) {
-    RigidBodySpec spec;
-    const real inf = std::numeric_limits<real>::infinity();
-    spec.mass = inf;
-    spec.inertia = glmx::rsmat3x3(inf);
-    spec.col_shape = CollisionShape::make_ground();
-    auto body_id = add_rigid_body(spec, mat_id);
-    auto body = get_rigid_body(body_id);
-    body->is_static = true;
-    return body_id;
+    constexpr real inf = std::numeric_limits<real>::infinity();
+    return add_rigid_body(
+            plane_col, mat_id,
+            inf, glmx::rsmat3x3(inf), glmx::rquat_transform(glmx::IDENTITY),
+            CF_STATIC_OBJECT, CM_DEFAULT, CM_ALL);
 }
 
 Id<ArticulatedBody>
-World::add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id, int col_filter_group,
-                            int col_filter_mask, bool enable_self_colisions) {
+World::add_articulated_body(Id<ArticulatedBodySpec> spec_id, Id<Material> mat_id,
+                            CollisionFlags collision_flags,
+                            CollisionMask filter_group,
+                            CollisionMask filter_mask) {
     auto id = articulated_bodies.make();
     auto ptr = articulated_bodies.get(id);
-    ptr->init(id, spec, mat_id, bt_collision_world, col_filter_group, col_filter_mask, enable_self_colisions);
-    load_collision_meshes(ptr->get_spec_mut());
+    ptr->init(this, spec_id);
     return id;
 }
 
-bool World::remove_articulated_body(Id<ArticulatedBody> id) {
-    auto ptr = articulated_bodies.try_get(id);
-    if (!ptr) return false;
-    ptr->release(bt_collision_world);
-    articulated_bodies.release(id);
-    return true;
-}
 
 Id<CollisionMesh> World::add_collision_mesh_bvh(const char* objfile) {
     auto id = col_meshes.make();
@@ -110,20 +145,13 @@ Id<CollisionMesh> World::add_collision_mesh_sdf(const char* objfile, real sdf_gr
     return id;
 }
 
-bool World::remove_collision_mesh(Id<CollisionMesh> id) {
-    auto ptr = col_meshes.try_get(id);
-    if (!ptr) return false;
-    col_meshes.release(id);
-    return true;
-}
-
 void World::simulate() {
     for (auto& art : articulated_bodies) {
         art.forward_kinematics();
         art.update_colliders();
     }
     for (auto& rb : rigid_bodies) {
-        if (rb.is_static) continue;
+        if ((rb.collision_flags & CF_DYNAMIC_OBJECT) == 0) continue;
         rb.update_colliders();
     }
     bt_collision_world->performDiscreteCollisionDetection();

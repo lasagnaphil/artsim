@@ -41,16 +41,15 @@ private:
     MaterialDB material_db;
 
     Arena<CollisionMesh> col_meshes;
+    Arena<CollisionShape> col_shapes;
 
-    btCollisionWorld* bt_collision_world = nullptr;
-    btCollisionObject* bt_plane_col = nullptr;
-    btOverlapFilterCallback* overlap_filter_callback = nullptr;
+    Id<CollisionShape> plane_col = {};
 
     WorldConfig cfg;
 
-    std::vector<ContactPoint> contact_points;
-
 public:
+    friend class CollisionManager;
+
     void init(WorldConfig world_cfg);
     void destroy();
 
@@ -60,72 +59,52 @@ public:
     real get_timestep() const { return cfg.dt; }
     void set_timestep(real dt) { cfg.dt = dt; }
 
-    Id<RigidBody> add_rigid_body(const RigidBodySpec& spec, Id<Material> mat_id);
+    Id<CollisionMesh> add_collision_mesh_bvh(const char* objfile);
+    Id<CollisionMesh> add_collision_mesh_sdf(const char* objfile, real sdf_grid_size);
+    CollisionMesh* get_collision_mesh(Id<CollisionMesh> id) { return col_meshes.get(id); }
+    bool remove_collision_mesh(Id<CollisionMesh> id) { return col_meshes.release(id); }
 
-    RigidBody* get_rigid_body(Id<RigidBody> id) {
-        return rigid_bodies.get(id);
-    }
+    Id<CollisionShape> add_ground_shape();
+    Id<CollisionShape> add_box_shape(glm::rvec3 size);
+    Id<CollisionShape> add_sphere_shape(real radius);
+    Id<CollisionShape> add_mesh_shape_bvh(const char* objfile, glm::rvec3 scale);
+    Id<CollisionShape> add_mesh_shape_sdf(const char* objfile, real cell_size, glm::rvec3 scale);
+    CollisionShape* get_shape(Id<CollisionShape> id) { return col_shapes.get(id); }
 
-    bool remove_rigid_body(Id<RigidBody> id);
+    Id<RigidBody> add_rigid_body(Id<CollisionShape> shape_id, Id<Material> mat_id,
+                                 real mass, glmx::rsmat3x3 inertia, glmx::rquat_transform offset_from_com,
+                                 CollisionFlags collision_flags = CF_DYNAMIC_OBJECT,
+                                 CollisionMask filter_group = CM_DEFAULT,
+                                 CollisionMask filter_mask = CM_ALL);
+    RigidBody* get_rigid_body(Id<RigidBody> id) { return rigid_bodies.get(id); }
+    bool remove_rigid_body(Id<RigidBody> id) { return rigid_bodies.release(id); }
 
     Id<RigidBody> add_plane(Id<Material> mat_id);
 
-    Id<ArticulatedBodySpec> add_art_body_spec(const ArticulatedBodySpec& spec) {
-        return art_body_specs.insert(spec);
-    }
+    Id<ArticulatedBodySpec> add_art_body_spec(const ArticulatedBodySpec& spec) { return art_body_specs.insert(spec); }
+    ArticulatedBodySpec* get_art_body_spec(Id<ArticulatedBodySpec> id) { return art_body_specs.get(id); }
 
-    ArticulatedBodySpec* get_art_body_spec(Id<ArticulatedBodySpec> id) {
-        return art_body_specs.get(id);
-    }
-
-    Id<ArticulatedBody> add_articulated_body(const ArticulatedBodySpec& spec, Id<Material> mat_id,
-                                             int col_filter_group = btBroadphaseProxy::DefaultFilter,
-                                             int col_filter_mask = btBroadphaseProxy::AllFilter,
-                                             bool enable_self_colisions = false);
-
-    ArticulatedBody* get_articulated_body(Id<ArticulatedBody> id) {
-        return articulated_bodies.get(id);
-    }
-
-    bool remove_articulated_body(Id<ArticulatedBody> id);
+    Id<ArticulatedBody> add_articulated_body(Id<ArticulatedBodySpec> spec_id, Id<Material> mat_id,
+                                             CollisionFlags collision_flags = CF_DYNAMIC_OBJECT,
+                                             CollisionMask filter_group = CM_DEFAULT,
+                                             CollisionMask filter_mask = CM_ALL);
+    ArticulatedBody* get_articulated_body(Id<ArticulatedBody> id) { return articulated_bodies.get(id); }
+    bool remove_articulated_body(Id<ArticulatedBody> id) { return articulated_bodies.release(id); }
 
     Id<Material> add_material(real default_friction = 1.0f,
                               real default_restitution = 0.0f,
                               real default_restitution_threshold = 0.01f) {
         return material_db.add_material(default_friction, default_restitution, default_restitution_threshold);
     }
-
-    Material* get_material(Id<Material> id) {
-        return material_db.get_material(id);
-    }
-
-    void remove_material(Id<Material> id) {
-        return material_db.remove_material(id);
-    }
+    Material* get_material(Id<Material> id) { return material_db.get_material(id); }
+    void remove_material(Id<Material> id) { return material_db.remove_material(id); }
 
     void set_material_pair(Id<Material> mat1_id, Id<Material> mat2_id,
                            real friction, real restitution, real restitution_threshold) {
         material_db.set_material_pair(mat1_id, mat2_id, friction, restitution, restitution_threshold);
     }
 
-    Id<CollisionMesh> add_collision_mesh_bvh(const char* objfile);
-
-    Id<CollisionMesh> add_collision_mesh_sdf(const char* objfile, real sdf_grid_size);
-
-    CollisionMesh* get_collision_mesh(Id<CollisionMesh> id) {
-        return col_meshes.get(id);
-    }
-
-    bool remove_collision_mesh(Id<CollisionMesh> id);
-
     void simulate();
-
-    btCollisionWorld* get_bullet_collision_world() {
-        return bt_collision_world;
-    }
-
-    std::vector<ContactPoint>& get_contact_points() { return contact_points; }
-    const std::vector<ContactPoint>& get_contact_points() const { return contact_points; }
 
 private:
     void load_collision_meshes(ArticulatedBodySpec& spec);

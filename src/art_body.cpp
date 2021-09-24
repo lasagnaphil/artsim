@@ -14,44 +14,6 @@ using namespace glmx;
 
 namespace artsim {
 
-Link Link::create(CollisionShape col_shape, real density,
-                  ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
-                  int parent_idx, Id<Material> mat_id, std::string obj_filename) {
-    Link link;
-    link.density = density;
-    link.mass = col_shape.mass(density);
-    link.inertia = col_shape.inertia(density);
-    link.col_shape = col_shape;
-    link.local_joint_pose = local_joint_pose;
-    link.local_link_pose = local_link_pose;
-    link.parent_idx = parent_idx;
-    link.mat_id = mat_id;
-    link.obj_filename = obj_filename;
-
-    auto I0 = tspmat<real>(tsmat3x3<real>(link.inertia), glm::tvec3<real>(0), link.mass);
-    link.I_j = inv_transform(I0, ttransform<real>(inverse(link.local_link_pose)));
-    return link;
-}
-
-Link
-Link::create(CollisionShape col_shape, real mass, glmx::tsmat3x3<real> inertia, glmx::ttransform<real> local_joint_pose,
-             glmx::ttransform<real> local_link_pose, int parent_idx, Id<Material> mat_id, std::string obj_filename) {
-    Link link;
-    link.mass = mass;
-    link.inertia = inertia;
-    link.density = link.mass / col_shape.mass(1);
-    link.col_shape = col_shape;
-    link.local_joint_pose = local_joint_pose;
-    link.local_link_pose = local_link_pose;
-    link.parent_idx = parent_idx;
-    link.mat_id = mat_id;
-    link.obj_filename = obj_filename;
-
-    auto I0 = tspmat<real>(tsmat3x3<real>(link.inertia), glm::tvec3<real>(0), link.mass);
-    link.I_j = inv_transform(I0, ttransform<real>(inverse(link.local_link_pose)));
-    return link;
-}
-
 void ArticulatedBodySpec::add_link_and_joint(Link link, Joint joint, const std::string& name) {
     if (joint.type == JOINT_TYPE_FLOATING) {
         if (!links.empty() || !joints.empty()) {
@@ -61,72 +23,12 @@ void ArticulatedBodySpec::add_link_and_joint(Link link, Joint joint, const std::
         }
         floating = true;
     }
-    links.push_back(link);
-    joints.push_back(joint);
+    links.push_back(std::move(link));
+    joints.push_back(std::move(joint));
     names.push_back(name);
 }
 
 void ArticulatedBodySpec::build() {
-    int num_joints = get_num_joints();
-    joint_pos_dofs.resize(num_joints);
-    joint_pos_dof_starts.resize(num_joints + 1);
-    joint_vel_dofs.resize(num_joints);
-    joint_vel_dof_starts.resize(num_joints + 1);
-    parents.resize(num_joints);
-
-    for (int i = 0; i < num_joints; i++) {
-        auto& link = links[i];
-        auto& joint = joints[i];
-        // Find the unit screw axis of the current joint
-        joint_pos_dofs[i] = joint.pos_dof();
-        joint_vel_dofs[i] = joint.vel_dof();
-    }
-    joint_pos_dof_starts[0] = 0;
-    for (int i = 1; i <= num_joints; i++) {
-        joint_pos_dof_starts[i] = joint_pos_dof_starts[i-1] + joint_pos_dofs[i-1];
-    }
-    num_pos_dofs = joint_pos_dof_starts[num_joints];
-    joint_vel_dof_starts[0] = 0;
-    for (int i = 1; i <= num_joints; i++) {
-        joint_vel_dof_starts[i] = joint_vel_dof_starts[i-1] + joint_vel_dofs[i-1];
-    }
-    num_vel_dofs = joint_vel_dof_starts[num_joints];
-
-    for (int i = 0; i < num_joints; i++) {
-        parents[i] = links[i].parent_idx;
-    }
-    children_buffer.reserve(links.size()-1);
-    children_buffer_starts.resize(links.size()+1);
-    for (int i = 0; i < links.size(); i++) {
-        children_buffer_starts[i] = children_buffer.size();
-        for (int j = 1; j < links.size(); j++) {
-            if (i == parents[j]) {
-                children_buffer.push_back(j);
-            }
-        }
-    }
-    children_buffer_starts[links.size()] = children_buffer.size();
-    std::queue<uint32_t> queue;
-    queue.push(0);
-    while (!queue.empty()) {
-        uint32_t i = queue.front();
-        queue.pop();
-        uint32_t num_children = get_num_children(i);
-        bfs_iteration_order.push_back(i);
-
-        const int* i_children = get_children(i);
-        for (int c = 0; c < num_children; c++) {
-            queue.push(i_children[c]);
-        }
-    }
-
-    if (!initial_state.empty()) {
-        if (initial_state.size() != num_pos_dofs) {
-            fprintf(stderr, "Error in ArticulatedBody::build(): "
-                            "Invalid initial state!\n");
-            return;
-        }
-    }
 
     build_finished = true;
 }
@@ -140,6 +42,7 @@ int ArticulatedBodySpec::get_index(const char* name) const {
     else return i;
 }
 
+/*
 void ArticulatedBodySpec::scale_link(int link_idx, const rvec3& scale, bool scale_shapes) {
     auto& link = links[link_idx];
     if (scale_shapes) {
@@ -167,6 +70,7 @@ void ArticulatedBodySpec::scale_link(int link_idx, const rmat3& rot, const rvec3
                 T * links[child_idx].local_joint_pose.v;
     }
 }
+ */
 
 PoseTree ArticulatedBodySpec::get_pose_tree() {
     PoseTree poseTree;
@@ -206,11 +110,8 @@ void ArticulatedBody::init(World* _world, Id<ArticulatedBodySpec> art_spec_id) {
     tau.resize(num_vel_dofs, 0);
     q_target.resize(num_pos_dofs, 0);
 
-    global_joint_trans.resize(num_joints, glmx::rtransform(glmx::IDENTITY));
-
     reset();
 }
-
 
 void ArticulatedBody::reset() {
     auto& spec = *world->get_art_body_spec(spec_id);
@@ -352,20 +253,31 @@ void ArticulatedBody::forward_kinematics() {
 }
 
 void ArticulatedBody::update_colliders() {
+    /* TODO
     int num_joints = get_num_joints();
     for (int i = 0; i < num_joints; i++) {
         bt_collision_objects[i]->setWorldTransform(btconv(global_link_trans[i]));
     }
+     */
 }
 
 void ArticulatedBody::forward_dynamics(const glm::rvec3& gravity, real dt) {
     auto& spec = *world->get_art_body_spec(spec_id);
+    std::vector<rscrew> f_ext(bodies.size());
+    for (int i = 0; i < bodies.size(); i++) {
+        f_ext[i] = world->get_rigid_body(bodies[i])->body_f_ext;
+    }
     artsim::featherstone_forward_dynamics(spec, gravity, dt, f_ext.data(), q.data(), u.data(), tau.data(), q_target.data(),
                                           OUT udot.data());
 }
 
 void ArticulatedBody::forward_dynamics_with_contact(const rvec3& gravity, real dt) {
     auto& spec = *world->get_art_body_spec(spec_id);
+    std::vector<rscrew> f_ext(bodies.size()), f_c(bodies.size());
+    for (int i = 0; i < bodies.size(); i++) {
+        f_ext[i] = world->get_rigid_body(bodies[i])->body_f_ext;
+        f_c[i] = world->get_rigid_body(bodies[i])->body_f_c;
+    }
     artsim::featherstone_forward_dynamics(spec, gravity, dt, f_ext.data(), f_c.data(), q.data(), u.data(), tau.data(), q_target.data(),
                                           OUT udot.data());
 }
@@ -390,6 +302,7 @@ void ArticulatedBody::mass_matrix(
 
 void ArticulatedBody::multiply_inverse_mass_matrix(
         glmx::dynmat_view<real> X, OUT glmx::dynmat_view<real> Minv_X, real dt) {
+    auto& spec = *world->get_art_body_spec(spec_id);
     artsim::multiply_inverse_mass_matrix(spec, dt, q.data(), X, OUT Minv_X);
 }
 

@@ -7,9 +7,10 @@
 
 #include <artsim/core/arena.h>
 #include <artsim/collision/collision_shape.h>
-#include <artsim/collision/collision_object.h>
 
 namespace artsim {
+
+struct World;
 
 struct ContactManifoldPoint {
     glm::rvec3 pos;
@@ -33,31 +34,30 @@ class CollisionManager {
 public:
     using AABB = glmx::tbox<3, real>;
 
-    CollisionShape make_ground_shape();
-    CollisionShape make_box_shape(glm::vec3 size);
-    CollisionShape make_sphere_shape(real radius);
-    CollisionShape make_mesh_shape_bvh(const char* objfile, glm::rvec3 scale = glm::rvec3(1));
-    CollisionShape make_mesh_shape_sdf(const char* objfile, real cell_size, glm::rvec3 scale = glm::rvec3(1));
+    CollisionManager(World* world = nullptr) : world(world) {}
 
-    void init_bvh();
+    void rebuild();
+
+    void add_rigid_body(Id<RigidBody> rb_id);
+    void remove_rigid_body(Id<RigidBody> rb_id);
+
+    void find_collisions();
 
 private:
     struct BVHNode {
         AABB aabb;
+        int parent_id = -1;
         int left_id = -1, right_id = -1;
-        Id<CollisionObject> obj_id;
+        Id<RigidBody> rb_id;
     };
 
-    Arena<CollisionMesh> meshes;
-    Arena<CollisionShape> shapes;
-    Arena<CollisionObject> objects;
-
-    Arena<ContactManifold> contact_manifolds;
-
+    World* world;
     std::vector<BVHNode> nodes;
 
-    void create_children(int node_id, std::vector<Id<CollisionObject>>& queue);
+    Arena<ContactManifold> manifolds;
+    Arena<ContactManifoldPoint> manifold_points;
 
+    void create_children(int node_id, std::vector<Id<RigidBody>>& queue);
 };
 
 }

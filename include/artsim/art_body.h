@@ -105,24 +105,19 @@ struct Joint {
 };
 
 struct Link {
-    glmx::tsmat3x3<real> inertia; // inertia from link frame
-    glmx::tspmat<real> I_j; // Spatial mass matrix from joint frame
-    real density;
-    real mass;
-    CollisionShape col_shape;
-    glmx::rquat_transform local_joint_pose;
-    glmx::rquat_transform local_link_pose;
-    int parent_idx;
+    Id<CollisionShape> shape_id;
     Id<Material> mat_id;
+
+    CollisionFlags flags = {};
+
+    real mass;
+    glmx::tsmat3x3<real> inertia;
+
+    glmx::rtransform local_joint_pose;
+    glmx::rtransform local_link_pose;
+
+    int parent_idx;
     std::string obj_filename;
-
-    static Link create(CollisionShape col_shape, real density,
-                       glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
-                       int parent_idx, Id<Material> mat_id, std::string obj_filename = "");
-
-    static Link create(CollisionShape col_shape, real mass, glmx::tsmat3x3<real> inertia,
-                       glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
-                       int parent_idx, Id<Material> mat_id, std::string obj_filename = "");
 };
 
 struct ArticulatedBodySpec {
@@ -169,9 +164,6 @@ struct ArticulatedBodySpec {
 
     int get_index(const char* name) const;
 
-    void scale_link(int link_idx, const glm::rvec3& scale, bool scale_shapes);
-    void scale_link(int link_idx, const glm::rmat3& rot, const glm::rvec3& scale);
-
     PoseTree get_pose_tree();
 };
 
@@ -206,6 +198,8 @@ public:
     int get_num_links() const { return bodies.size(); }
 
     CollisionFlags get_collision_flags() const { return collision_flags; }
+
+    Id<RigidBody> get_link_body_id(int joint_idx) const { return bodies[joint_idx]; }
 
     real* get_pos_buf() { return q.data(); }
     real* get_vel_buf() { return u.data(); }

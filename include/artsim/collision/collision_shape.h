@@ -35,6 +35,7 @@ struct CollisionShape {
     Type type;
     glm::rvec3 scale;
     glm::rvec3 color; // For debug rendering purposes
+    Id<CollisionMesh> mesh = {};
 
     real mass(real density) const;
     glmx::tsmat3x3<real> inertia(real density) const;
