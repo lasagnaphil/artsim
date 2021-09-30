@@ -2,7 +2,11 @@
 // Created by lasagnaphil on 19. 3. 14.
 //
 
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
 
 #include <iostream>
 
@@ -22,8 +26,21 @@ Ref<Image> Image::fromFile(const std::string& filename, int desiredChannels){
     return image;
 }
 
+Ref<Image> Image::fromEmpty(int width, int height, int nrChannels) {
+    Ref<Image> image = Resources::make<Image>();
+    image->width = width;
+    image->height = height;
+    image->nrChannels = image->desiredChannels = nrChannels;
+    image->data = (unsigned char*)malloc(width * height * nrChannels);
+    return image;
+}
+
 void Image::dispose() {
     if (data) {
-        stbi_image_free(data);
+        free(data);
     }
+}
+
+void Image::toFilePNG(const std::string& filename) {
+    stbi_write_png(filename.c_str(), width, height, nrChannels, data, nrChannels * width);
 }

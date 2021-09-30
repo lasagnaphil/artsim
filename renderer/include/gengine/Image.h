@@ -16,6 +16,9 @@ struct Image {
     ~Image() { dispose(); }
 
     static Ref<Image> fromFile(const std::string& filename, int desiredChannels = 0);
+    static Ref<Image> fromEmpty(int width, int height, int nrChannels);
+
+    void toFilePNG(const std::string& filename);
 
     void dispose();
 };

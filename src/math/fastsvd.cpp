@@ -124,6 +124,7 @@ void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out, int num_th
     free(buf);
 }
 
+#ifdef USE_SIMD
 void fastsvd(const glm::tmat3x3<fsimd>& A, OUT SVD_mats<fsimd>& A_svd) {
     ZoneScoped
     using namespace Singular_Value_Decomposition;
@@ -170,6 +171,7 @@ void fastsvd(const glm::tmat3x3<fsimd>& A, OUT SVD_mats<fsimd>& A_svd) {
 
     task.Run();
 }
+#endif
 
 template void fastsvd(const glm::tmat3x3<artsim::real>* A, int A_count, SVD_mats<artsim::real>* out, int num_threads);
 

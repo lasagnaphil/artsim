@@ -19,16 +19,18 @@ Ref<Texture> Texture::fromSubImage(Ref<Image> image, int xoffset, int yoffset, i
     return tex;
 }
 
-Ref<Texture> Texture::fromNew(uint32_t width, uint32_t height) {
+Ref<Texture> Texture::fromNew(uint32_t width, uint32_t height,
+                              GLuint imageFormat, GLuint internalFormat,
+                              TextureGLParams gl_params) {
     Ref<Texture> tex = Resources::make<Texture>();
     tex->width = width;
     tex->height = height;
-    tex->wrapS = GL_REPEAT;
-    tex->wrapT = GL_REPEAT;
-    tex->filterMin = GL_LINEAR_MIPMAP_LINEAR;
-    tex->filterMax = GL_LINEAR;
-    tex->imageFormat = GL_RGB;
-    tex->internalFormat = GL_RGB;
+    tex->wrapS = gl_params.wrapS;
+    tex->wrapT = gl_params.wrapT;
+    tex->filterMin = gl_params.filterMin;
+    tex->filterMax = gl_params.filterMax;
+    tex->imageFormat = imageFormat;
+    tex->internalFormat = internalFormat;
 
     glGenTextures(1, &tex->id);
     glBindTexture(GL_TEXTURE_2D, tex->id);
@@ -36,8 +38,10 @@ Ref<Texture> Texture::fromNew(uint32_t width, uint32_t height) {
                  0, tex->internalFormat,
                  width, height,
                  0, tex->imageFormat, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_params.filterMin);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_params.filterMax);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, gl_params.wrapS);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, gl_params.wrapT);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     return tex;
@@ -157,6 +161,14 @@ void Texture::loadFromSubImage(Ref<Image> image, int xoffset, int yoffset, int w
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+Ref<Image> Texture::saveToImage(int numChannels, GLenum format, GLenum type) {
+    auto image = Image::fromEmpty(width, height, numChannels);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, id);
+    glGetTexImage(GL_TEXTURE_2D, 0, format, type, image->data);
+    return image;
+}
+
 void Texture::bind() {
     glBindTexture(GL_TEXTURE_2D, id);
 }
@@ -166,4 +178,3 @@ void Texture::dispose() {
         glDeleteTextures(1, &id);
     }
 }
-
