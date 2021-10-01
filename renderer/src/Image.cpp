@@ -16,6 +16,7 @@
 Ref<Image> Image::fromFile(const std::string& filename, int desiredChannels){
     Ref<Image> image = Resources::make<Image>();
 
+    image->filename = filename;
     image->data = stbi_load(filename.c_str(), &image->width, &image->height, &image->nrChannels, desiredChannels);
     if (!image->data) {
         std::cerr << "Failed to load image " << filename << "!\n";

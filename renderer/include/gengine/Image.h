@@ -11,6 +11,7 @@
 struct Image {
     unsigned char* data = nullptr;
     int width, height, nrChannels, desiredChannels;
+    std::string filename;
 
     Image() = default;
     ~Image() { dispose(); }

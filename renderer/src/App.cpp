@@ -17,6 +17,7 @@
 #include <chrono>
 
 #include "stb_image.h"
+#include "stb_image_write.h"
 
 #include <Tracy.hpp>
 
@@ -170,6 +171,7 @@ void App::load() {
 #endif
 
     stbi_set_flip_vertically_on_load(true);
+    stbi_flip_vertically_on_write(true);
 
     rootTransform = Resources::make<Transform>();
     rootTransform->update();
