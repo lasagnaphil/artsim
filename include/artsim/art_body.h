@@ -49,6 +49,10 @@ struct Joint {
     real kp, kd;
     real max_velocity;
 
+    template <class Archive> void serialize(Archive& ar) {
+        ar(type, limit_enabled, limit_min, limit_max, kp, kd, max_velocity);
+    }
+
     static Joint floating(real kp = 0.0, real kd = 0.0, real max_velocity = default_maxvel) {
         return {JOINT_TYPE_FLOATING, false, 0, 0, kp, kd, max_velocity};
     }
@@ -114,6 +118,11 @@ struct Link {
     Id<Material> mat_id;
     std::string obj_filename;
 
+    template <class Archive> void serialize(Archive& ar) {
+        ar(inertia, I_j, density, mass, col_shape, local_joint_pose, local_link_pose,
+           parent_idx, mat_id, obj_filename);
+    }
+
     static Link create(CollisionShape col_shape, real density,
                        glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
                        int parent_idx, Id<Material> mat_id, std::string obj_filename = "");
@@ -145,6 +154,13 @@ struct ArticulatedBodySpec {
     std::vector<int> bfs_iteration_order;
 
     bool build_finished = false;
+
+    template <class Archive> void serialize(Archive& ar) {
+        ar(names, links, joints, initial_state, floating,
+           joint_pos_dofs, joint_pos_dof_starts, joint_vel_dofs, joint_vel_dof_starts,
+           num_pos_dofs, num_vel_dofs,
+           parents, children_buffer, children_buffer_starts, bfs_iteration_order, build_finished);
+    }
 
     ArticulatedBodySpec() = default;
 
@@ -196,6 +212,11 @@ private:
     bool _is_self_collision_enabled = false;
 
 public:
+    template <class Archive> void serialize(Archive& ar) {
+        ar(spec, mat_id, q, u, udot, tau, f_ext, f_c, q_target,
+           global_link_trans, global_joint_trans, global_link_vel, _is_static, _is_self_collision_enabled);
+    }
+
     void init(artsim::ArticulatedBodySpec art_spec);
     void init(Id<ArticulatedBody> art_id, artsim::ArticulatedBodySpec art_spec, Id<Material> mat_id,
               btCollisionWorld* bt_collision_world,

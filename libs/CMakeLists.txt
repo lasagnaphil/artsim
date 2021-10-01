@@ -13,6 +13,8 @@ add_subdirectory(Discregrid)
 
 add_subdirectory(pugixml)
 
+add_subdirectory(cereal)
+
 # tiny_obj_loader
 add_library(tinyobjloader STATIC ${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader/tiny_obj_loader.cc)
 target_include_directories(tinyobjloader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader)

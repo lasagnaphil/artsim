@@ -45,6 +45,7 @@ set(ARTSIM_LIB
         tbb
         Eigen3::Eigen
         pugixml::pugixml
+        cereal
         bullet_collision
         fastsvd
         Discregrid
