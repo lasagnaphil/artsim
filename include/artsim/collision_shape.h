@@ -44,6 +44,8 @@ struct CollisionShape {
 
     btCollisionShape* bt_shape;
 
+    template <class Archive> void serialize(Archive& ar) { ar(type, scale, color, mesh.type, mesh.cell_size); }
+
     static CollisionShape make_ground();
     static CollisionShape make_box(glm::vec3 size);
     static CollisionShape make_sphere(real radius);

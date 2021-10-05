@@ -26,7 +26,7 @@ if (ARTSIM_USE_OPENMP)
     find_package(OpenMP REQUIRED)
 endif()
 if (ARTSIM_USE_ASAN)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -O0")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
 endif()
 
 add_subdirectory(libs)

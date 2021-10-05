@@ -120,7 +120,7 @@ struct Link {
 
     template <class Archive> void serialize(Archive& ar) {
         ar(inertia, I_j, density, mass, col_shape, local_joint_pose, local_link_pose,
-           parent_idx, mat_id, obj_filename);
+           parent_idx, obj_filename);
     }
 
     static Link create(CollisionShape col_shape, real density,

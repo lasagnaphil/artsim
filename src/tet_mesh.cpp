@@ -95,6 +95,20 @@ void TetMesh::load_msh(const char* filename) {
     std::copy_n(nodes.data(), nodes.size(), (real*)vertices.data());
     tetrahedrons.resize(num_tets);
     std::copy_n(elems.data(), elems.size(), (int*)tetrahedrons.data());
+
+    // Fix tetrahedron sign (so that volume doesn't become negative);
+    for (int tidx = 0; tidx < num_tets; tidx++) {
+        auto& tet = tetrahedrons[tidx];
+        auto v0 = vertices[tet[0]];
+        auto v1 = vertices[tet[1]];
+        auto v2 = vertices[tet[2]];
+        auto v3 = vertices[tet[3]];
+        auto D_m = glm::mat3(v1 - v0, v2 - v0, v3 - v0);
+        auto det_D_m = glm::determinant(D_m);
+        if (det_D_m < 0) {
+            std::swap(tet[2], tet[3]);
+        }
+    }
 }
 
 void TetMesh::save_msh(const char* filename) {
