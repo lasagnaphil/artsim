@@ -41,7 +41,7 @@ void CollisionMesh::init_sdf(const char* objfile, real sdf_grid_size) {
             domain, Eigen::Vector3r(sdf_grid_size, sdf_grid_size, sdf_grid_size));
     // auto cell_size = sdf_grid.cellSize();
     // fmt::print("Cell size = ({}, {}, {})\n", cell_size[0], cell_size[1], cell_size[2]);
-    auto func = [this](Eigen::Vector3r const& xi) {return bvh->signedDistanceCached(xi); };
+    auto func = [this](Eigen::Vector3r const& xi) {return bvh->signedDistance(xi); };
     sdf->addFunction(func, true);
 }
 
