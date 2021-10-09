@@ -12,4 +12,4 @@
 	url = https://github.com/USCiLab/cereal.git
 [submodule "libs/eigen"]
 	path = libs/eigen
-	url = https://github.com/lasagnaphil/eigen
+	url = git@github.com/lasagnaphil/eigen
