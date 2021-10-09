@@ -7,8 +7,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(GLM REQUIRED)
 
-find_package(Eigen3 REQUIRED)
-
 # For URDF exports
 find_package(TinyXML2 REQUIRED)
 

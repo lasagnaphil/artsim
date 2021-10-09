@@ -3,6 +3,10 @@ set(SPAN_LITE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/span-lite)
 add_library(span-lite INTERFACE)
 target_include_directories(span-lite INTERFACE ${SPAN_LITE_DIR})
 
+set(EIGEN_BUILD_DOC OFF CACHE BOOL "Enable creation of Eigen documentation")
+set(BUILD_TESTING OFF CACHE BOOL "Enable creation of Eigen tests.")
+add_subdirectory(eigen)
+
 add_subdirectory(bullet_collision)
 add_subdirectory(fastsvd)
 
@@ -13,6 +17,7 @@ add_subdirectory(Discregrid)
 
 add_subdirectory(pugixml)
 
+set(JUST_INSTALL_CEREAL ON CACHE BOOL "")
 add_subdirectory(cereal)
 
 # tiny_obj_loader

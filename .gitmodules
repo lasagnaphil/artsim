@@ -10,3 +10,6 @@
 [submodule "libs/cereal"]
 	path = libs/cereal
 	url = https://github.com/USCiLab/cereal.git
+[submodule "libs/eigen"]
+	path = libs/eigen
+	url = https://github.com/lasagnaphil/eigen
