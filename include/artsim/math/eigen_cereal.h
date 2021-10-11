@@ -10,26 +10,24 @@
 #include <Eigen/Dense>
 
 namespace cereal {
-template <class Archive, class Derived>
+template <class Archive, class Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 inline
-void // typename std::enable_if<cereal::traits::is_output_serializable<cereal::BinaryData<typename Derived::Scalar>, Archive>::value, void>::type
-save(Archive& ar, Eigen::PlainObjectBase<Derived> const& m) {
-    typedef Eigen::PlainObjectBase<Derived> ArrT;
-    if (ArrT::RowsAtCompileTime == Eigen::Dynamic) ar(m.rows());
-    if (ArrT::ColsAtCompileTime == Eigen::Dynamic) ar(m.cols());
-    ar(cereal::binary_data(m.data(), m.size() * sizeof(typename Derived::Scalar)));
+typename std::enable_if<cereal::traits::is_output_serializable<cereal::BinaryData<Scalar>, Archive>::value, void>::type
+save(Archive& ar, const Eigen::Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>& m) {
+    if (Rows == Eigen::Dynamic) ar(m.rows());
+    if (Cols == Eigen::Dynamic) ar(m.cols());
+    ar(cereal::binary_data(m.data(), m.size() * sizeof(Scalar)));
 }
 
-template <class Archive, class Derived>
+template <class Archive, class Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 inline
-void // typename std::enable_if<cereal::traits::is_input_serializable<cereal::BinaryData<typename Derived::Scalar>, Archive>::value, void>::type
-load(Archive& ar, Eigen::PlainObjectBase<Derived>& m) {
-    typedef Eigen::PlainObjectBase<Derived> ArrT;
-    Eigen::Index rows = ArrT::RowsAtCompileTime, cols = ArrT::ColsAtCompileTime;
+typename std::enable_if<cereal::traits::is_input_serializable<cereal::BinaryData<Scalar>, Archive>::value, void>::type
+load(Archive& ar, Eigen::Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>& m) {
+    int rows = Rows, cols = Cols;
     if (rows == Eigen::Dynamic) ar(rows);
     if (cols == Eigen::Dynamic) ar(cols);
     m.resize(rows, cols);
-    ar(cereal::binary_data(m.data(), static_cast<std::size_t>(rows * cols * sizeof(typename Derived::Scalar))));
+    ar(cereal::binary_data(m.data(), static_cast<std::size_t>(rows * cols * sizeof(Scalar))));
 }
 
 /*
@@ -77,25 +75,27 @@ inline void load(Archive& ar, Eigen::SparseMatrix<Scalar>& m) {
     m.resizeNonZeros(nnzs);
     ar(cereal::binary_data(m.valuePtr(), sizeof(Scalar) * nnzs));
     ar(cereal::binary_data(m.outerIndexPtr(), sizeof(Index) * outS));
-    ar(cereal::binary_data(m.innerIndexPtr(), sizeof(Index) * innS));
+    ar(cereal::binary_data(m.innerIndexPtr(), sizeof(Index) * nnzs));
 }
 
 template <class Archive, class Derived>
 inline void save(Archive& ar, const Eigen::SimplicialCholeskyBase<Derived>& ldlt) {
     ar(ldlt.getInternalMatrix());
+    ar(ldlt.getInternalDiag());
     ar(ldlt.getInternalParent());
     ar(ldlt.getInternalNonZerosPerCol());
-    ar(ldlt.permutationP().indices());
-    ar(ldlt.permutationPinv().indices());
+    ar(ldlt.getInternalP().indices());
+    ar(ldlt.getInternalPinv().indices());
 }
 
 template <class Archive, class Derived>
 inline void load(Archive& ar, Eigen::SimplicialCholeskyBase<Derived>& ldlt) {
     ar(ldlt.getInternalMatrix());
+    ar(ldlt.getInternalDiag());
     ar(ldlt.getInternalParent());
     ar(ldlt.getInternalNonZerosPerCol());
-    ar(ldlt.permutationP().indices());
-    ar(ldlt.permutationPinv().indices());
+    ar(ldlt.getInternalP().indices());
+    ar(ldlt.getInternalPinv().indices());
 }
 
 }
