@@ -14,20 +14,21 @@ template <class Archive, class Scalar, int Rows, int Cols, int Options, int MaxR
 inline
 typename std::enable_if<cereal::traits::is_output_serializable<cereal::BinaryData<Scalar>, Archive>::value, void>::type
 save(Archive& ar, const Eigen::Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>& m) {
-    if (Rows == Eigen::Dynamic) ar(m.rows());
-    if (Cols == Eigen::Dynamic) ar(m.cols());
-    ar(cereal::binary_data(m.data(), m.size() * sizeof(Scalar)));
+    int rows = m.rows(), cols = m.cols();
+    ar(rows);
+    ar(cols);
+    ar(cereal::binary_data(m.data(), rows * cols * sizeof(Scalar)));
 }
 
 template <class Archive, class Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 inline
 typename std::enable_if<cereal::traits::is_input_serializable<cereal::BinaryData<Scalar>, Archive>::value, void>::type
 load(Archive& ar, Eigen::Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>& m) {
-    int rows = Rows, cols = Cols;
-    if (rows == Eigen::Dynamic) ar(rows);
-    if (cols == Eigen::Dynamic) ar(cols);
+    int rows, cols;
+    ar(rows);
+    ar(cols);
     m.resize(rows, cols);
-    ar(cereal::binary_data(m.data(), static_cast<std::size_t>(rows * cols * sizeof(Scalar))));
+    ar(cereal::binary_data(m.data(), rows * cols * sizeof(Scalar)));
 }
 
 /*
@@ -51,31 +52,50 @@ inline void load(Archive& ar, Eigen::Vector<Scalar, Size>& v) {
 // From: https://stackoverflow.com/questions/24593085/serializing-decomposed-matrix-from-eigen-sparselu-object
 
 template <class Archive, class Scalar>
-inline void save(Archive& ar, const Eigen::SparseMatrix<Scalar>& m) {
-    typedef typename Eigen::SparseMatrix<Scalar>::StorageIndex Index;
-    Index rows, cols, nnzs, outS, innS;
-    rows = m.rows();
-    cols = m.cols();
-    nnzs = m.nonZeros();
-    outS = m.outerSize();
-    innS = m.innerSize();
-    ar(rows, cols, nnzs, outS, innS);
-    ar(cereal::binary_data(m.valuePtr(), sizeof(Scalar) * nnzs));
-    ar(cereal::binary_data(m.outerIndexPtr(), sizeof(Index) * outS));
-    ar(cereal::binary_data(m.innerIndexPtr(), sizeof(Index) * innS));
+inline void save(Archive& ar, const Eigen::Triplet<Scalar>& m) {
+    ar(m.row());
+    ar(m.col());
+    ar(m.value());
 }
 
 template <class Archive, class Scalar>
-inline void load(Archive& ar, Eigen::SparseMatrix<Scalar>& m) {
-    typedef typename Eigen::SparseMatrix<Scalar>::StorageIndex Index;
-    Index rows, cols, nnzs, outS, innS;
-    ar(rows, cols, nnzs, outS, innS);
+inline void load(Archive& ar, Eigen::Triplet<Scalar>& m) {
+    int row, col;
+    Scalar value;
+    ar(row);
+    ar(col);
+    ar(value);
+    m = Eigen::Triplet<Scalar>(row, col, value);
+}
+
+template <class Archive, class Scalar, int Options, class Index>
+inline void save(Archive& ar, const Eigen::SparseMatrix<Scalar, Options, Index>& m) {
+    int innerSize = m.innerSize();
+    int outerSize = m.outerSize();
+    using Triplet = Eigen::Triplet<Scalar>;
+    std::vector<Triplet> triplets;
+    for (int i = 0; i < outerSize; i++) {
+        for (typename Eigen::SparseMatrix<Scalar, Options, Index>::InnerIterator it(m, i); it; ++it) {
+            triplets.push_back(Triplet(it.row(), it.col(), it.value()));
+        }
+    }
+    ar(innerSize);
+    ar(outerSize);
+    ar(triplets);
+}
+
+template <class Archive, class Scalar, int Options, class Index>
+inline void load(Archive& ar, Eigen::SparseMatrix<Scalar, Options, Index>& m) {
+    int innerSize, outerSize;
+    ar(innerSize);
+    ar(outerSize);
+    int rows = m.IsRowMajor? outerSize : innerSize;
+    int cols = m.IsRowMajor? innerSize : outerSize;
     m.resize(rows, cols);
-    m.makeCompressed();
-    m.resizeNonZeros(nnzs);
-    ar(cereal::binary_data(m.valuePtr(), sizeof(Scalar) * nnzs));
-    ar(cereal::binary_data(m.outerIndexPtr(), sizeof(Index) * outS));
-    ar(cereal::binary_data(m.innerIndexPtr(), sizeof(Index) * nnzs));
+    using Triplet = Eigen::Triplet<Scalar>;
+    std::vector<Triplet> triplets;
+    ar(triplets);
+    m.setFromTriplets(triplets.begin(), triplets.end());
 }
 
 template <class Archive, class Derived>
