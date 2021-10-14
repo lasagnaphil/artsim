@@ -18,7 +18,13 @@ template<class Archive, class T>
 void serialize(Archive& ar, tvec4<T>& v) {
     ar(v[0], v[1], v[2], v[3]);
 }
+
+template<class Archive, class T>
+void serialize(Archive& ar, tquat<T>& v) {
+    ar(v[0], v[1], v[2], v[3]);
 }
+}
+
 namespace glmx {
 template<class Archive, class T, int N>
 void serialize(Archive& ar, glmx::tbox<N, T>& box) {
