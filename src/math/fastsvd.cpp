@@ -2,9 +2,11 @@
 // Created by lasagnaphil on 2/21/21.
 //
 
+#include <artsim/types.h>
 #include <artsim/math/fastsvd.h>
 #include <fastsvd/fastsvd.h>
-#include <artsim/types.h>
+#include <tbb/parallel_for.h>
+#include <tbb/enumerable_thread_specific.h>
 
 #include <Tracy.hpp>
 
@@ -15,113 +17,97 @@ void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out, int num_th
     ZoneScoped
     using namespace Singular_Value_Decomposition;
 
-    int buf_size = 8 * ((A_count + 1) / 8) + 8;
-    float* buf = (float*)aligned_alloc(32, buf_size*30*sizeof(float));
+    constexpr int nsimd = 8;
+    int N = (A_count - 1) / nsimd + 1;
+    tbb::enumerable_thread_specific<std::vector<float>> tls(std::vector<float>(30*nsimd, 0));
+    // int buf_size = 30*nsimd*sizeof(float);
+    // float* buf = (float*)aligned_alloc(nsimd*sizeof(float), buf_size);
+    // memset(buf, 0, buf_size);
 
-    float* a11 = buf + 0*buf_size;
-    float* a12 = buf + 1*buf_size;
-    float* a13 = buf + 2*buf_size;
-    float* a21 = buf + 3*buf_size;
-    float* a22 = buf + 4*buf_size;
-    float* a23 = buf + 5*buf_size;
-    float* a31 = buf + 6*buf_size;
-    float* a32 = buf + 7*buf_size;
-    float* a33 = buf + 8*buf_size;
+    tbb::parallel_for(size_t(0), size_t(N), [&](size_t i) {
+        int jmax = glm::min<int>(A_count - nsimd*i, 8);
+        auto buf = tls.local().data();
+        float* a11 = buf + 0*nsimd;
+        float* a12 = buf + 1*nsimd;
+        float* a13 = buf + 2*nsimd;
+        float* a21 = buf + 3*nsimd;
+        float* a22 = buf + 4*nsimd;
+        float* a23 = buf + 5*nsimd;
+        float* a31 = buf + 6*nsimd;
+        float* a32 = buf + 7*nsimd;
+        float* a33 = buf + 8*nsimd;
 
-    float* u11 = buf + 9*buf_size;
-    float* u12 = buf + 10*buf_size;
-    float* u13 = buf + 11*buf_size;
-    float* u21 = buf + 12*buf_size;
-    float* u22 = buf + 13*buf_size;
-    float* u23 = buf + 14*buf_size;
-    float* u31 = buf + 15*buf_size;
-    float* u32 = buf + 16*buf_size;
-    float* u33 = buf + 17*buf_size;
+        float* u11 = buf + 9 *nsimd;
+        float* u12 = buf + 10*nsimd;
+        float* u13 = buf + 11*nsimd;
+        float* u21 = buf + 12*nsimd;
+        float* u22 = buf + 13*nsimd;
+        float* u23 = buf + 14*nsimd;
+        float* u31 = buf + 15*nsimd;
+        float* u32 = buf + 16*nsimd;
+        float* u33 = buf + 17*nsimd;
 
-    float* v11 = buf + 18*buf_size;
-    float* v12 = buf + 19*buf_size;
-    float* v13 = buf + 20*buf_size;
-    float* v21 = buf + 21*buf_size;
-    float* v22 = buf + 22*buf_size;
-    float* v23 = buf + 23*buf_size;
-    float* v31 = buf + 24*buf_size;
-    float* v32 = buf + 25*buf_size;
-    float* v33 = buf + 26*buf_size;
+        float* v11 = buf + 18*nsimd;
+        float* v12 = buf + 19*nsimd;
+        float* v13 = buf + 20*nsimd;
+        float* v21 = buf + 21*nsimd;
+        float* v22 = buf + 22*nsimd;
+        float* v23 = buf + 23*nsimd;
+        float* v31 = buf + 24*nsimd;
+        float* v32 = buf + 25*nsimd;
+        float* v33 = buf + 26*nsimd;
 
-    float* sigma1 = buf + 27*buf_size;
-    float* sigma2 = buf + 28*buf_size;
-    float* sigma3 = buf + 29*buf_size;
+        float* sigma1 = buf + 27*nsimd;
+        float* sigma2 = buf + 28*nsimd;
+        float* sigma3 = buf + 29*nsimd;
 
-    {
-        ZoneNamedN(CopyToFastSVD, "CopyToFastSVD", true)
         // Insert data
-        for (int i = 0; i < A_count; i++) {
-            a11[i] = A[i][0][0];
-            a21[i] = A[i][0][1];
-            a31[i] = A[i][0][2];
-            a12[i] = A[i][1][0];
-            a22[i] = A[i][1][1];
-            a32[i] = A[i][1][2];
-            a13[i] = A[i][2][0];
-            a23[i] = A[i][2][1];
-            a33[i] = A[i][2][2];
+        for (int j = 0; j < jmax; j++) {
+            a11[j] = A[nsimd*i+j][0][0];
+            a21[j] = A[nsimd*i+j][0][1];
+            a31[j] = A[nsimd*i+j][0][2];
+            a12[j] = A[nsimd*i+j][1][0];
+            a22[j] = A[nsimd*i+j][1][1];
+            a32[j] = A[nsimd*i+j][1][2];
+            a13[j] = A[nsimd*i+j][2][0];
+            a23[j] = A[nsimd*i+j][2][1];
+            a33[j] = A[nsimd*i+j][2][2];
         }
-    }
 
-    // Run kernel
-    Singular_Value_Decomposition_Size_Specific_Helper<float> task(A_count,
-                                                                  a11,a21,a31,a12,a22,a32,a13,a23,a33,
-                                                                  u11,u21,u31,u12,u22,u32,u13,u23,u33,
-                                                                  v11,v21,v31,v12,v22,v32,v13,v23,v33,
-                                                                  sigma1,sigma2,sigma3);
-
-    if (num_threads == 1) {
-        ZoneNamedN(FastSVD_Single, "FastSVD_Single", true)
+        // Run kernel
+        Singular_Value_Decomposition_Size_Specific_Helper<float> task(nsimd,
+                                                                      a11,a21,a31,a12,a22,a32,a13,a23,a33,
+                                                                      u11,u21,u31,u12,u22,u32,u13,u23,u33,
+                                                                      v11,v21,v31,v12,v22,v32,v13,v23,v33,
+                                                                      sigma1,sigma2,sigma3);
         task.Run();
-    }
-    else {
-        ZoneNamedN(FastSVD_Multi, "FastSVD_Multi", true)
-#pragma omp parallel for default(none) num_threads(num_threads) firstprivate(num_threads, A_count, task)
-        for (int partition = 0; partition < num_threads; partition++) {
-            int imin = (A_count / num_threads) * partition + std::min(A_count % num_threads, partition);
-            int imax_plus_one =
-                    (A_count / num_threads) * (partition + 1) + std::min(A_count % num_threads, partition + 1);
-            task.Run_Index_Range(imin, imax_plus_one);
+
+        for (int j = 0; j < jmax; j++) {
+            out[nsimd*i+j].U[0][0] = u11[j];
+            out[nsimd*i+j].U[0][1] = u21[j];
+            out[nsimd*i+j].U[0][2] = u31[j];
+            out[nsimd*i+j].U[1][0] = u12[j];
+            out[nsimd*i+j].U[1][1] = u22[j];
+            out[nsimd*i+j].U[1][2] = u32[j];
+            out[nsimd*i+j].U[2][0] = u13[j];
+            out[nsimd*i+j].U[2][1] = u23[j];
+            out[nsimd*i+j].U[2][2] = u33[j];
+
+            out[nsimd*i+j].V[0][0] = v11[j];
+            out[nsimd*i+j].V[0][1] = v21[j];
+            out[nsimd*i+j].V[0][2] = v31[j];
+            out[nsimd*i+j].V[1][0] = v12[j];
+            out[nsimd*i+j].V[1][1] = v22[j];
+            out[nsimd*i+j].V[1][2] = v32[j];
+            out[nsimd*i+j].V[2][0] = v13[j];
+            out[nsimd*i+j].V[2][1] = v23[j];
+            out[nsimd*i+j].V[2][2] = v33[j];
+
+            out[nsimd*i+j].Sigma[0] = sigma1[j];
+            out[nsimd*i+j].Sigma[1] = sigma2[j];
+            out[nsimd*i+j].Sigma[2] = sigma3[j];
         }
-    }
-
-    // Retrieve data
-    {
-        ZoneNamedN(CopyFromFastSVD, "CopyFromFastSVD", true)
-        for (int i = 0; i < A_count; i++) {
-            out[i].U[0][0] = u11[i];
-            out[i].U[0][1] = u21[i];
-            out[i].U[0][2] = u31[i];
-            out[i].U[1][0] = u12[i];
-            out[i].U[1][1] = u22[i];
-            out[i].U[1][2] = u32[i];
-            out[i].U[2][0] = u13[i];
-            out[i].U[2][1] = u23[i];
-            out[i].U[2][2] = u33[i];
-
-            out[i].V[0][0] = v11[i];
-            out[i].V[0][1] = v21[i];
-            out[i].V[0][2] = v31[i];
-            out[i].V[1][0] = v12[i];
-            out[i].V[1][1] = v22[i];
-            out[i].V[1][2] = v32[i];
-            out[i].V[2][0] = v13[i];
-            out[i].V[2][1] = v23[i];
-            out[i].V[2][2] = v33[i];
-
-            out[i].Sigma[0] = sigma1[i];
-            out[i].Sigma[1] = sigma2[i];
-            out[i].Sigma[2] = sigma3[i];
-        }
-    }
-
-    // Deallocate memory
-    free(buf);
+    });
 }
 
 #ifdef USE_SIMD
