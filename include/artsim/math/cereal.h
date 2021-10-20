@@ -35,6 +35,10 @@ void serialize(Archive& ar, glmx::ttransform<T>& trans) {
     ar(trans.v, trans.R[0], trans.R[1], trans.R[2]);
 }
 template<class Archive, class T>
+void serialize(Archive& ar, glmx::tscrew<T>& V) {
+    ar(V.w, V.v);
+}
+template<class Archive, class T>
 void serialize(Archive& ar, glmx::tsmat3x3<T>& M) {
     ar(M.xx, M.yy, M.zz, M.yz, M.zx, M.xy);
 }

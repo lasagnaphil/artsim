@@ -84,7 +84,7 @@ void Texture::loadFromImage(Ref<Image> image) {
     filterMin = GL_LINEAR_MIPMAP_LINEAR;
     filterMax = GL_LINEAR;
 
-    int nrComponents = image->nrChannels;
+    int nrComponents = image->desiredChannels == 0? image->nrChannels : image->desiredChannels;
     if (nrComponents == 1) {
         imageFormat = GL_RED;
         internalFormat = GL_RED;
@@ -125,7 +125,7 @@ void Texture::loadFromSubImage(Ref<Image> image, int xoffset, int yoffset, int w
     filterMin = GL_LINEAR_MIPMAP_LINEAR;
     filterMax = GL_LINEAR;
 
-    int nrComponents = image->nrChannels;
+    int nrComponents = image->desiredChannels == 0? image->nrChannels : image->desiredChannels;
     if (nrComponents == 1) {
         imageFormat = GL_RED;
         internalFormat = GL_RED;
@@ -166,6 +166,7 @@ Ref<Image> Texture::saveToImage(int numChannels, GLenum format, GLenum type) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, id);
     glGetTexImage(GL_TEXTURE_2D, 0, format, type, image->data);
+    glBindTexture(GL_TEXTURE_2D, 0);
     return image;
 }
 

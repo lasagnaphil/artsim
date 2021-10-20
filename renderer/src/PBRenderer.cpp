@@ -102,6 +102,19 @@ Ref<PBRMaterial> PBRMaterial::fromOBJ(const tinyobj::material_t& tmat, const cha
     return mat;
 }
 
+Ref<PBRMaterial> PBRMaterial::fromSingleTexture(Ref<Texture> tex) {
+    Ref<PBRMaterial> material = Resources::make<PBRMaterial>();
+    material->texAlbedo = tex;
+    material->texMetallic = defaultTexture;
+    material->texRoughness = defaultTexture;
+    material->texAO = defaultTexture;
+    material->albedo = glm::rvec3(1,1,1);
+    material->metallic = 0.0f;
+    material->roughness = 0.0f;
+    material->ao = 1.0f;
+    return material;
+}
+
 PBRenderer::PBRenderer(Camera *camera) :
         camera(camera) {
 }

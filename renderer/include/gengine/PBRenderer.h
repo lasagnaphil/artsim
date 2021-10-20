@@ -48,6 +48,8 @@ struct PBRMaterial {
     static Ref<PBRMaterial> quick(glm::vec3 color);
 
     static Ref<PBRMaterial> fromOBJ(const tinyobj::material_t& tmat, const char* directory = nullptr);
+
+    static Ref<PBRMaterial> fromSingleTexture(Ref<Texture> tex);
 };
 
 struct PBRDirLight {

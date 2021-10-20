@@ -33,6 +33,7 @@ Ref<Image> Image::fromEmpty(int width, int height, int nrChannels) {
     image->height = height;
     image->nrChannels = image->desiredChannels = nrChannels;
     image->data = (unsigned char*)malloc(width * height * nrChannels);
+    std::memset(image->data, 0, width * height * nrChannels);
     return image;
 }
 

@@ -294,6 +294,18 @@ Ref<Mesh> Mesh::makePlane(float size, float uvSize) {
     return mesh;
 }
 
+Ref<Mesh> Mesh::makePlane(glm::vec2 size, glm::vec2 uvSize) {
+    std::vector<Vertex> vertices((Vertex*)planeVertices, ((Vertex*)planeVertices) + 6);
+    for (int i = 0; i < 6; i++) {
+        vertices[i].pos.x *= size.x;
+        vertices[i].pos.z *= size.y;
+        vertices[i].uv *= uvSize;
+    }
+    auto mesh = Resources::make<Mesh>(vertices);
+    mesh->initVBO();
+    return mesh;
+}
+
 Ref<Mesh> Mesh::makeCylinder(unsigned int numQuads, float r, float h) {
     std::vector<Vertex> vertices;
     vertices.reserve(numQuads * 6);

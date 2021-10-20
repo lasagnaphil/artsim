@@ -82,6 +82,10 @@ void APIENTRY glDebugOutput(GLenum source,
 }
 
 void App::load() {
+    // stb_image and stb_image_write settings
+    stbi_set_flip_vertically_on_load(true);
+    stbi_flip_vertically_on_write(true);
+
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         fprintf(stderr, "Couldn't initialize SDL");
@@ -169,9 +173,6 @@ void App::load() {
 #else
     ImGui_ImplOpenGL3_Init(glsl_version);
 #endif
-
-    stbi_set_flip_vertically_on_load(true);
-    stbi_flip_vertically_on_write(true);
 
     rootTransform = Resources::make<Transform>();
     rootTransform->update();

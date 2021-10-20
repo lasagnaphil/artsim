@@ -15,6 +15,11 @@ struct Material {
     real friction = 1.0f;
     real restitution = 0.0f;
     real restitution_threshold = 0.01f;
+
+    template <class Archive>
+    void serialize(Archive& ar) {
+        ar(friction, restitution, restitution_threshold);
+    }
 };
 
 struct pair_hash {

@@ -74,6 +74,12 @@ struct Id {
     bool operator>(const Id<T>& other) const {
         return std::memcmp(this, &other, sizeof(Id<T>)) > 0;
     }
+
+    template <class Archive>
+    void serialize(Archive& ar) {
+        size_t* ptr = reinterpret_cast<size_t*>(this);
+        ar(*ptr);
+    }
 };
 
 struct AnyId : public Id<void> {};

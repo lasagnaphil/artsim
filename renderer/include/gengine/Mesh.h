@@ -68,6 +68,7 @@ struct Mesh {
     static Ref<Mesh> fromOBJ(const glm::vec3* vertices, const glm::ivec3* triangles, int num_triangles, OUT glm::vec3* normals, DrawMode mode = DrawMode::Static);
     static Ref<Mesh> makeCube(const glm::vec3& scale = {1.0f, 1.0f, 1.0f});
     static Ref<Mesh> makePlane(float size = 1.0f, float uvSize = 1.0f);
+    static Ref<Mesh> makePlane(glm::vec2 size, glm::vec2 uvSize = glm::vec2(1, 1));
     static Ref<Mesh> makeCylinder(unsigned int numQuads, float r, float h);
     static Ref<Mesh> makeCone(unsigned int numTriangles, float r, float h);
     static Ref<Mesh> makeSphere(float radius = 1.0f, unsigned int sectorCount = 36, unsigned int stackCount = 18);
