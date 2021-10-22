@@ -13,13 +13,13 @@
 namespace glmx {
 
 template <class T>
-void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out, int num_threads) {
+void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out) {
     ZoneScoped
     using namespace Singular_Value_Decomposition;
 
     constexpr int nsimd = 8;
     int N = (A_count - 1) / nsimd + 1;
-    tbb::enumerable_thread_specific<std::vector<float>> tls(std::vector<float>(30*nsimd, 0));
+    tbb::enumerable_thread_specific<std::array<float, 30*nsimd>> tls;
     // int buf_size = 30*nsimd*sizeof(float);
     // float* buf = (float*)aligned_alloc(nsimd*sizeof(float), buf_size);
     // memset(buf, 0, buf_size);
@@ -159,6 +159,6 @@ void fastsvd(const glm::tmat3x3<fsimd>& A, OUT SVD_mats<fsimd>& A_svd) {
 }
 #endif
 
-template void fastsvd(const glm::tmat3x3<artsim::real>* A, int A_count, SVD_mats<artsim::real>* out, int num_threads);
+template void fastsvd(const glm::tmat3x3<artsim::real>* A, int A_count, SVD_mats<artsim::real>* out);
 
 }

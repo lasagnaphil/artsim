@@ -15,6 +15,11 @@ namespace glmx {
     };
 
     template <class T>
+    inline T square(T a) {
+        return a * a;
+    }
+
+    template <class T>
     inline glm::tvec3<T> log(glm::tquat<T> q) {
         constexpr T pi = glm::pi<T>();
         q = glm::normalize(q);
