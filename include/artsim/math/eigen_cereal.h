@@ -106,6 +106,9 @@ inline void save(Archive& ar, const Eigen::SimplicialCholeskyBase<Derived>& ldlt
     ar(ldlt.getInternalNonZerosPerCol());
     ar(ldlt.getInternalP().indices());
     ar(ldlt.getInternalPinv().indices());
+    ar(ldlt.getInternalInfo());
+    ar(ldlt.getInternalFactorizationIsOk());
+    ar(ldlt.getInternalAnalysisIsOk());
 }
 
 template <class Archive, class Derived>
@@ -116,6 +119,9 @@ inline void load(Archive& ar, Eigen::SimplicialCholeskyBase<Derived>& ldlt) {
     ar(ldlt.getInternalNonZerosPerCol());
     ar(ldlt.getInternalP().indices());
     ar(ldlt.getInternalPinv().indices());
+    ar(ldlt.getInternalInfo());
+    ar(ldlt.getInternalFactorizationIsOk());
+    ar(ldlt.getInternalAnalysisIsOk());
 }
 
 }
