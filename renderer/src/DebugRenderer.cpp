@@ -23,13 +23,11 @@ void DebugRenderer::init() {
     }
     vertexBuffer.resize(IM_VERTEX_BUFFER_SIZE);
 
-    imPointShader = Resources::make<Shader>();
-    imPointShader->compileFromString(colorpoint3d_vert_shader, colorpoint3d_frag_shader);
+    imPointShader = Shader::fromString("colorpoint3d", colorpoint3d_vert_shader, colorpoint3d_frag_shader);
     imPointShader->use();
     imPointShader->setMat4("model", glm::mat4(1.0f));
 
-    imLineShader = Resources::make<Shader>();
-    imLineShader->compileFromString(colorline3d_vert_shader, colorline3d_frag_shader);
+    imLineShader = Shader::fromString("colorline3d", colorline3d_vert_shader, colorline3d_frag_shader);
     imLineShader->use();
     imLineShader->setMat4("model", glm::mat4(1.0f));
 

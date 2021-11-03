@@ -31,10 +31,9 @@ void PhongRenderer::init() {
         exit(EXIT_FAILURE);
     }
 
-    depthShader->compileFromString("depth", depth_vert_shader, depth_frag_shader);
-
-    debugDepthShader->compileFromString("depth_debug", depth_debug_vert_shader, depth_debug_frag_shader);
-    phongShader->compileFromString("phong", phong_vert_shader, phong_frag_shader);
+    depthShader = Shader::fromString("depth", depth_vert_shader, depth_frag_shader);
+    debugDepthShader = Shader::fromString("depth_debug", depth_debug_vert_shader, depth_debug_frag_shader);
+    phongShader = Shader::fromString("phong", phong_vert_shader, phong_frag_shader);
 
     glGenFramebuffers(1, &depthMapFBO);
 

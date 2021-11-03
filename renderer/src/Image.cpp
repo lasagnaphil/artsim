@@ -18,6 +18,7 @@ Ref<Image> Image::fromFile(const std::string& filename, int desiredChannels){
 
     image->filename = filename;
     image->data = stbi_load(filename.c_str(), &image->width, &image->height, &image->nrChannels, desiredChannels);
+    image->is_ptr_owned = true;
     if (!image->data) {
         std::cerr << "Failed to load image " << filename << "!\n";
         exit(EXIT_FAILURE);
@@ -33,12 +34,23 @@ Ref<Image> Image::fromEmpty(int width, int height, int nrChannels) {
     image->height = height;
     image->nrChannels = image->desiredChannels = nrChannels;
     image->data = (unsigned char*)malloc(width * height * nrChannels);
+    image->is_ptr_owned = true;
     std::memset(image->data, 0, width * height * nrChannels);
     return image;
 }
 
-void Image::dispose() {
-    if (data) {
+Ref<Image> Image::fromPtr(int width, int height, int nrChannels, unsigned char* ptr) {
+    Ref<Image> image = Resources::make<Image>();
+    image->width = width;
+    image->height = height;
+    image->nrChannels = nrChannels;
+    image->data = ptr;
+    image->is_ptr_owned = false;
+    return image;
+}
+
+void Image::release() {
+    if (data && is_ptr_owned) {
         free(data);
     }
 }

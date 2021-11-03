@@ -9,13 +9,13 @@
 
 Ref<Texture> Texture::fromImage(Ref<Image> image) {
     Ref<Texture> tex = Resources::make<Texture>();
-    tex->loadFromImage(image);
+    tex->loadFromImage(std::move(image));
     return tex;
 }
 
 Ref<Texture> Texture::fromSubImage(Ref<Image> image, int xoffset, int yoffset, int width, int height) {
     Ref<Texture> tex = Resources::make<Texture>();
-    tex->loadFromSubImage(image, xoffset, yoffset, width, height);
+    tex->loadFromSubImage(std::move(image), xoffset, yoffset, width, height);
     return tex;
 }
 
@@ -174,7 +174,7 @@ void Texture::bind() {
     glBindTexture(GL_TEXTURE_2D, id);
 }
 
-void Texture::dispose() {
+void Texture::release() {
     if (id != 0) {
         glDeleteTextures(1, &id);
     }

@@ -171,24 +171,29 @@ void Mesh::updateOBJInternal(const glm::vec3* vertices, const glm::ivec3* triang
         this->vertices[3*t+2].pos = vertices[triangles[t][2]];
         this->vertices[3*t+2].normal = glm::vec3(0);
         this->vertices[3*t+2].uv = glm::vec2(0);
-        normals[triangles[t][0]] = glm::vec3(0);
-        normals[triangles[t][1]] = glm::vec3(0);
-        normals[triangles[t][2]] = glm::vec3(0);
+        if (normals) {
+            normals[triangles[t][0]] = glm::vec3(0);
+            normals[triangles[t][1]] = glm::vec3(0);
+            normals[triangles[t][2]] = glm::vec3(0);
+        }
     }
-    for (int t = 0; t < num_triangles; t++) {
-        auto v0 = this->vertices[3*t+0].pos;
-        auto v1 = this->vertices[3*t+1].pos;
-        auto v2 = this->vertices[3*t+2].pos;
-        auto n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
-        normals[triangles[t][0]] += n;
-        normals[triangles[t][1]] += n;
-        normals[triangles[t][2]] += n;
-    }
-    // TODO: Remove repetitive normalization
-    for (int t = 0; t < num_triangles; t++) {
-        this->vertices[3*t+0].normal = glm::normalize(normals[triangles[t][0]]);
-        this->vertices[3*t+1].normal = glm::normalize(normals[triangles[t][1]]);
-        this->vertices[3*t+2].normal = glm::normalize(normals[triangles[t][2]]);
+    if (normals) {
+        for (int t = 0; t < num_triangles; t++) {
+            auto v0 = this->vertices[3*t+0].pos;
+            auto v1 = this->vertices[3*t+1].pos;
+            auto v2 = this->vertices[3*t+2].pos;
+            auto n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+            normals[triangles[t][0]] += n;
+            normals[triangles[t][1]] += n;
+            normals[triangles[t][2]] += n;
+        }
+
+        // TODO: Remove repetitive normalization
+        for (int t = 0; t < num_triangles; t++) {
+            this->vertices[3*t+0].normal = glm::normalize(normals[triangles[t][0]]);
+            this->vertices[3*t+1].normal = glm::normalize(normals[triangles[t][1]]);
+            this->vertices[3*t+2].normal = glm::normalize(normals[triangles[t][2]]);
+        }
     }
 }
 

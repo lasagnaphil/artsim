@@ -61,6 +61,17 @@ Ref<Shader> Shader::fromString(const char* name, const char* vertexSrc, const ch
     return shader;
 }
 
+Ref<Shader> Shader::fromFile(const char* name, const char* computePath) {
+    auto shader = Resources::make<Shader>(name);
+    shader->compileComputeShaderFromFile(computePath);
+    return shader;
+}
+Ref<Shader> Shader::fromString(const char* name, const char* computeSrc) {
+    auto shader = Resources::make<Shader>(name);
+    shader->compileComputeShaderFromString(computeSrc);
+    return shader;
+}
+
 void Shader::compileFromFile(const char *vertexPath, const char *fragmentPath, const char *geometryPath) {
     bool hasGeom = geometryPath != nullptr;
 
@@ -80,7 +91,6 @@ void Shader::compileFromFile(const char *vertexPath, const char *fragmentPath, c
 }
 
 void Shader::compileFromString(const char* vertexSrc, const char* fragmentSrc, const char* geomSrc) {
-
     program = glCreateProgram();
 
     GLuint vertexShaderPtr = compileShader(GL_VERTEX_SHADER, vertexSrc);
@@ -94,6 +104,30 @@ void Shader::compileFromString(const char* vertexSrc, const char* fragmentSrc, c
         glAttachShader(program, geometryShaderPtr);
     }
 
+    link();
+
+    glDeleteShader(vertexShaderPtr);
+    glDeleteShader(fragmentShaderPtr);
+    if (geomSrc) glDeleteShader(geometryShaderPtr);
+}
+
+void Shader::compileComputeShaderFromFile(const char* computePath) {
+    std::string computeCode = loadFile(computePath);
+    compileComputeShaderFromString(computeCode.data());
+}
+
+void Shader::compileComputeShaderFromString(const char* computeSrc) {
+    program = glCreateProgram();
+
+    GLuint computeShaderPtr = compileShader(GL_COMPUTE_SHADER, computeSrc);
+    glAttachShader(program, computeShaderPtr);
+
+    link();
+
+    glDeleteShader(computeShaderPtr);
+}
+
+void Shader::link() {
     glLinkProgram(program);
     GLint success;
     GLchar infoLog[512];
@@ -102,10 +136,6 @@ void Shader::compileFromString(const char* vertexSrc, const char* fragmentSrc, c
         glGetProgramInfoLog(program, 512, NULL, infoLog);
         std::cout << "Error: shader program linking failed" << infoLog << std::endl;
     }
-
-    glDeleteShader(vertexShaderPtr);
-    glDeleteShader(fragmentShaderPtr);
-    if (geomSrc) glDeleteShader(geometryShaderPtr);
 }
 
 void Shader::use() const {

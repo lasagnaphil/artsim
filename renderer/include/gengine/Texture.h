@@ -31,7 +31,7 @@ struct Texture {
     GLint filterMax;
 
     Texture() = default;
-    ~Texture() { dispose(); }
+    ~Texture() { release(); }
     static Ref<Texture> fromImage(Ref<Image> image);
     static Ref<Texture> fromSubImage(Ref<Image> image, int xoffset, int yoffset, int width, int height);
     static Ref<Texture> fromNew(uint32_t width, uint32_t height,
@@ -41,7 +41,7 @@ struct Texture {
     void loadFromImage(Ref<Image> image);
     void loadFromSubImage(Ref<Image> image, int xoffset, int yoffset, int width, int height);
     Ref<Image> saveToImage(int numChannels = 4, GLenum format = GL_RGBA, GLenum type = GL_UNSIGNED_BYTE);
-    void dispose();
+    void release();
 
     void bind();
 };

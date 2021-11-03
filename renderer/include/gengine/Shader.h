@@ -27,9 +27,9 @@ public:
 
     static Ref<Shader> fromFile(const char* name, const char* vertexPath, const char* fragmentPath, const char* geometryPath = nullptr);
     static Ref<Shader> fromString(const char* name, const char* vertexSrc, const char* fragmentSrc, const char* geomSrc = nullptr);
+    static Ref<Shader> fromFile(const char* name, const char* computePath);
+    static Ref<Shader> fromString(const char* name, const char* computeSrc);
 
-    void compileFromFile(const char* vertexPath, const char* fragmentPath, const char* geometryPath = nullptr);
-    void compileFromString(const char* vertexSrc, const char* fragmentSrc, const char* geomSrc = nullptr);
     void use() const;
 
     void setBool(const char* name, bool value) const;
@@ -52,5 +52,13 @@ public:
 
     GLuint program;
     std::string name;
+
+private:
+
+    void compileFromFile(const char* vertexPath, const char* fragmentPath, const char* geometryPath = nullptr);
+    void compileFromString(const char* vertexSrc, const char* fragmentSrc, const char* geomSrc = nullptr);
+    void compileComputeShaderFromFile(const char* computePath);
+    void compileComputeShaderFromString(const char* computeSrc);
+    void link();
 };
 

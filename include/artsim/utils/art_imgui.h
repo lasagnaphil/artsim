@@ -13,7 +13,7 @@
 
 namespace artsim {
 
-std::tuple<bool, bool, bool> articulated_body_imgui(ArticulatedBody& art) {
+std::tuple<bool, bool, bool> articulated_body_imgui(ArticulatedBody& art, bool* finished_editing = nullptr) {
     bool pos_edited = false, vel_edited = false, force_edited = false;
     auto& art_spec = art.get_spec();
     real* pos_buf = art.get_pos_buf();
@@ -31,10 +31,12 @@ std::tuple<bool, bool, bool> articulated_body_imgui(ArticulatedBody& art) {
             switch (joint.type) {
                 JOINT_DOF_1_CASE {
                     pos_edited |= ImGui::DragScalar(label.c_str(), ImGuiDataType_Real, pos_buf + jidx_start, 0.01f, &rot_min, &rot_max);
+                    if (finished_editing && ImGui::IsItemDeactivatedAfterEdit()) *finished_editing = true;
                 } break;
                 case JOINT_TYPE_SPHERICAL: {
                     bool rot_edited = ImGui::DragScalarN(label.c_str(), ImGuiDataType_Real, pos_buf + jidx_start, 4, 0.01f, &quat_min, &quat_max);
                     pos_edited |= rot_edited;
+                    if (finished_editing && ImGui::IsItemDeactivatedAfterEdit()) *finished_editing = true;
                     if (rot_edited) {
                         glm::rquat q = glm::normalize(glm::make_quat(pos_buf + jidx_start));
                         std::memcpy(pos_buf + jidx_start, (real*)&q, 4*sizeof(real));
@@ -42,7 +44,9 @@ std::tuple<bool, bool, bool> articulated_body_imgui(ArticulatedBody& art) {
                 } break;
                 case JOINT_TYPE_FLOATING: {
                     pos_edited |= ImGui::DragScalarN("Root pos##jointpos_root_pos", ImGuiDataType_Real, pos_buf + jidx_start, 3, 0.01f, &pos_min, &pos_max);
+                    if (finished_editing && ImGui::IsItemDeactivatedAfterEdit()) *finished_editing = true;
                     bool rot_edited = ImGui::DragScalarN("Root rot##jointpos_root_rot", ImGuiDataType_Real, pos_buf + jidx_start + 3, 4, 0.01f, &quat_min, &quat_max);
+                    if (finished_editing && ImGui::IsItemDeactivatedAfterEdit()) *finished_editing = true;
                     pos_edited |= rot_edited;
                     if (rot_edited) {
                         glm::rquat q = glm::normalize(glm::make_quat(pos_buf + jidx_start));

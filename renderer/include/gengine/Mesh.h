@@ -74,7 +74,6 @@ struct Mesh {
     static Ref<Mesh> makeSphere(float radius = 1.0f, unsigned int sectorCount = 36, unsigned int stackCount = 18);
     static Ref<Mesh> makeCapsule(float radius = 1.0f, float height = 1.0f, unsigned int sectorCount = 36, unsigned int stackCount = 18);
 
-private:
     void updateOBJInternal(const glm::vec3* vertices, const glm::ivec3* triangles, int num_triangles, OUT glm::vec3* normals);
 };
 #endif //MOTION_EDITING_UVMESH_H
