@@ -8,10 +8,6 @@
 #include <artsim/types.h>
 #include <artsim/core/arena.h>
 
-#include <Discregrid/cubic_lagrange_discrete_grid.hpp>
-#include <Discregrid/geometry/mesh_distance.hpp>
-#include <Discregrid/mesh/triangle_mesh.hpp>
-
 #include <memory>
 
 struct btCollisionShape;
@@ -19,9 +15,11 @@ struct btCollisionShape;
 namespace artsim {
 
 struct CollisionMesh {
+    /* TODO: Convert to tmd library
     std::unique_ptr<Discregrid::TriangleMesh> mesh;
     std::unique_ptr<Discregrid::MeshDistance> bvh;
     std::unique_ptr<Discregrid::CubicLagrangeDiscreteGrid> sdf;
+    */
     enum class Type { BVH, SDF } type;
 
     void init_bvh(const char* objfile);

@@ -36,7 +36,6 @@ set(ARTSIM_LIB
         cereal
         bullet_collision
         fastsvd
-        Discregrid
         tinyobjloader
         span-lite
         stdc++fs

@@ -14,14 +14,18 @@ using namespace artsim;
 using namespace glmx;
 
 void CollisionMesh::init_bvh(const char* objfile) {
+    /* TODO: convert to tmd library
     type = CollisionMesh::Type::BVH;
     printf("Loading mesh %s...\n", objfile);
     mesh = std::make_unique<Discregrid::TriangleMesh>(objfile);
     printf("Initializing BVH structure for mesh %s...\n", objfile);
     bvh = std::make_unique<Discregrid::MeshDistance>(mesh.get());
+     */
 }
 
 void CollisionMesh::init_sdf(const char* objfile, real sdf_grid_size) {
+    /*
+     * TODO: convert to tmd library
     init_bvh(objfile);
 
     type = CollisionMesh::Type::SDF;
@@ -43,6 +47,7 @@ void CollisionMesh::init_sdf(const char* objfile, real sdf_grid_size) {
     // fmt::print("Cell size = ({}, {}, {})\n", cell_size[0], cell_size[1], cell_size[2]);
     auto func = [this](Eigen::Vector3r const& xi) {return bvh->signedDistance(xi); };
     sdf->addFunction(func, true);
+     */
 }
 
 real CollisionShape::mass(real density) const {

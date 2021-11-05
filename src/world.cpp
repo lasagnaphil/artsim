@@ -15,8 +15,6 @@
 #include <BulletCollision/CollisionShapes/btSphereShape.h>
 #include <BulletCollision/CollisionShapes/btBoxShape.h>
 
-#include <Discregrid/All>
-
 #include <queue>
 #include <random>
 
@@ -248,6 +246,7 @@ void World::load_collision_meshes(ArticulatedBodySpec &spec) {
         // Calculate mass and inertia
         // Reference: https://abhilashreddy.com/writing/6/mesh_props.html
         // fmt::print("Link {}: \n", spec.names[lidx]);
+        /* TODO: Reimplement this after tmd library refactor
         auto& obj = col_mesh->mesh;
         int num_tris = obj->nFaces();
         auto verts = obj->vertex_data();
@@ -300,14 +299,13 @@ void World::load_collision_meshes(ArticulatedBodySpec &spec) {
             p.xy -= real(1.0/4.0) * (cent[tidx].x * c2f[tidx].y + cent[tidx].y * c2f[tidx].x);
         }
         link.inertia = link.density * p;
-        /*
         fmt::print("inertia = {} {} {}\n"
                    "          {} {} {}\n"
                    "          {} {} {}\n",
                    link.inertia.xx, link.inertia.xy, link.inertia.zx,
                    link.inertia.xy, link.inertia.yy, link.inertia.yz,
                    link.inertia.zx, link.inertia.yz, link.inertia.zz);
-                   */
+        */
     });
 }
 
