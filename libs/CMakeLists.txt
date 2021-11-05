@@ -2,6 +2,8 @@ set(SPAN_LITE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/span-lite)
 add_library(span-lite INTERFACE)
 target_include_directories(span-lite INTERFACE ${SPAN_LITE_DIR})
 
+add_subdirectory(glm)
+
 set(EIGEN_BUILD_DOC OFF CACHE BOOL "Enable creation of Eigen documentation")
 set(BUILD_TESTING OFF CACHE BOOL "Enable creation of Eigen tests.")
 add_subdirectory(eigen)

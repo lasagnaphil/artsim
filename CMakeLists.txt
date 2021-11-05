@@ -28,9 +28,10 @@ file(GLOB ARTSIM_SOURCES
 
 add_library(artsim ${ARTSIM_SOURCES})
 
-target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${GLM_INCLUDE_DIRS})
+target_include_directories(artsim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(ARTSIM_LIB
         tbb
+        glm::glm
         Eigen3::Eigen
         pugixml::pugixml
         cereal
@@ -38,6 +39,7 @@ set(ARTSIM_LIB
         fastsvd
         tinyobjloader
         span-lite
+        fmt
         stdc++fs
         openglrecorder
         tracy)
