@@ -13,3 +13,12 @@
 [submodule "libs/eigen"]
 	path = libs/eigen
 	url = git@github.com/lasagnaphil/eigen
+[submodule "libs/glm"]
+	path = libs/glm
+	url = git@github.com:g-truc/glm.git
+[submodule "renderer/deps/libopenglrecorder"]
+	path = renderer/deps/libopenglrecorder
+	url = git@github.com:Benau/libopenglrecorder.git
+[submodule "libs/fmt"]
+	path = libs/fmt
+	url = git@github.com:fmtlib/fmt.git

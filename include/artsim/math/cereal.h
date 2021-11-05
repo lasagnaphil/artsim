@@ -7,21 +7,45 @@
 
 #include <artsim/math/box.h>
 #include <artsim/math/se3.h>
+#include <cereal/details/traits.hpp>
 
 namespace glm {
 template<class Archive, class T>
 void serialize(Archive& ar, tvec3<T>& v) {
-    ar(v[0], v[1], v[2]);
+    if constexpr (cereal::traits::is_text_archive<Archive>::value) {
+        ar(cereal::make_nvp("x", v[0]),
+           cereal::make_nvp("y", v[1]),
+           cereal::make_nvp("z", v[2]));
+    }
+    else {
+        ar(v[0], v[1], v[2]);
+    }
 }
 
 template<class Archive, class T>
 void serialize(Archive& ar, tvec4<T>& v) {
-    ar(v[0], v[1], v[2], v[3]);
+    if constexpr (cereal::traits::is_text_archive<Archive>::value) {
+        ar(cereal::make_nvp("x", v[0]),
+           cereal::make_nvp("y", v[1]),
+           cereal::make_nvp("z", v[2]),
+           cereal::make_nvp("w", v[3]));
+    }
+    else {
+        ar(v[0], v[1], v[2], v[3]);
+    }
 }
 
 template<class Archive, class T>
 void serialize(Archive& ar, tquat<T>& v) {
-    ar(v[0], v[1], v[2], v[3]);
+    if constexpr (cereal::traits::is_text_archive<Archive>::value) {
+        ar(cereal::make_nvp("x", v[0]),
+           cereal::make_nvp("y", v[1]),
+           cereal::make_nvp("z", v[2]),
+           cereal::make_nvp("w", v[3]));
+    }
+    else {
+        ar(v[0], v[1], v[2], v[3]);
+    }
 }
 }
 

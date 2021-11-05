@@ -10,9 +10,6 @@
 
 struct Image {
     unsigned char* data = nullptr;
-    enum class Type {
-        Owned, View, Mapped
-    };
     bool is_ptr_owned = false;
     int width, height, nrChannels, desiredChannels;
     std::string filename;

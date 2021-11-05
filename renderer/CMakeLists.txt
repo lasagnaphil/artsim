@@ -4,9 +4,6 @@ find_package(Threads REQUIRED)
 # SDL2
 find_package(SDL2 REQUIRED)
 
-# Eigen
-find_package(Eigen3 REQUIRED)
-
 # OpenGL
 find_package(OpenGL REQUIRED)
 
@@ -45,12 +42,6 @@ target_link_libraries(implot PUBLIC imgui)
 set(STB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/stb)
 add_library(stb INTERFACE)
 target_include_directories(stb INTERFACE ${STB_DIR})
-
-# tinyxml2
-find_package(TinyXML2 REQUIRED)
-
-# fmt
-find_package(fmt REQUIRED)
 
 # Add the source files to the library
 file(GLOB_RECURSE GENGINE_SOURCES src/*.cpp)

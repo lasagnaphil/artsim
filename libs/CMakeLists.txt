@@ -1,4 +1,3 @@
-# span-lite
 set(SPAN_LITE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/span-lite)
 add_library(span-lite INTERFACE)
 target_include_directories(span-lite INTERFACE ${SPAN_LITE_DIR})
@@ -8,6 +7,7 @@ set(BUILD_TESTING OFF CACHE BOOL "Enable creation of Eigen tests.")
 add_subdirectory(eigen)
 
 add_subdirectory(bullet_collision)
+
 add_subdirectory(fastsvd)
 
 if (ARTSIM_USE_DOUBLE)
@@ -20,13 +20,11 @@ add_subdirectory(pugixml)
 set(JUST_INSTALL_CEREAL ON CACHE BOOL "")
 add_subdirectory(cereal)
 
+add_subdirectory(fmt)
+
 # tiny_obj_loader
 add_library(tinyobjloader STATIC ${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader/tiny_obj_loader.cc)
 target_include_directories(tinyobjloader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader)
-
-# std-simd
-add_library(std_simd INTERFACE)
-target_include_directories(std_simd INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/std-simd-1.0.0)
 
 # Tracy
 add_library(tracy STATIC ${CMAKE_CURRENT_SOURCE_DIR}/tracy/TracyClient.cpp)

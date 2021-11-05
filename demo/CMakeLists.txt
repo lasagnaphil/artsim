@@ -1,5 +1,3 @@
-find_package(OpenGLRecorder REQUIRED)
-
 add_custom_target(artsim_copy_resource_folder)
 add_custom_command(TARGET artsim_copy_resource_folder POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory

@@ -1,4 +1,5 @@
 find_package(Threads REQUIRED)
+find_package(OpenMP REQUIRED)
 
 set(FASTSVD_SRCS src/fastsvd.cpp)
 add_library(fastsvd STATIC ${FASTSVD_SRCS})
