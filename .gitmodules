@@ -22,3 +22,6 @@
 [submodule "libs/fmt"]
 	path = libs/fmt
 	url = git@github.com:fmtlib/fmt.git
+[submodule "libs/tbb"]
+	path = libs/tbb
+	url = git@github.com:wjakob/tbb.git

@@ -5,8 +5,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(TBB REQUIRED)
-
 option(ARTSIM_USE_LOGGING "Log simulation info to stdout" OFF)
 option(ARTSIM_USE_DOUBLE "Use double instead of float" ON)
 option(ARTSIM_USE_OPENMP "Use OpenMP" ON)
