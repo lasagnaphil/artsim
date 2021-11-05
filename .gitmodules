@@ -12,7 +12,7 @@
 	url = https://github.com/USCiLab/cereal.git
 [submodule "libs/eigen"]
 	path = libs/eigen
-	url = git@github.com/lasagnaphil/eigen
+	url = git@github.com:lasagnaphil/eigen
 [submodule "libs/glm"]
 	path = libs/glm
 	url = git@github.com:g-truc/glm.git
