@@ -38,6 +38,9 @@ add_library(implot STATIC
 target_include_directories(implot PUBLIC ${IMPLOT_DIR})
 target_link_libraries(implot PUBLIC imgui)
 
+# OpenGLRecorder
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/libopenglrecorder)
+
 # STB
 set(STB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/stb)
 add_library(stb INTERFACE)
@@ -60,10 +63,10 @@ target_include_directories(gengine_egl PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/generated)
 
-set(GENGINE_COMMON_LIBS artsim ${CMAKE_DL_LIBS} Threads::Threads
-        stb Eigen3::Eigen tinyxml2 span-lite fmt::fmt imgui implot)
+set(GENGINE_COMMON_LIBS artsim ${CMAKE_DL_LIBS} Threads::Threads 
+        stb Eigen3::Eigen span-lite fmt::fmt imgui implot)
 
-target_link_libraries(gengine PUBLIC ${GENGINE_COMMON_LIBS} glad SDL2::Main)
+target_link_libraries(gengine PUBLIC ${GENGINE_COMMON_LIBS} glad SDL2::Main openglrecorder)
 target_link_libraries(gengine_egl PUBLIC ${GENGINE_COMMON_LIBS} glad glad_egl)
 
 target_compile_definitions(gengine PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)

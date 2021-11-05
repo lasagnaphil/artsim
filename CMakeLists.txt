@@ -41,7 +41,6 @@ set(ARTSIM_LIB
         span-lite
         fmt
         stdc++fs
-        openglrecorder
         tracy)
 
 target_link_libraries(artsim PUBLIC ${ARTSIM_LIB})
