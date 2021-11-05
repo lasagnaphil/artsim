@@ -6,7 +6,6 @@
 #define ARTSIM_URDF_H
 
 #include <artsim/artsim.h>
-#include <tinyxml2.h>
 
 namespace artsim {
 void export_to_urdf(const ArticulatedBodySpec& art, const char* robot_name, const char* filename);

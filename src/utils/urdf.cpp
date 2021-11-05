@@ -3,6 +3,7 @@
 //
 
 #include "artsim/utils/urdf.h"
+#include <pugixml.hpp>
 #include <glm/gtx/euler_angles.hpp>
 
 using namespace glmx;
@@ -20,17 +21,14 @@ static std::string to_string(artsim::real v) {
 }
 
 void artsim::export_to_urdf(const artsim::ArticulatedBodySpec& art, const char* robot_name, const char* filename) {
-    using namespace tinyxml2;
 
-    XMLDocument doc;
-    XMLElement* robot_elem = doc.NewElement("robot");
-    robot_elem->SetAttribute("name", robot_name);
-    doc.InsertEndChild(robot_elem);
+    pugi::xml_document doc;
+    auto robot_elem = doc.append_child("robot");
+    robot_elem.append_attribute("name") = robot_name;
 
     if (art.floating) {
-        XMLElement* base_link_elem = doc.NewElement("link");
-        base_link_elem->SetAttribute("name", "base");
-        robot_elem->InsertEndChild(base_link_elem);
+        auto base_link_elem = robot_elem.append_child("link");
+        base_link_elem.append_attribute("name") = "base";
     }
 
     for (int i = 0; i < art.links.size(); i++) {
@@ -50,104 +48,90 @@ void artsim::export_to_urdf(const artsim::ArticulatedBodySpec& art, const char* 
         glm::extractEulerAngleXYZ(glm::tmat4x4<real>(joint_origin.R),
                 joint_origin_rpy.x, joint_origin_rpy.y, joint_origin_rpy.z);
 
-        XMLElement* link_elem = doc.NewElement("link");
-        link_elem->SetAttribute("name", name.c_str());
-        robot_elem->InsertEndChild(link_elem);
+        auto link_elem = robot_elem.append_child("link");
+        link_elem.append_attribute("name") = name.c_str();
         {
-            XMLElement* inertial_elem = doc.NewElement("inertial");
-            link_elem->InsertEndChild(inertial_elem);
+            auto inertial_elem = link_elem.append_child("inertial");
             {
-                XMLElement* origin_elem = doc.NewElement("origin");
-                origin_elem->SetAttribute("xyz", to_string(link_origin_xyz).c_str());
-                origin_elem->SetAttribute("rpy", to_string(link_origin_rpy).c_str());
-                inertial_elem->InsertEndChild(origin_elem);
+                auto origin_elem = inertial_elem.append_child("origin");
+                origin_elem.append_attribute("xyz") = to_string(link_origin_xyz).c_str();
+                origin_elem.append_attribute("rpy") = to_string(link_origin_rpy).c_str();
 
-                XMLElement* mass_elem = doc.NewElement("mass");
-                mass_elem->SetAttribute("value", to_string(link.mass).c_str());
-                inertial_elem->InsertEndChild(mass_elem);
+                auto mass_elem = inertial_elem.append_child("mass");
+                mass_elem.append_attribute("value") = to_string(link.mass).c_str();
 
-                XMLElement* inertia_elem = doc.NewElement("inertia");
-                inertia_elem->SetAttribute("ixx", to_string(link.inertia.xx).c_str());
-                inertia_elem->SetAttribute("iyy", to_string(link.inertia.yy).c_str());
-                inertia_elem->SetAttribute("izz", to_string(link.inertia.zz).c_str());
-                inertia_elem->SetAttribute("iyz", to_string(link.inertia.yz).c_str());
-                inertia_elem->SetAttribute("izx", to_string(link.inertia.zx).c_str());
-                inertia_elem->SetAttribute("ixy", to_string(link.inertia.xy).c_str());
-                inertial_elem->InsertEndChild(inertia_elem);
+                auto inertia_elem = inertial_elem.append_child("inertia");
+                inertia_elem.append_attribute("ixx") = to_string(link.inertia.xx).c_str();
+                inertia_elem.append_attribute("iyy") = to_string(link.inertia.yy).c_str();
+                inertia_elem.append_attribute("izz") = to_string(link.inertia.zz).c_str();
+                inertia_elem.append_attribute("iyz") = to_string(link.inertia.yz).c_str();
+                inertia_elem.append_attribute("izx") = to_string(link.inertia.zx).c_str();
+                inertia_elem.append_attribute("ixy") = to_string(link.inertia.xy).c_str();
             }
 
-            XMLElement* geometry_elem = doc.NewElement("geometry");
+            auto geometry_elem = link_elem.append_child("geometry");
             switch (link.col_shape.type) {
                 case CollisionShape::Type::Box: {
-                    XMLElement* box_elem = doc.NewElement("box");
-                    box_elem->SetAttribute("size", to_string(link.col_shape.scale).c_str());
-                    geometry_elem->InsertEndChild(box_elem);
+                    auto box_elem = geometry_elem.append_child("box");
+                    box_elem.append_attribute("size") = to_string(link.col_shape.scale).c_str();
                 } break;
                 case CollisionShape::Type::Sphere: {
-                    XMLElement* sphere_elem = doc.NewElement("sphere");
-                    sphere_elem->SetAttribute("radius", to_string(link.col_shape.scale.x).c_str());
-                    geometry_elem->InsertEndChild(sphere_elem);
+                    auto sphere_elem = geometry_elem.append_child("sphere");
+                    sphere_elem.append_attribute("radius") = to_string(link.col_shape.scale.x).c_str();
                 }
             }
 
-            XMLElement* visual_elem = doc.NewElement("visual");
-            link_elem->InsertEndChild(visual_elem);
+            auto visual_elem = link_elem.append_child("visual");
             {
-                XMLElement* origin_elem = doc.NewElement("origin");
-                origin_elem->SetAttribute("xyz", to_string(link_origin_xyz).c_str());
-                origin_elem->SetAttribute("rpy", to_string(link_origin_rpy).c_str());
-                visual_elem->InsertEndChild(origin_elem);
+                auto origin_elem = visual_elem.append_child("origin");
+                origin_elem.append_attribute("xyz") = to_string(link_origin_xyz).c_str();
+                origin_elem.append_attribute("rpy") = to_string(link_origin_rpy).c_str();
 
-                visual_elem->InsertEndChild(geometry_elem->DeepClone(&doc));
+                visual_elem.append_copy(geometry_elem);
 
                 // TODO: Add material
             }
 
-            XMLElement* collision_elem = doc.NewElement("collision");
-            link_elem->InsertEndChild(collision_elem);
+            auto collision_elem = link_elem.append_child("collision");
             {
-                XMLElement* origin_elem = doc.NewElement("origin");
-                origin_elem->SetAttribute("xyz", to_string(link_origin_xyz).c_str());
-                origin_elem->SetAttribute("rpy", to_string(link_origin_rpy).c_str());
-                collision_elem->InsertEndChild(origin_elem);
+                auto origin_elem = collision_elem.append_child("origin");
+                origin_elem.append_attribute("xyz") = to_string(link_origin_xyz).c_str();
+                origin_elem.append_attribute("rpy") = to_string(link_origin_rpy).c_str();
 
-                collision_elem->InsertEndChild(geometry_elem->DeepClone(&doc));
+                collision_elem.append_copy(geometry_elem);
             }
         }
 
-        XMLElement* joint_elem = doc.NewElement("joint");
-        joint_elem->SetAttribute("name", name.c_str());
+        auto joint_elem = robot_elem.append_child("joint");
+        joint_elem.append_attribute("name") = name.c_str();
         switch (joint.type) {
             case JOINT_TYPE_REVOLUTE_X: case JOINT_TYPE_REVOLUTE_Y: case JOINT_TYPE_REVOLUTE_Z:
-                joint_elem->SetAttribute("type", "revolute"); break;
+                joint_elem.append_attribute("type") = "revolute"; break;
             case JOINT_TYPE_PRISMATIC_X: case JOINT_TYPE_PRISMATIC_Y: case JOINT_TYPE_PRISMATIC_Z:
-                joint_elem->SetAttribute("type", "prismatic"); break;
+                joint_elem.append_attribute("type") = "prismatic"; break;
             case JOINT_TYPE_SPHERICAL:
-                joint_elem->SetAttribute("type", "spherical"); break;
+                joint_elem.append_attribute("type") = "spherical"; break;
             case JOINT_TYPE_FLOATING:
-                joint_elem->SetAttribute("type", "floating"); break;
+                joint_elem.append_attribute("type") = "floating"; break;
         }
-        robot_elem->InsertEndChild(joint_elem);
-        {
-            XMLElement* origin_elem = doc.NewElement("origin");
-            origin_elem->SetAttribute("xyz", to_string(joint_origin_xyz).c_str());
-            origin_elem->SetAttribute("rpy", to_string(joint_origin_rpy).c_str());
-            joint_elem->InsertEndChild(origin_elem);
 
-            XMLElement* parent_elem = doc.NewElement("parent");
+        {
+            auto origin_elem = joint_elem.append_child("origin");
+            origin_elem.append_attribute("xyz") = to_string(joint_origin_xyz).c_str();
+            origin_elem.append_attribute("rpy") = to_string(joint_origin_rpy).c_str();
+
+            auto parent_elem = joint_elem.append_child("parent");
             if (link.parent_idx == -1) {
-                parent_elem->SetAttribute("link", "base");
+                parent_elem.append_attribute("link") = "base";
             }
             else {
-                parent_elem->SetAttribute("link", art.names[link.parent_idx].c_str());
+                parent_elem.append_attribute("link") = art.names[link.parent_idx].c_str();
             }
-            joint_elem->InsertEndChild(parent_elem);
 
-            XMLElement* child_elem = doc.NewElement("child");
-            child_elem->SetAttribute("link", name.c_str());
-            joint_elem->InsertEndChild(child_elem);
+            auto child_elem = joint_elem.append_child("child");
+            child_elem.append_attribute("link") = name.c_str();
         }
     }
 
-    doc.SaveFile(filename);
+    doc.save_file(filename);
 }
