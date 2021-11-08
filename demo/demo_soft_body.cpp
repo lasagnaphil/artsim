@@ -17,8 +17,8 @@
 #include <gengine_artsim/soft_body_render.h>
 #include <omp.h>
 
-#define DEMO_PD
-// #define DEMO_ADMM
+// #define DEMO_PD
+#define DEMO_ADMM
 // #define DEMO_QUASINEWTON
 
 // #define DEMO_QUASISTATIC
