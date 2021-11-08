@@ -8,6 +8,8 @@
 #include <deque>
 #include <fmt/core.h>
 
+#include <glm/gtx/string_cast.hpp>
+
 namespace artsim {
 
 using namespace Eigen;
@@ -26,11 +28,9 @@ real energy_eigvec(glm::tvec3<real> S, const CorotationalEnergyConstraint& c) {
 }
 
 real energy_eigvec(glm::tvec3<real> S, const NeoHookeanEnergyConstraint& c) {
-    glm::rvec3 S_pow2 = S * S;
-    real I1 = S[0]*S[0] + S[1]*S[1] + S[2]*S[2];
-    real J = S[0]*S[1]*S[2];
-    real log_J = glm::log(J);
-    return (c.mu/2) * (I1 - 2*log_J - 3) + (c.lambda/2)*log_J*log_J;
+    real I2 = glm::length2(S);
+    real I3 = S[0]*S[1]*S[2];
+    return real(0.5)*c.mu*(I2 - real(3)) - c.mu*(I3 - 1) + (c.lambda/2)*glmx::square(I3 - 1);
 }
 
 glm::rmat3 pk1(const glm::rmat3& F, const glmx::SVD_mats<real>& F_svd, const ARAPEnergyConstraint& c) {
@@ -46,9 +46,13 @@ glm::rmat3 pk1(const glm::rmat3& F, const glmx::SVD_mats<real>& F_svd, const Cor
 }
 
 glm::rmat3 pk1(const glm::rmat3& F, const glmx::SVD_mats<real>& F_svd, const NeoHookeanEnergyConstraint& c) {
+    // TODO
+    /*
     real J = F_svd.Sigma[0] * F_svd.Sigma[1] * F_svd.Sigma[2];
     glm::rmat3 F_inv_T = F_svd.recover_inverse_transpose_matrix();
     return c.mu*(F - F_inv_T) + c.lambda*glm::log(J)*F_inv_T;
+     */
+    return rmat3(0);
 }
 
 glm::tvec3<real> projection_eigvec(glm::tvec3<real> S, const LinearStrainEnergyConstraint& c) {
@@ -90,7 +94,7 @@ glm::rvec3 proximal_eigvec(glm::rvec3 sigma, const ARAPEnergyConstraint& c) {
             (2*c.mu + c.k * sigma.z) / (2*c.mu + c.k));
 }
 
-glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const CorotationalEnergyConstraint& c) {
+glm::rvec3 proximal_eigvec(glm::rvec3 sigma, const CorotationalEnergyConstraint& c) {
     real A_diag = 2*c.mu + c.lambda + c.k;
     glmx::tsmat3x3<real> A(A_diag, A_diag, A_diag, c.lambda, c.lambda, c.lambda);
     glm::tvec3<real> b(2*c.mu + 3*c.lambda + c.k*sigma.x,
@@ -100,34 +104,44 @@ glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const CorotationalEnerg
 }
 
 // TODO: this explodes because one of the components of S becomes zero.
-glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const NeoHookeanEnergyConstraint& c) {
+glm::rvec3 proximal_eigvec(glm::rvec3 sigma, const NeoHookeanEnergyConstraint& c) {
     auto S = sigma;
+    // fmt::print("S_start = {}\n", glm::to_string(S));
+    // fmt::print("E = {}\n", energy_eigvec(S, c) + 0.5*c.k*glm::length2(S - sigma));
     for (int i = 0; i < 5; i++) {
-        real J = log(S[0]*S[1]*S[2]);
-        glm::tvec3<real> grad;
-        grad[0] = c.mu*(S[0] - 1.0/S[0]) + c.lambda/S[0] * J + c.k*(S[0] - sigma[0]);
-        grad[1] = c.mu*(S[1] - 1.0/S[1]) + c.lambda/S[1] * J + c.k*(S[1] - sigma[1]);
-        grad[2] = c.mu*(S[2] - 1.0/S[2]) + c.lambda/S[2] * J + c.k*(S[2] - sigma[2]);
-        glmx::tsmat3x3<real> H;
-        H.xx = c.mu + (c.mu + c.lambda)/(S[0]*S[0]) - c.lambda/(S[0]*S[0]) * J + c.k;
-        H.yy = c.mu + (c.mu + c.lambda)/(S[1]*S[1]) - c.lambda/(S[1]*S[1]) * J + c.k;
-        H.zz = c.mu + (c.mu + c.lambda)/(S[2]*S[2]) - c.lambda/(S[2]*S[2]) * J + c.k;
-        H.yz = c.lambda / (S[1]*S[2]);
-        H.zx = c.lambda / (S[2]*S[0]);
-        H.xy = c.lambda / (S[0]*S[1]);
+        real J = S[0]*S[1]*S[2];
+        glm::rvec3 grad;
+        grad[0] = c.k*(S[0] - sigma[0]) + c.mu*(S[0] - S[1]*S[2]) + c.lambda*S[1]*S[2]*(J - real(1));
+        grad[1] = c.k*(S[1] - sigma[1]) + c.mu*(S[1] - S[2]*S[0]) + c.lambda*S[2]*S[0]*(J - real(1));
+        grad[2] = c.k*(S[2] - sigma[2]) + c.mu*(S[2] - S[0]*S[1]) + c.lambda*S[0]*S[1]*(J - real(1));
+        real H_xx = c.k + c.mu + c.lambda*glmx::square(S[1]*S[2]);
+        real H_yy = c.k + c.mu + c.lambda*glmx::square(S[2]*S[0]);
+        real H_zz = c.k + c.mu + c.lambda*glmx::square(S[0]*S[1]);
+        real H_yz = -c.mu*S[0] + c.lambda*S[0]*(real(2)*J - real(1));
+        real H_zx = -c.mu*S[1] + c.lambda*S[1]*(real(2)*J - real(1));
+        real H_xy = -c.mu*S[2] + c.lambda*S[2]*(real(2)*J - real(1));
+        glm::mat3 H;
+        H[0][0] = 1.0;
+        H[0][1] = H_xy / H_yy;
+        H[0][2] = H_zx / H_zz;
+        H[1][0] = H_xy / H_xx;
+        H[1][1] = 1.0;
+        H[1][2] = H_yz / H_zz;
+        H[2][0] = H_zx / H_xx;
+        H[2][1] = H_yz / H_yy;
+        H[2][2] = 1.0;
+        auto Hinv = glm::inverse(H);
+        grad /= glm::rvec3(H_xx, H_yy, H_zz);
+        S -= Hinv * grad;
+        // S = glm::max(S, glm::rvec3(1e-6)); // Prevent volume from becoming negative
+        // fmt::print("S = {}\n", glm::to_string(S));
+        // fmt::print("E = {}\n", energy_eigvec(S, c) + 0.5*c.k*glm::length2(S - sigma));
         /*
-        std::cout << glm::to_string(S) << std::endl;
-        if (glm::isnan(H.xx) || glm::isnan(H.yy) || glm::isnan(H.zz)) {
-            std::cout << "Nan detected!" << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        if (glm::epsilonEqual(glmx::determinant(H), 0., 1e-8)) {
-            std::cout << "Singular matrix!" << std::endl;
+        if (glm::isnan(S[0]) || glm::isnan(S[1]) || glm::isnan(S[2])) {
+            fmt::print("Nan detected!\n");
             exit(EXIT_FAILURE);
         }
          */
-        S -= glmx::inverse(H) * grad;
-        S = glm::max(S, glm::rvec3(0)); // Prevent volume from becoming negative
     }
     return S;
 }

@@ -57,7 +57,7 @@ public:
 
         SoftBodyProperties props;
         props.density = 1000;
-        props.young_modulus = 1e8;
+        props.young_modulus = 1e7;
         props.poisson_ratio = 0.4;
 
         soft_body.load(tet_mesh);
@@ -85,6 +85,7 @@ public:
 
 #elif defined(DEMO_ADMM) || defined(DEMO_QUASINEWTON)
         real stiffness = props.calc_corotational_stiffness();
+        // real stiffness = 1e4;
         real mu = props.calc_mu();
         real lambda = props.calc_lambda();
         for (int i = 0; i < soft_body.tets.size(); i++) {
