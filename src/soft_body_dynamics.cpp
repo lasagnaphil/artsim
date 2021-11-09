@@ -105,10 +105,13 @@ glm::rvec3 proximal_eigvec(glm::rvec3 sigma, const CorotationalEnergyConstraint&
 
 // TODO: this explodes because one of the components of S becomes zero.
 glm::rvec3 proximal_eigvec(glm::rvec3 sigma, const NeoHookeanEnergyConstraint& c) {
+    const real eps = 1e-6;
+    if (sigma[0] * sigma[1] * sigma[2] < 0) { sigma[2] = -sigma[2]; }
+    sigma = glm::max(sigma, glm::rvec3(eps));
     auto S = sigma;
     // fmt::print("S_start = {}\n", glm::to_string(S));
     // fmt::print("E = {}\n", energy_eigvec(S, c) + 0.5*c.k*glm::length2(S - sigma));
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 10; i++) {
         real J = S[0]*S[1]*S[2];
         glm::rvec3 grad;
         grad[0] = c.k*(S[0] - sigma[0]) + c.mu*(S[0] - S[1]*S[2]) + c.lambda*S[1]*S[2]*(J - real(1));
@@ -133,15 +136,12 @@ glm::rvec3 proximal_eigvec(glm::rvec3 sigma, const NeoHookeanEnergyConstraint& c
         auto Hinv = glm::inverse(H);
         grad /= glm::rvec3(H_xx, H_yy, H_zz);
         S -= Hinv * grad;
-        // S = glm::max(S, glm::rvec3(1e-6)); // Prevent volume from becoming negative
         // fmt::print("S = {}\n", glm::to_string(S));
         // fmt::print("E = {}\n", energy_eigvec(S, c) + 0.5*c.k*glm::length2(S - sigma));
-        /*
-        if (glm::isnan(S[0]) || glm::isnan(S[1]) || glm::isnan(S[2])) {
-            fmt::print("Nan detected!\n");
-            exit(EXIT_FAILURE);
-        }
-         */
+        // if (glm::isnan(S[0]) || glm::isnan(S[1]) || glm::isnan(S[2])) {
+        //     fmt::print("Nan detected!\n");
+        //     exit(EXIT_FAILURE);
+        // }
     }
     return S;
 }

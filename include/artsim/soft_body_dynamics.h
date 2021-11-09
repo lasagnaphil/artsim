@@ -121,13 +121,13 @@ glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const ARAPEnergyConst
 glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const LinearStrainEnergyConstraint& c);
 glm::tmat3x3<real> projection(const glm::tmat3x3<real>& F, const VolumePreservationEnergyConstraint& c);
 
-glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, real volume, const ARAPEnergyConstraint& c);
-glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, real volume, const CorotationalEnergyConstraint& c);
-glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, real volume, const NeoHookeanEnergyConstraint& c);
+glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const ARAPEnergyConstraint& c);
+glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const CorotationalEnergyConstraint& c);
+glm::tvec3<real> proximal_eigvec(glm::tvec3<real> sigma, const NeoHookeanEnergyConstraint& c);
 
-glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, real volume, const ARAPEnergyConstraint& c);
-glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, real volume, const CorotationalEnergyConstraint& c);
-glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, real volume, const NeoHookeanEnergyConstraint& c);
+glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const ARAPEnergyConstraint& c);
+glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const CorotationalEnergyConstraint& c);
+glm::tmat3x3<real> proximal(const glm::tmat3x3<real>& F, const NeoHookeanEnergyConstraint& c);
 
 void soft_body_calc_deformation_field(const SoftBody& body, const glm::rvec3* x,
                                       OUT glm::rmat3* F);
