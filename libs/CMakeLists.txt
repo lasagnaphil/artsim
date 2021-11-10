@@ -26,6 +26,7 @@ add_subdirectory(cereal)
 
 add_subdirectory(fmt)
 
+set(TBB_BUILD_TESTS OFF CACHE BOOL "Build TBB tests and enable testing infrastructure")
 add_subdirectory(tbb)
 
 # tiny_obj_loader

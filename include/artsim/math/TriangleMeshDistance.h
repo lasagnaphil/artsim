@@ -37,6 +37,10 @@ namespace tmd
 	{
 	public:
 		std::array<FLOAT, 3> v;
+
+        template <class Archive> void serialize(Archive& ar) {
+            ar(v);
+        }
 		
 		Vec3r() {};
 		template<typename FLOAT_I>
@@ -93,6 +97,10 @@ namespace tmd
 		{
 			Vec3d center;
 			double radius;
+
+            template <class Archive> void serialize(Archive& ar) {
+                ar(center, radius);
+            }
 		};
 
 		struct Node
@@ -101,12 +109,20 @@ namespace tmd
 			BoundingSphere bv_right;
 			int left = -1; // If left == -1, right is the triangle_id
 			int right = -1;
+
+            template <class Archive> void serialize(Archive& ar) {
+                ar(bv_left, bv_right, left, right);
+            }
 		};
 
 		struct Triangle
 		{
 			std::array<Vec3d, 3> vertices;
 			int id = -1;
+
+            template <class Archive> void serialize(Archive& ar) {
+                ar(vertices, id);
+            }
 		};
 
 
@@ -126,6 +142,12 @@ namespace tmd
 		void _query(Result &result, const Node &node, const Vec3d& point) const;
 
 	public:
+
+        template <class Archive> void serialize(Archive& ar) {
+            ar(vertices, triangles, nodes,
+               pseudonormals_triangles, pseudonormals_edges, pseudonormals_vertices,
+               root_bv, is_constructed);
+        }
 
 		/* Methods */
 		TriangleMeshDistance() = default;

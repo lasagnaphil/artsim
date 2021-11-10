@@ -34,6 +34,10 @@ struct Mesh {
         glm::vec3 pos;
         glm::vec3 normal;
         glm::vec2 uv;
+
+        template <class Archive> void serialize(Archive& ar) {
+            ar(pos, normal, uv);
+        }
     };
 
     std::vector<Vertex> vertices;
@@ -43,6 +47,10 @@ struct Mesh {
     GLuint vbo;
     GLuint ebo;
 
+    enum class DrawMode {
+        Static, Dynamic
+    } drawMode;
+
     Mesh(std::vector<Vertex> vertices = {}, std::vector<uint32_t> indices = {}) :
         vertices(std::move(vertices)), indices(std::move(indices)) {}
     Mesh(Vertex* vertexData, std::size_t vertexCount) :
@@ -50,9 +58,13 @@ struct Mesh {
     Mesh(Vertex* vertexData, std::size_t vertexCount, uint32_t* indexData, std::size_t indexCount) :
         vertices(vertexData, vertexData + vertexCount), indices(indexData, indexData + indexCount) {}
 
-    enum class DrawMode {
-        Static, Dynamic
-    };
+    template <class Archive> void serialize(Archive& ar) {
+        ar(vertices, indices, drawMode);
+    }
+    template <class Archive> void epilogue(Archive& ar) {
+        initVBO(drawMode);
+    }
+
     void initVBO(DrawMode drawMode = DrawMode::Static);
     void updateVBO();
 
