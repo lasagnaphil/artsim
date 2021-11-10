@@ -67,6 +67,8 @@ float Mesh::planeVertices[8*6] = {
 };
 
 void Mesh::initVBO(DrawMode drawMode) {
+    this->drawMode = drawMode;
+
     int32_t drawModeGL = drawMode == DrawMode::Static? GL_STATIC_DRAW : GL_DYNAMIC_DRAW;
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
@@ -164,13 +166,10 @@ void Mesh::updateOBJInternal(const glm::vec3* vertices, const glm::ivec3* triang
     for (int t = 0; t < num_triangles; t++) {
         this->vertices[3*t+0].pos = vertices[triangles[t][0]];
         this->vertices[3*t+0].normal = glm::vec3(0);
-        this->vertices[3*t+0].uv = glm::vec2(0);
         this->vertices[3*t+1].pos = vertices[triangles[t][1]];
         this->vertices[3*t+1].normal = glm::vec3(0);
-        this->vertices[3*t+1].uv = glm::vec2(0);
         this->vertices[3*t+2].pos = vertices[triangles[t][2]];
         this->vertices[3*t+2].normal = glm::vec3(0);
-        this->vertices[3*t+2].uv = glm::vec2(0);
         if (normals) {
             normals[triangles[t][0]] = glm::vec3(0);
             normals[triangles[t][1]] = glm::vec3(0);
