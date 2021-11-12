@@ -17,7 +17,7 @@ if (ARTSIM_USE_DOUBLE)
 endif()
 
 # Probably not going to use anymore, use TMD single-header library instead
-# add_subdirectory(Discregrid)
+add_subdirectory(Discregrid)
 
 add_subdirectory(pugixml)
 
