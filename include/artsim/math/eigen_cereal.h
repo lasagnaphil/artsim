@@ -109,6 +109,7 @@ inline void save(Archive& ar, const Eigen::SimplicialCholeskyBase<Derived>& ldlt
     ar(ldlt.getInternalInfo());
     ar(ldlt.getInternalFactorizationIsOk());
     ar(ldlt.getInternalAnalysisIsOk());
+    ar(ldlt.getIsInitialized());
 }
 
 template <class Archive, class Derived>
@@ -122,6 +123,7 @@ inline void load(Archive& ar, Eigen::SimplicialCholeskyBase<Derived>& ldlt) {
     ar(ldlt.getInternalInfo());
     ar(ldlt.getInternalFactorizationIsOk());
     ar(ldlt.getInternalAnalysisIsOk());
+    ar(ldlt.getIsInitialized());
 }
 
 }
