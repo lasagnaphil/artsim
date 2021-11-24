@@ -49,6 +49,7 @@ void OBJFile::load_obj(const char* filename) {
     std::string index;
 
     while (std::getline(ifs, str)) {
+        if (str.empty()) continue;
         std::istringstream ss(str);
         ss >> index;
 

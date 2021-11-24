@@ -339,9 +339,11 @@ void projective_dynamics(const SoftBody& body,
                          INOUT real* pos, INOUT real* vel) {
     Map<VectorXr> x(pos, 3*body.verts.size());
     Map<VectorXr> v(vel, 3*body.verts.size());
-    Map<const VectorXr> f_ext(f, 3*body.verts.size());
     VectorXr x_orig = x;
-    VectorXr x_tilde = x + dt*v + (dt*dt)*body.M_LDLt.solve(f_ext);
+    VectorXr x_tilde = x + dt*v;
+    if (f) {
+        x_tilde += (dt*dt) * body.M_LDLt.solve(Map<const VectorXr>(f, 3 * body.verts.size()));
+    }
 
     std::vector<glm::tmat3x3<real>> F(body.tets.size());
     std::vector<glmx::SVD_mats<real>> F_svd(body.tets.size());
@@ -399,7 +401,10 @@ void projective_dynamics_quasistatic(const SoftBody& body,
 #undef X
 
         // Local solve
-        VectorXr b = f_ext;
+        VectorXr b;
+        if (f) b = f_ext;
+        else b.setZero();
+
 #define X(CTYPE, CFIELD) \
         projective_dynamics_volume_constraint_update_b( \
                 body, constraints.CFIELD.data(), constraints.CFIELD.size(), 1.0, p.data(), INOUT b.data());
