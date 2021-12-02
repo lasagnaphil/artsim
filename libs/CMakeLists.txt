@@ -19,6 +19,8 @@ endif()
 # Probably not going to use anymore, use TMD single-header library instead
 add_subdirectory(Discregrid)
 
+add_subdirectory(MshIO)
+
 add_subdirectory(pugixml)
 
 set(JUST_INSTALL_CEREAL ON CACHE BOOL "")

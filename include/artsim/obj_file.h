@@ -28,6 +28,7 @@ struct OBJFile {
     void save_obj(const char* filename);
 
     void load_msh(const char* filename);
+    void save_msh(const char* filename);
 };
 
 }

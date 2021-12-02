@@ -25,3 +25,6 @@
 [submodule "libs/tbb"]
 	path = libs/tbb
 	url = git@github.com:wjakob/tbb.git
+[submodule "libs/MshIO"]
+	path = libs/MshIO
+	url = https://github.com/qnzhou/MshIO.git

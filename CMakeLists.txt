@@ -35,6 +35,7 @@ set(ARTSIM_LIB
         Eigen3::Eigen
         pugixml::pugixml
         cereal
+        mshio
         bullet_collision
         fastsvd
         tinyobjloader

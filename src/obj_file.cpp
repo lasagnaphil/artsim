@@ -3,7 +3,7 @@
 //
 
 #include "artsim/obj_file.h"
-#include "artsim/utils/pymesh/MshLoader.h"
+#include <mshio/mshio.h>
 
 #include <fmt/core.h>
 #include <fstream>
@@ -149,20 +149,61 @@ void OBJFile::save_obj(const char* filename) {
 }
 
 void OBJFile::load_msh(const char* filename) {
-    PyMesh::MshLoader msh(filename);
-    auto& nodes = msh.get_nodes();
-    auto& elems = msh.get_elements();
-    int num_nodes = nodes.rows() / 3;
-    int num_elems = elems.rows() / 4;
+    auto spec = mshio::load_msh(filename);
+    int num_nodes = spec.nodes.num_nodes;
+    int num_elems = spec.elements.num_elements;
     vertices.resize(num_nodes);
+    auto& vert_data = spec.nodes.entity_blocks[0].data;
     for (int i = 0; i < num_nodes; i++) {
-        vertices[i] = {nodes[3*i+0], nodes[3*i+1], nodes[3*i+2]};
+        vertices[i] = {vert_data[3*i+0], vert_data[3*i+1], vert_data[3*i+2]};
     }
     tetrahedrons.resize(num_elems);
+    auto& elem_data = spec.elements.entity_blocks[0].data;
     for (int i = 0; i < num_elems; i++) {
-        tetrahedrons[i] = {elems[4*i+0], elems[4*i+1], elems[4*i+2], elems[4*i+3]};
+        tetrahedrons[i] = {elem_data[4*i+0], elem_data[4*i+1], elem_data[4*i+2], elem_data[4*i+3]};
     }
     printf("Loading msh %s: nodes = %d, tets = %d\n", filename, num_nodes, num_elems);
+}
+
+void OBJFile::save_msh(const char* filename) {
+    mshio::MshSpec spec;
+    spec.mesh_format.file_type = 1;
+    spec.nodes.num_entity_blocks = 1;
+    spec.nodes.num_nodes = vertices.size();
+    spec.nodes.min_node_tag = 0;
+    spec.nodes.max_node_tag = vertices.size()-1;
+    spec.nodes.entity_blocks.resize(1);
+    spec.nodes.entity_blocks[0].entity_dim = 3;
+    spec.nodes.entity_blocks[0].num_nodes_in_block = vertices.size();
+    auto& vert_data = spec.nodes.entity_blocks[0].data;
+    auto& vert_indices = spec.nodes.entity_blocks[0].tags;
+    vert_data.resize(3*vertices.size());
+    vert_indices.resize(vertices.size());
+    for (int i = 0; i < vertices.size(); i++) {
+        vert_indices[i] = i;
+        vert_data[3*i+0] = vertices[i][0];
+        vert_data[3*i+1] = vertices[i][1];
+        vert_data[3*i+2] = vertices[i][2];
+    }
+    spec.elements.num_entity_blocks = 1;
+    spec.elements.num_elements = tetrahedrons.size();
+    spec.elements.min_element_tag = 0;
+    spec.elements.max_element_tag = tetrahedrons.size()-1;
+    spec.elements.entity_blocks.resize(1);
+    spec.elements.entity_blocks[0].entity_dim = 3;
+    spec.elements.entity_blocks[0].element_type = 4; // 4-node tetrahedron
+    spec.elements.entity_blocks[0].num_elements_in_block = tetrahedrons.size();
+    auto& elem_data = spec.elements.entity_blocks[0].data;
+    elem_data.resize(5*tetrahedrons.size());
+    for (int i = 0; i < tetrahedrons.size(); i++) {
+        elem_data[5*i+0] = i;
+        elem_data[5*i+1] = tetrahedrons[i][0];
+        elem_data[5*i+2] = tetrahedrons[i][1];
+        elem_data[5*i+3] = tetrahedrons[i][2];
+        elem_data[5*i+4] = tetrahedrons[i][3];
+    }
+    mshio::validate_spec(spec);
+    mshio::save_msh(filename, spec);
 }
 
 }
