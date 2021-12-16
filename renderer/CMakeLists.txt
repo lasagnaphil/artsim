@@ -52,26 +52,19 @@ file(GLOB_RECURSE GENGINE_SOURCES src/*.cpp)
 add_library(gengine STATIC ${GENGINE_SOURCES}
         ${IMGUI_DIR}/backends/imgui_impl_sdl.cpp
         ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp)
-add_library(gengine_egl STATIC ${GENGINE_SOURCES}
-        ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp)
 
 # include/linking
 target_include_directories(gengine PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/generated)
-target_include_directories(gengine_egl PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/generated)
 
 set(GENGINE_COMMON_LIBS artsim ${CMAKE_DL_LIBS} Threads::Threads 
         stb Eigen3::Eigen span-lite fmt::fmt imgui implot)
 
-target_link_libraries(gengine PUBLIC ${GENGINE_COMMON_LIBS} glad SDL2::Main openglrecorder)
-target_link_libraries(gengine_egl PUBLIC ${GENGINE_COMMON_LIBS} glad glad_egl)
+target_link_libraries(gengine PUBLIC ${GENGINE_COMMON_LIBS} glad glad_egl SDL2::Main openglrecorder)
 
 target_compile_definitions(gengine PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)
-target_compile_definitions(gengine_egl PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)
-target_compile_definitions(gengine_egl PUBLIC GENGINE_USE_EGL)
+target_compile_definitions(gengine PUBLIC GENGINE_USE_EGL)
 
 # Compile shaders into header files
 add_executable(embed_shader ${CMAKE_CURRENT_SOURCE_DIR}/shaders/embed_shader.cpp)
@@ -99,5 +92,4 @@ endforeach()
 add_custom_target(compile_shaders DEPENDS ${SHADER_HEADER_FILES})
 
 add_dependencies(gengine compile_shaders)
-add_dependencies(gengine_egl compile_shaders)
 

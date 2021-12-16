@@ -8,6 +8,10 @@
 #include "gengine/TrackballCamera.h"
 #include "gengine/FlyCamera.h"
 
+#ifdef GENGINE_USE_EGL
+#include <glad/glad_egl.h>
+#endif
+
 #include <imgui.h>
 #include <implot.h>
 #include <backends/imgui_impl_sdl.h>
@@ -20,6 +24,7 @@
 #include "stb_image_write.h"
 
 #include <Tracy.hpp>
+#include <SDL2/SDL_syswm.h>
 
 static void sdl_die(const char * message) {
     fprintf(stderr, "%s: %s\n", message, SDL_GetError());
@@ -94,22 +99,6 @@ void App::load() {
 
     atexit(SDL_Quit);
 
-    SDL_GL_LoadLibrary(NULL); // Default OpenGL is fine.
-
-    const char* glsl_version = "#version 130";
-#if __APPLE__
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-#else
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-#endif
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-
     SDL_DisplayMode current;
     SDL_GetCurrentDisplayMode(0, &current);
 
@@ -121,21 +110,145 @@ void App::load() {
         exit(EXIT_FAILURE);
     }
 
-    // Create OpenGL Context
-    mainContext = SDL_GL_CreateContext(window);
-    if (mainContext == NULL)
-        sdl_die("Failed to create OpenGL context");
-    SDL_GL_SetSwapInterval(1); // Enable vsync
+    if (settings.useEGL) {
+        if (!gladLoadEGL()) {
+            fprintf(stderr, "Failed to load EGL with GLAD.\n");
+            exit(EXIT_FAILURE);
+        }
 
-    // SDL Settings
-    // SDL_SetRelativeMouseMode(isMouseRelative? SDL_TRUE : SDL_FALSE);
+        glDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 
-    // Check OpenGL properties
-    printf("OpenGL loaded\n");
-    gladLoadGLLoader(SDL_GL_GetProcAddress);
-    printf("Vendor:   %s\n", glGetString(GL_VENDOR));
-    printf("Renderer: %s\n", glGetString(GL_RENDERER));
-    printf("Version:  %s\n", glGetString(GL_VERSION));
+        EGLint major, minor;
+
+        EGLBoolean result = eglInitialize(glDisplay, &major, &minor);
+        if(result != EGL_TRUE){
+            switch(eglGetError()){
+                case EGL_BAD_DISPLAY:
+                    fprintf(stderr, "Failed to initialize EGL Display: EGL_BAD_DISPLAY");
+                    exit(EXIT_FAILURE);
+                case EGL_NOT_INITIALIZED:
+                    fprintf(stderr, "Failed to initialize EGL Display: EGL_NOT_INITIALIZED");
+                    exit(EXIT_FAILURE);
+                default:
+                    fprintf(stderr, "Failed to initialize EGL Display: unknown error");
+                    exit(EXIT_FAILURE);
+            }
+        }
+
+        // 2. Select an appropriate configuration
+        static const EGLint configAttribs[] = {
+                EGL_RED_SIZE,           8,
+                EGL_GREEN_SIZE,         8,
+                EGL_BLUE_SIZE,          8,
+                EGL_ALPHA_SIZE,         8,
+                EGL_DEPTH_SIZE,         24,
+                EGL_STENCIL_SIZE,       8,
+                EGL_RENDERABLE_TYPE,    EGL_OPENGL_BIT,
+                EGL_SURFACE_TYPE,       EGL_PBUFFER_BIT,
+                EGL_NONE
+        };
+        EGLint numConfigs;
+        EGLConfig eglCfg;
+
+        result = eglChooseConfig(glDisplay, configAttribs, &eglCfg, 1, &numConfigs);
+        if(result != EGL_TRUE){
+            switch(eglGetError()){
+                case EGL_BAD_DISPLAY:
+                    fprintf(stderr, "Failed to configure EGL Display: EGL_BAD_DISPLAY\n");
+                    exit(EXIT_FAILURE);
+                case EGL_BAD_ATTRIBUTE:
+                    fprintf(stderr, "Failed to configure EGL Display: EGL_BAD_ATTRIBUTE\n");
+                    exit(EXIT_FAILURE);
+                case EGL_NOT_INITIALIZED:
+                    fprintf(stderr, "Failed to configure EGL Display: EGL_NOT_INITIALIZED\n");
+                    exit(EXIT_FAILURE);
+                case EGL_BAD_PARAMETER:
+                    fprintf(stderr, "Failed to configure EGL Display: EGL_BAD_PARAMETER\n");
+                    exit(EXIT_FAILURE);
+                default:
+                    fprintf(stderr, "Failed to configure EGL Display: unknown error\n");
+                    exit(EXIT_FAILURE);
+            }
+        }
+
+        // 4. Bind the API
+        result = eglBindAPI(EGL_OPENGL_API);
+        if (result != EGL_TRUE) {
+            fprintf(stderr, "Unable to bind OpenGL API (eglError: %d)\n", eglGetError());
+            exit(EXIT_FAILURE);
+        }
+
+        EGLint ctxAttr[] = {
+                EGL_CONTEXT_MAJOR_VERSION, 4,
+                EGL_CONTEXT_MINOR_VERSION, 3,
+                EGL_CONTEXT_OPENGL_PROFILE_MASK,
+                EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT,
+                EGL_NONE
+        };
+
+        // Create a context
+        glContext = eglCreateContext(glDisplay, eglCfg, EGL_NO_CONTEXT, ctxAttr);
+        if (glContext == EGL_NO_CONTEXT) {
+            fprintf(stderr, "Unable to create context (eglError: %d)\n", eglGetError());
+            exit(EXIT_FAILURE);
+        }
+
+        // Create a window surface
+        SDL_SysWMinfo sysInfo;
+        SDL_VERSION(&sysInfo.version); // Set SDL version
+        SDL_GetWindowWMInfo(window, &sysInfo);
+
+        glSurface = eglCreateWindowSurface(glDisplay, eglCfg, (EGLNativeWindowType)sysInfo.info.x11.window, 0);
+        if (glSurface == EGL_NO_SURFACE) {
+            fprintf(stderr, "Unable to create EGL surface (eglError: %d)\n", eglGetError());
+            exit(EXIT_FAILURE);
+        }
+
+        result = eglMakeCurrent(glDisplay, glSurface, glSurface, glContext);
+        if (result != EGL_TRUE) {
+            fprintf(stderr, "Unable to make surface as current (eglError: %d)\n", eglGetError());
+            exit(EXIT_FAILURE);
+        }
+        eglSwapInterval(glDisplay, 1);
+
+        if (!gladLoadGL()) {
+            fprintf(stderr, "Cannot load GLAD!\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    else {
+        SDL_GL_LoadLibrary(NULL); // Default OpenGL is fine.
+
+#if __APPLE__
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    #else
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    #endif
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+        SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+        SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
+        // Create OpenGL Context
+        glContext = SDL_GL_CreateContext(window);
+        if (glContext == NULL)
+            sdl_die("Failed to create OpenGL context");
+        SDL_GL_SetSwapInterval(1); // Enable vsync
+
+        // SDL Settings
+        // SDL_SetRelativeMouseMode(isMouseRelative? SDL_TRUE : SDL_FALSE);
+
+        // Check OpenGL properties
+        printf("OpenGL loaded\n");
+        gladLoadGLLoader(SDL_GL_GetProcAddress);
+        printf("Vendor:   %s\n", glGetString(GL_VENDOR));
+        printf("Renderer: %s\n", glGetString(GL_RENDERER));
+        printf("Version:  %s\n", glGetString(GL_VERSION));
+
+    }
 
     // Enable the debug callback
     GLint flags;
@@ -148,9 +261,6 @@ void App::load() {
                 GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, true
         );
     }
-
-    // Use v-sync
-    SDL_GL_SetSwapInterval(1);
 
     // Set OpenGL viewport
     int w, h;
@@ -167,11 +277,12 @@ void App::load() {
     ImGui::StyleColorsDark();
     ImPlot::CreateContext();
 
-    ImGui_ImplSDL2_InitForOpenGL(window, mainContext);
+    ImGui_ImplSDL2_InitForOpenGL(window, glContext);
+
 #ifdef __APPLE__
     ImGui_ImplOpenGL3_Init("#version 410 core");
 #else
-    ImGui_ImplOpenGL3_Init(glsl_version);
+    ImGui_ImplOpenGL3_Init("#version 130");
 #endif
 
     rootTransform = Resources::make<Transform>();
@@ -205,6 +316,23 @@ void App::startMainLoop() {
     using Ns = std::chrono::nanoseconds;
     using std::chrono::duration_cast;
 
+    auto actualRender = [&]() {
+        if (settings.useEGL) {
+            auto result = eglMakeCurrent(glDisplay, glSurface, glSurface, glContext);
+            if (result != EGL_TRUE) {
+                fprintf(stderr, "Unable to make surface as current (eglError: %d)\n", eglGetError());
+                exit(EXIT_FAILURE);
+            }
+        }
+        internalRender();
+        if (settings.useEGL) {
+            eglSwapBuffers(glDisplay, glSurface);
+        }
+        else {
+            SDL_GL_SwapWindow(window);
+        };
+    };
+
     Time previous = Clock::now();
     Ns lag = Ns(0);
     while (!quit) {
@@ -228,8 +356,7 @@ void App::startMainLoop() {
                 // Update
                 internalUpdate(nsPerTick * 1e-9f);
                 if (!settings.skipRenderFramesOnLag) {
-                    internalRender();
-                    SDL_GL_SwapWindow(window);
+                    actualRender();
                     FrameMark
                 }
 
@@ -239,8 +366,7 @@ void App::startMainLoop() {
         }
 
         if (settings.skipRenderFramesOnLag) {
-            internalRender();
-            SDL_GL_SwapWindow(window);
+            actualRender();
             FrameMark
         }
 
@@ -322,12 +448,17 @@ void App::internalRender() {
     ImGui::End();
 
     ImGui::Render();
-    SDL_GL_MakeCurrent(window, mainContext);
+    SDL_GL_MakeCurrent(window, glContext);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 App::~App() {
     ImPlot::DestroyContext();
     ImGui::DestroyContext();
+    if (settings.useEGL) {
+        eglDestroySurface(glDisplay, glSurface);
+        eglDestroyContext(glDisplay, glContext);
+        eglTerminate(glDisplay);
+    }
     SDL_DestroyWindow(window);
 }

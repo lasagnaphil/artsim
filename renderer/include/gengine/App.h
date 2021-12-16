@@ -8,7 +8,9 @@
 #define GLM_FORCE_RADIANS 1
 
 #include <SDL2/SDL.h>
-#include "glad/glad.h"
+
+#include <glad/glad.h>
+#include <glad/glad_egl.h>
 
 #include <memory>
 
@@ -34,6 +36,7 @@ struct AppSettings {
     int updateFPS = 60;
     int windowWidth = 1920;
     int windowHeight = 1080;
+    bool useEGL = false;
 
     static AppSettings defaultPhong() {
         return AppSettings { Renderer::Phong, Camera::FlyCamera, false, true, 60};
@@ -74,7 +77,9 @@ private:
     void internalRender();
 
     SDL_Window* window;
-    SDL_GLContext mainContext;
+    void* glContext;
+    void* glSurface;
+    void* glDisplay;
 
     bool quit = false;
     float dt;
