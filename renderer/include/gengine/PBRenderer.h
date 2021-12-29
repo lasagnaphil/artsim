@@ -103,6 +103,14 @@ public:
     void init();
 
     void queueRender(const PBRCommand& command) {
+        if (command.mesh == nullptr) {
+            std::cerr << "PBRCommand Mesh is empty!" << std::endl;
+            return;
+        }
+        if (command.material == nullptr) {
+            std::cerr << "PBRCommand Material is empty!" << std::endl;
+            return;
+        }
         if (command.material->transparent) {
             renderTransparentCommands.push_back(command);
         }
@@ -111,6 +119,14 @@ public:
         }
     }
     void queueRender(Ref<Mesh> mesh, Ref<PBRMaterial> mat, glm::mat4 modelMatrix) {
+        if (mesh == nullptr) {
+            std::cerr << "PBRCommand Mesh is empty!" << std::endl;
+            return;
+        }
+        if (mat == nullptr) {
+            std::cerr << "PBRCommand Material is empty!" << std::endl;
+            return;
+        }
         if (mat->transparent) {
             renderTransparentCommands.push_back({mesh, mat, modelMatrix});
         }

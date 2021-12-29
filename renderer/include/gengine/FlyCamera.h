@@ -51,9 +51,20 @@ public:
 
     bool enableHideMouse = false;
 
+    enum class ViewMode {
+        Perspective,
+        Projective_PlusX, Projective_MinusX,
+        Projective_PlusY, Projective_MinusY,
+        Projective_PlusZ, Projective_MinusZ
+    } mode = ViewMode::Perspective;
+
+    void setViewMode(ViewMode mode);
+    void setOrthoZoom(float orthoZoom) { this->orthoZoom = orthoZoom; }
+
 private:
     float radius = 300.0f;
     float distance = 10.0f;
+    float orthoZoom = 1.0f;
 };
 
 
