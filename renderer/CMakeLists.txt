@@ -56,7 +56,8 @@ add_library(gengine STATIC ${GENGINE_SOURCES}
 # include/linking
 target_include_directories(gengine PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/generated)
+        ${CMAKE_CURRENT_SOURCE_DIR}/generated
+        ${SDL2_INCLUDE_DIR}/SDL2)
 
 set(GENGINE_COMMON_LIBS artsim ${CMAKE_DL_LIBS} Threads::Threads 
         stb Eigen3::Eigen span-lite fmt::fmt imgui implot)

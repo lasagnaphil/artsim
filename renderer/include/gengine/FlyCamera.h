@@ -33,7 +33,8 @@ public:
         return transform->getGlobalPosition();
     }
 
-    glm::vec2 worldPointToScreen(const glm::vec3& pos);
+    glm::vec2 worldPointToScreen(const glm::vec3& pos) const;
+    glm::vec3 screenPointToWorld(const glm::vec2& screenPos, float depth) const;
 
     Ref<Transform> transform = {};
 

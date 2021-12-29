@@ -220,7 +220,7 @@ glm::mat4 FlyCamera::getViewMatrix() const {
             transform->getGlobalUpVec());
 }
 
-glm::vec2 FlyCamera::worldPointToScreen(const glm::vec3& pos) {
+glm::vec2 FlyCamera::worldPointToScreen(const glm::vec3& pos) const {
     glm::vec4 res = getPerspectiveMatrix() * getViewMatrix() * glm::vec4(pos, 1.f);
     res.x /= res.w;
     res.y /= res.w;
@@ -229,6 +229,13 @@ glm::vec2 FlyCamera::worldPointToScreen(const glm::vec3& pos) {
     glGetIntegerv(GL_VIEWPORT, gl_viewport);
     glm::vec2 screenPos = {0.5f * (1 + res.x) * gl_viewport[2], 0.5f * (1 - res.y) * gl_viewport[3]};
     return screenPos;
+}
+
+glm::vec3 FlyCamera::screenPointToWorld(const glm::vec2& screenPos, float depth) const {
+    glm::vec4 projPos = {screenPos.x, screenPos.y, depth, 1};
+    auto mvp = getPerspectiveMatrix() * getViewMatrix();
+    glm::vec4 pos = glm::inverse(mvp) * projPos;
+    return {pos.x / pos.w, pos.y / pos.w, pos.z / pos.w};
 }
 
 void FlyCamera::setViewMode(FlyCamera::ViewMode _mode) {
@@ -240,8 +247,8 @@ void FlyCamera::setViewMode(FlyCamera::ViewMode _mode) {
         } break;
         case ViewMode::Projective_PlusX: yaw = 90; pitch = 0; break;
         case ViewMode::Projective_MinusX: yaw = -90; pitch = 0; break;
-        case ViewMode::Projective_PlusY: yaw = 0; pitch = 90; break;
-        case ViewMode::Projective_MinusY: yaw = 0; pitch = -90; break;
+        case ViewMode::Projective_PlusY: yaw = 0; pitch = -90; break;
+        case ViewMode::Projective_MinusY: yaw = 0; pitch = 90; break;
         case ViewMode::Projective_PlusZ: yaw = 180; pitch = 0; break;
         case ViewMode::Projective_MinusZ: yaw = 0; pitch = 0; break;
     }

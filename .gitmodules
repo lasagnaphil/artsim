@@ -28,3 +28,6 @@
 [submodule "libs/MshIO"]
 	path = libs/MshIO
 	url = https://github.com/qnzhou/MshIO.git
+[submodule "renderer/deps/imgui"]
+	path = renderer/deps/imgui
+	url = https://github.com/ocornut/imgui

@@ -274,6 +274,8 @@ void App::load() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
+    // io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     ImGui::StyleColorsDark();
     ImPlot::CreateContext();
 
@@ -425,6 +427,7 @@ void App::internalUpdate(float dt) {
 }
 
 void App::internalRender() {
+
     glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     ImGui_ImplOpenGL3_NewFrame();
@@ -437,7 +440,7 @@ void App::internalRender() {
     render();
 
     ImGui::SetNextWindowBgAlpha(0.3f);
-    ImGui::SetNextWindowPos(ImVec2(10.0f, 30.0f), ImGuiCond_Always, ImVec2(0.0f, 0.0f));
+    ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always, ImVec2(0.0f, 0.0f));
     bool overlayOpen = true;
     ImGui::Begin("Simple Overlay", &overlayOpen, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
     ImGui::Text("Update: %f ms", 1000.f * dt);
@@ -448,8 +451,21 @@ void App::internalRender() {
     ImGui::End();
 
     ImGui::Render();
-    SDL_GL_MakeCurrent(window, glContext);
+
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+    /*
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+        if (settings.useEGL) {
+            eglMakeCurrent(glDisplay, glSurface, glSurface, glContext);
+        }
+        else {
+            SDL_GL_MakeCurrent(window, glContext);
+        }
+    }
+     */
 }
 
 App::~App() {
