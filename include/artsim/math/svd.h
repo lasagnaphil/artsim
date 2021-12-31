@@ -145,6 +145,10 @@ struct SVD_mats {
     glm::tvec3<T> Sigma;
     glm::tmat3x3<T> V;
 
+    glm::tmat3x3<T> recover_rotation() const {
+        return U * glm::transpose(V);
+    }
+
     glm::tmat3x3<T> recover_matrix() const {
         return glmx::svd_mult(U, Sigma, V);
     }
