@@ -25,9 +25,13 @@ FlyCamera::FlyCamera(Ref<Transform> parent, glm::ivec2 windowSize)
 
 void FlyCamera::update(float dt) {
     auto inputMgr = InputManager::get();
+    auto& io = ImGui::GetIO();
 
     if (mode == ViewMode::Perspective) {
+        if (io.WantCaptureMouse) return;
+
         bool pressStart = false;
+
         if (inputMgr->isMouseEntered(SDL_BUTTON_RIGHT)) {
             if (enableHideMouse) {
                 SDL_SetRelativeMouseMode(SDL_TRUE);
@@ -83,6 +87,8 @@ void FlyCamera::update(float dt) {
     }
     else {
         // Keyboard movement
+        if (io.WantCaptureKeyboard) return;
+
         float velocity = movementSpeed * dt;
         if (inputMgr->isMousePressed(SDL_SCANCODE_LSHIFT)) {
             velocity = velocity * 0.1f;
@@ -114,26 +120,29 @@ void FlyCamera::renderImGui() {
 }
 
 void FlyCamera::processInput(SDL_Event& ev) {
+    auto& io = ImGui::GetIO();
     auto trans = transform.get();
     if (ev.type == SDL_MOUSEWHEEL) {
-        if (mode == ViewMode::Perspective) {
-            if (enableMiddleScroll) {
-                if (enableZoom) {
-                    fov += ev.wheel.y;
-                } else {
-                    float increment = 0.25f * ev.wheel.y;
-                    if (distance + increment > 0.f) {
-                        distance += increment;
+        if (!io.WantCaptureMouse) {
+            if (mode == ViewMode::Perspective) {
+                if (enableMiddleScroll) {
+                    if (enableZoom) {
+                        fov += ev.wheel.y;
+                    } else {
+                        float increment = 0.25f * ev.wheel.y;
+                        if (distance + increment > 0.f) {
+                            distance += increment;
+                        }
+                        auto curPos = trans->getPosition();
+                        auto nextPos = distance / glm::length(curPos) * curPos;
+                        trans->setPosition(nextPos);
                     }
-                    auto curPos = trans->getPosition();
-                    auto nextPos = distance / glm::length(curPos) * curPos;
-                    trans->setPosition(nextPos);
                 }
             }
-        }
-        else {
-            float increment = 0.25f * ev.wheel.y;
-            orthoZoom = glm::clamp(orthoZoom + increment, 0.01f, 10.0f);
+            else {
+                float increment = 0.25f * ev.wheel.y;
+                orthoZoom = glm::clamp(orthoZoom + increment, 0.01f, 10.0f);
+            }
         }
     }
 }
