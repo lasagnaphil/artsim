@@ -182,7 +182,12 @@ TEST_CASE("Various kinds of pendulums") {
                     SUBCASE("Forward dynamics results obtained by Featherstone and RNEA are the same") {
                         for (int d = 0; d < num_vel_dofs; d++) {
                             CAPTURE(d);
-                            CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
+                            if constexpr (std::is_same_v<real, float>) {
+                                CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-1));
+                            }
+                            else if constexpr (std::is_same_v<real, double>) {
+                                CHECK(q2dot_1[d] == doctest::Approx(q2dot_2[d]).epsilon(1e-4));
+                            }
                         }
                     }
                 }
@@ -239,7 +244,12 @@ TEST_CASE("Various kinds of pendulums") {
                         for (int k2 = 0; k2 < num_vel_dofs; k2++) {
                             CAPTURE(k1);
                             CAPTURE(k2);
-                            CHECK(Minv_using_fs(k1, k2) == doctest::Approx(M_eigen_inv(k1, k2)).epsilon(1e-4));
+                            if constexpr (std::is_same_v<real, float>) {
+                                CHECK(Minv_using_fs(k1, k2) == doctest::Approx(M_eigen_inv(k1, k2)).epsilon(1e-1));
+                            }
+                            else if constexpr (std::is_same_v<real, double>) {
+                                CHECK(Minv_using_fs(k1, k2) == doctest::Approx(M_eigen_inv(k1, k2)).epsilon(1e-4));
+                            }
                         }
                     }
                 }

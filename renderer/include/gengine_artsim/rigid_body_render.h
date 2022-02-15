@@ -26,6 +26,7 @@ public:
             case artsim::CollisionShape::Type::Box: {
                 mesh = Mesh::makeCube();
             } break;
+            /* TODO
             case artsim::CollisionShape::Type::Mesh: {
                 auto col_mesh = world->get_collision_mesh(shape.mesh.id)->mesh.get();
                 mesh = Resources::make<Mesh>();
@@ -52,6 +53,7 @@ public:
                 }
                 render_mesh.initVBO();
             } break;
+             */
             default: {}
         }
 

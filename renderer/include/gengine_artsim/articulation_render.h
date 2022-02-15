@@ -38,6 +38,7 @@ public:
                 case artsim::CollisionShape::Type::Box: {
                     link_meshes[i] = Mesh::makeCube();
                 } break;
+                /* TODO
                 case artsim::CollisionShape::Type::Mesh: {
                     auto mesh = world->get_collision_mesh(shape.mesh.id)->mesh.get();
                     link_meshes[i] = Resources::make<Mesh>();
@@ -64,6 +65,7 @@ public:
                     }
                     render_mesh.initVBO();
                 } break;
+                 */
                 default: {}
             }
             joint_meshes[i] = Mesh::makeSphere(0.02f);

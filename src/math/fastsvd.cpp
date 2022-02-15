@@ -118,5 +118,6 @@ void fastsvd(const glm::tmat3x3<T>* A, int A_count, SVD_mats<T>* out) {
 
 template void fastsvd_simd<float, 8>(const glm::tmat3x3<float>* A, SVD_mats<float>* out, const int jmax);
 template void fastsvd<float>(const glm::tmat3x3<float>* A, int A_count, SVD_mats<float>* out);
+template void fastsvd<double>(const glm::tmat3x3<double>* A, int A_count, SVD_mats<double>* out);
 
 }

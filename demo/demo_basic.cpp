@@ -66,6 +66,7 @@ public:
             run_simulation = !run_simulation;
         }
         if (inputMgr->isKeyEntered(SDL_SCANCODE_RETURN)) {
+            /*
             if (art_type == 1) {
                 auto spec = RigidBodySpec(CollisionShape::make_sphere(0.1f), 1000);
                 auto new_rb_id = world.add_rigid_body(spec, default_mat_id);
@@ -74,6 +75,7 @@ public:
                 rb_renderers.push_back(RigidBodyRender(&world, new_rb_id, orig_mesh_mat));
             }
             else {
+            */
                 auto new_art_id = world.add_articulated_body(
                         examples::create_free_link(art_type, true), default_mat_id);
                 // auto new_art_id = world.add_articulated_body(
@@ -82,7 +84,7 @@ public:
                 auto& art = *world.get_articulated_body(new_art_id);
                 art.randomize_positions();
                 art_renderers.push_back(ArticulationRender(&world, new_art_id, orig_mesh_mat, joint_mat));
-            }
+            // }
         }
 
         if (inputMgr->isKeyEntered(SDL_SCANCODE_1)) { demo_type = DemoType::Pendulum; art_type = 1; resetPhysics(); }
@@ -195,6 +197,7 @@ public:
             } break;
             case DemoType::Contacts: {
                 world.add_plane(default_mat_id);
+                /*
                 if (art_type == 1) {
                     auto spec = RigidBodySpec(CollisionShape::make_box({0.1f, 1.0f, 0.1f}), 1000);
                     rb_id = world.add_rigid_body(spec, default_mat_id);
@@ -203,13 +206,14 @@ public:
                     rb_renderers.push_back(RigidBodyRender(&world, rb_id, orig_mesh_mat));
                 }
                 else {
+                 */
                     art_id = world.add_articulated_body(
                             examples::create_free_link(art_type, true), default_mat_id);
 
                     auto art = world.get_articulated_body(art_id);
                     art->randomize_positions();
                     art_renderers.push_back(ArticulationRender(&world, art_id, orig_mesh_mat, joint_mat));
-                }
+                // }
             } break;
         }
         world_debug_renderer = WorldDebugRender(&world);
