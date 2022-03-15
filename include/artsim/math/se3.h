@@ -304,6 +304,13 @@ namespace glmx {
                + I[2][0]*w[0]*w[2] + I[2][1]*w[1]*w[2] + I[2][2]*w[2]*w[2];
     }
 
+    template <class T>
+    inline T bilinear_form(const glm::tmat3x3<T>& I, glm::tvec3<T> w, glm::tvec3<T> v) {
+        return I[0][0]*w[0]*v[0] + I[0][1]*w[1]*v[0] + I[0][2]*w[2]*v[0]
+               + I[1][0]*w[0]*v[1] + I[1][1]*w[1]*v[1] + I[1][2]*w[2]*v[1]
+               + I[2][0]*w[0]*v[2] + I[2][1]*w[1]*v[2] + I[2][2]*w[2]*v[2];
+    }
+
     // 3x3 symmetric matrix.
     template <class T>
     struct tsmat3x3 {
