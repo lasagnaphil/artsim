@@ -2,10 +2,10 @@
 find_package(Threads REQUIRED)
 
 # SDL2
-find_package(SDL2 REQUIRED)
+find_package(SDL2 CONFIG REQUIRED)
 
 # OpenGL
-find_package(OpenGL REQUIRED)
+find_package(OpenGL CONFIG REQUIRED)
 
 # GLAD
 set(GLAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/glad)
@@ -13,9 +13,9 @@ add_library(glad STATIC ${GLAD_DIR}/src/glad.c)
 target_include_directories(glad PUBLIC ${GLAD_DIR}/include)
 target_link_libraries(glad PUBLIC OpenGL::OpenGL)
 
-set(GLAD_EGL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/glad_egl)
 add_library(glad_egl STATIC ${GLAD_EGL_DIR}/src/glad_egl.c)
 target_include_directories(glad_egl PUBLIC ${GLAD_EGL_DIR}/include)
+set(GLAD_EGL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/glad_egl)
 target_link_libraries(glad_egl PUBLIC OpenGL::EGL)
 
 # IMGUI

@@ -6,6 +6,9 @@
 #include <artsim/utils/example_articulations.h>
 #include <artsim/utils/xml.h>
 
+#include <map>
+#include <pugixml.hpp>
+
 using namespace artsim;
 
 int main(int argc, char** argv) {
@@ -71,7 +74,8 @@ int main(int argc, char** argv) {
         world.add_plane(default_mat_id);
 
         ArticulatedBodySpec art_spec;
-        if (load_from_xml("demo/resources/human.xml", art_spec) != tinyxml2::XML_SUCCESS) {
+        auto xml_load_result = load_from_xml("demo/resources/human.xml", art_spec);
+        if (xml_load_result.status == pugi::xml_parse_status::status_ok) {
             printf("Failed to load articulation!\n");
             exit(EXIT_FAILURE);
         }
@@ -86,7 +90,7 @@ int main(int argc, char** argv) {
 
         auto t1 = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < num_iters; i++) {
-            world.simulate(dt);
+            world.simulate();
         }
         auto t2 = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
