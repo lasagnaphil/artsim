@@ -1,8 +1,0 @@
-{
-  "name": "artsim",
-  "version-string": "0.0.1-dev",
-  "dependencies": [
-    "opengl",
-    "sdl2"
-  ]
-}
