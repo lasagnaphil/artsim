@@ -5,7 +5,7 @@
 #ifndef GENGINE_INPUTMANAGER_H
 #define GENGINE_INPUTMANAGER_H
 
-#include <glm/ext.hpp>
+#include <glm/vec2.hpp>
 #include <SDL2/SDL_events.h>
 
 struct InputManager {

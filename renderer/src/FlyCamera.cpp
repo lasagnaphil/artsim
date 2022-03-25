@@ -158,8 +158,8 @@ glm::mat4 FlyCamera::getPerspectiveMatrix() const {
             return glm::perspective(
                     glm::radians(fov),
                     aspectRatio,
-                    near,
-                    far
+                    pnear,
+                    pfar
             );
         }
         case ViewMode::Projective_PlusX: {
@@ -168,8 +168,8 @@ glm::mat4 FlyCamera::getPerspectiveMatrix() const {
                     pos.z - 0.5f * aspectRatio / orthoZoom,
                     pos.y - 0.5f / orthoZoom,
                     pos.y + 0.5f / orthoZoom,
-                    near,
-                    far);
+                    pnear,
+                    pfar);
         }
         case ViewMode::Projective_MinusX: {
             return glm::ortho(
@@ -177,8 +177,8 @@ glm::mat4 FlyCamera::getPerspectiveMatrix() const {
                     pos.z + 0.5f * aspectRatio / orthoZoom,
                     pos.y - 0.5f / orthoZoom,
                     pos.y + 0.5f / orthoZoom,
-                    near,
-                    far);
+                    pnear,
+                    pfar);
         }
         case ViewMode::Projective_PlusY: {
             return glm::ortho(
@@ -186,8 +186,8 @@ glm::mat4 FlyCamera::getPerspectiveMatrix() const {
                     pos.x - 0.5f * aspectRatio / orthoZoom,
                     pos.z - 0.5f / orthoZoom,
                     pos.z + 0.5f / orthoZoom,
-                    near,
-                    far);
+                    pnear,
+                    pfar);
         }
         case ViewMode::Projective_MinusY: {
             return glm::ortho(
@@ -195,8 +195,8 @@ glm::mat4 FlyCamera::getPerspectiveMatrix() const {
                     pos.x + 0.5f * aspectRatio / orthoZoom,
                     pos.z - 0.5f / orthoZoom,
                     pos.z + 0.5f / orthoZoom,
-                    near,
-                    far);
+                    pnear,
+                    pfar);
         }
         case ViewMode::Projective_PlusZ: {
             return glm::ortho(
@@ -204,8 +204,8 @@ glm::mat4 FlyCamera::getPerspectiveMatrix() const {
                     pos.x - 0.5f * aspectRatio / orthoZoom,
                     pos.y - 0.5f / orthoZoom,
                     pos.y + 0.5f / orthoZoom,
-                    near,
-                    far);
+                    pnear,
+                    pfar);
         }
         case ViewMode::Projective_MinusZ: {
             return glm::ortho(
@@ -213,8 +213,8 @@ glm::mat4 FlyCamera::getPerspectiveMatrix() const {
                     pos.x + 0.5f * aspectRatio / orthoZoom,
                     pos.y - 0.5f / orthoZoom,
                     pos.y + 0.5f / orthoZoom,
-                    near,
-                    far);
+                    pnear,
+                    pfar);
         }
         default:
             return glm::mat4();

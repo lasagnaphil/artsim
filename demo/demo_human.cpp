@@ -4,7 +4,6 @@
 
 #include <iostream>
 #include <vector>
-#include <tinyxml2.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 

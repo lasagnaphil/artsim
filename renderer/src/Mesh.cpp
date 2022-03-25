@@ -354,6 +354,7 @@ Ref<Mesh> Mesh::makeCone(unsigned int numTriangles, float r, float h) {
 
 // Courtesy of http://www.songho.ca/opengl/gl_sphere.html
 Ref<Mesh> Mesh::makeSphere(float radius, unsigned int sectorCount, unsigned int stackCount) {
+    const float pi = glm::pi<float>();
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
 
@@ -364,13 +365,13 @@ Ref<Mesh> Mesh::makeSphere(float radius, unsigned int sectorCount, unsigned int 
     float nx, ny, nz, lengthInv = 1.0f / radius;    // vertex normal
     float s, t;                                     // vertex texCoord
 
-    float sectorStep = 2 * M_PI / sectorCount;
-    float stackStep = M_PI / stackCount;
+    float sectorStep = 2 * pi / sectorCount;
+    float stackStep = pi / stackCount;
     float sectorAngle, stackAngle;
 
     for(int i = 0; i <= stackCount; ++i)
     {
-        stackAngle = M_PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
+        stackAngle = pi / 2 - i * stackStep;        // starting from pi/2 to -pi/2
         xy = radius * cosf(stackAngle);             // r * cos(u)
         z = radius * sinf(stackAngle);              // r * sin(u)
 
@@ -440,14 +441,16 @@ Ref<Mesh> Mesh::makeCapsule(float radius, float height, unsigned int sectorCount
     float nx, ny, nz, lengthInv = 1.0f / radius;    // vertex normal
     float s, t;                                     // vertex texCoord
 
-    float sectorStep = 2 * M_PI / sectorCount;
-    float stackStep = M_PI / stackCount;
+    const float pi = glm::pi<float>();
+
+    float sectorStep = 2 * pi / sectorCount;
+    float stackStep = pi / stackCount;
     float sectorAngle, stackAngle;
 
     // northern hemisphere
     for(int i = 0; i <= stackCount/2; ++i)
     {
-        stackAngle = M_PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
+        stackAngle = pi / 2 - i * stackStep;        // starting from pi/2 to -pi/2
         xy = radius * cosf(stackAngle);             // r * cos(u)
         z = height / 2 + radius * sinf(stackAngle);              // r * sin(u)
 
@@ -476,7 +479,7 @@ Ref<Mesh> Mesh::makeCapsule(float radius, float height, unsigned int sectorCount
     // southern hemisphere
     for(int i = stackCount/2; i <= stackCount; ++i)
     {
-        stackAngle = M_PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
+        stackAngle = pi / 2 - i * stackStep;        // starting from pi/2 to -pi/2
         xy = radius * cosf(stackAngle);             // r * cos(u)
         z = -height / 2 + radius * sinf(stackAngle);              // r * sin(u)
 

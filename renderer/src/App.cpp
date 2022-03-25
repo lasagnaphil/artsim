@@ -112,6 +112,7 @@ void App::load() {
     }
 
     if (settings.useEGL) {
+        /*
         if (!gladLoadEGL()) {
             fprintf(stderr, "Failed to load EGL with GLAD.\n");
             exit(EXIT_FAILURE);
@@ -216,6 +217,7 @@ void App::load() {
             fprintf(stderr, "Cannot load GLAD!\n");
             exit(EXIT_FAILURE);
         }
+         */
     }
     else {
         SDL_GL_LoadLibrary(NULL); // Default OpenGL is fine.
@@ -321,15 +323,17 @@ void App::startMainLoop() {
 
     auto actualRender = [&]() {
         if (settings.useEGL) {
+            /*
             auto result = eglMakeCurrent(glDisplay, glSurface, glSurface, glContext);
             if (result != EGL_TRUE) {
                 fprintf(stderr, "Unable to make surface as current (eglError: %d)\n", eglGetError());
                 exit(EXIT_FAILURE);
             }
+             */
         }
         internalRender();
         if (settings.useEGL) {
-            eglSwapBuffers(glDisplay, glSurface);
+            // eglSwapBuffers(glDisplay, glSurface);
         }
         else {
             SDL_GL_SwapWindow(window);
@@ -532,9 +536,11 @@ App::~App() {
     ImPlot::DestroyContext();
     ImGui::DestroyContext();
     if (settings.useEGL) {
+        /*
         eglDestroySurface(glDisplay, glSurface);
         eglDestroyContext(glDisplay, glContext);
         eglTerminate(glDisplay);
+         */
     }
     SDL_DestroyWindow(window);
 }

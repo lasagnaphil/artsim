@@ -1,0 +1,7 @@
+target("fastsvd")
+    set_kind("static")
+    add_files("src/fastsvd.cpp")
+    add_includedirs("include", {public = true})
+    add_vectorexts("sse", "sse2", "sse3", "ssse3")
+    add_vectorexts("avx", "avx2")
+    add_defines("USE_AVX_IMPLEMENTATION")

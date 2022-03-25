@@ -105,8 +105,8 @@ glm::mat4 TrackballCamera::getPerspectiveMatrix() const {
     return glm::perspective(
         glm::radians(fov),
         ImGui::GetIO().DisplaySize.x / ImGui::GetIO().DisplaySize.y,
-        near,
-        far
+        pnear,
+        pfar
     );
 }
 

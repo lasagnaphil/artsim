@@ -5,6 +5,7 @@
 #include "artsim/utils/xml.h"
 
 #include <iostream>
+#include <sstream>
 #include <pugixml.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <filesystem>

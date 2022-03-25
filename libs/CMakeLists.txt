@@ -16,9 +16,6 @@ if (ARTSIM_USE_DOUBLE)
     set(DISCREGRID_USE_DOUBLE ON)
 endif()
 
-# Probably not going to use anymore, use TMD single-header library instead
-add_subdirectory(Discregrid)
-
 add_subdirectory(MshIO)
 
 add_subdirectory(pugixml)

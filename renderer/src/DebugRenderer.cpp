@@ -297,7 +297,7 @@ void DebugRenderer::drawCircle(glm::vec3 center, glm::vec3 planeNormal, glm::vec
     glm::vec3 lastPoint = center + up;
 
     for (int i = 1; i < numSteps; ++i) {
-        const float radians = M_2_PI * i / numSteps;
+        const float radians = (2.f / glm::pi<float>()) * i / numSteps;
 
         glm::vec3 vs = left * sinf(radians);
         glm::vec3 vc = up * cosf(radians);

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 project(artsim)
 
-list(APPEND VCPKG_OVERLAY_TRIPLETS ${CMAKE_SOURCE_DIR}/vcpkg)
+set(VCPKG_OVERLAY_TRIPLETS ${CMAKE_SOURCE_DIR}/vcpkg)
 set(VCPKG_TARGET_TRIPLET x64-windows-llvm CACHE STRING "VCPKG Target Triplet to use")
 set(VCPKG_HOST_TRIPLET x64-windows-llvm CACHE STRING "VCPKG Host Triplet to use")
 

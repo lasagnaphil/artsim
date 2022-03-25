@@ -19,9 +19,10 @@ std::tuple<bool, bool, bool> articulated_body_imgui(ArticulatedBody& art, bool* 
     real* pos_buf = art.get_pos_buf();
     real* vel_buf = art.get_vel_buf();
     real* force_buf = art.get_internal_force_buf();
+    const double pi = glm::pi<double>();
     if (ImGui::TreeNode("Positions##art_pos")) {
         double pos_min = -5, pos_max = 5;
-        double rot_min = -2*M_PI, rot_max = 2*M_PI;
+        double rot_min = -2*pi, rot_max = 2*pi;
         double quat_min = -1, quat_max = 1;
         for (int i = 0; i < art_spec.get_num_joints(); i++) {
             auto& joint = art_spec.joints[i];
@@ -61,8 +62,8 @@ std::tuple<bool, bool, bool> articulated_body_imgui(ArticulatedBody& art, bool* 
         }
     }
     if (ImGui::TreeNode("Velocities##art_vel")) {
-        double vel_min = -2 * M_PI;
-        double vel_max = 2 * M_PI;
+        double vel_min = -2 * pi;
+        double vel_max = 2 * pi;
         for (int i = 0; i < art_spec.get_num_joints(); i++) {
             auto& joint = art_spec.joints[i];
             auto& joint_name = art_spec.names[i];

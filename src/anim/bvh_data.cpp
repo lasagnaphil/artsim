@@ -463,15 +463,16 @@ void BVHData::saveToFileRecursive(uint32_t jointIdx, std::ostream& ofs, int dept
 }
 
 void BVHData::switchZToYUp() {
+    const float pi = glm::pi<float>();
     for (int f = 0; f < clip.numFrames; f++) {
         glmx::pose_view pose = clip.getFrame(f);
-        pose.v() = glmx::Rx_quat<float>(-M_PI/2) * pose.v();
+        pose.v() = glmx::Rx_quat<float>(-pi/2) * pose.v();
         for (int i = 0; i < pose.size(); i++) {
-            pose.q(i) = glmx::Rx_quat<float>(-M_PI/2) * pose.q(i) * glmx::Rx_quat<float>(M_PI/2);
+            pose.q(i) = glmx::Rx_quat<float>(-pi/2) * pose.q(i) * glmx::Rx_quat<float>(pi/2);
         }
     }
     for (auto& node : pose_tree.allNodes) {
-        node.offset = glmx::Rx(-M_PI/2) * node.offset;
+        node.offset = glmx::Rx(-pi/2) * node.offset;
     }
 }
 

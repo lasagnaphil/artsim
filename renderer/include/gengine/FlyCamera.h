@@ -39,8 +39,8 @@ public:
     Ref<Transform> transform = {};
 
     float fov = 90.0f;
-    float near = 0.1f;
-    float far = 1000.0f;
+    float pnear = 0.1f;
+    float pfar = 1000.0f;
     float movementSpeed = 10.0f;
     float mouseSensitivity = 0.1f;
 

@@ -12,7 +12,7 @@ namespace fs = std::filesystem;
 
 OBJLoader::Object OBJLoader::loadPBRSingle(const char* filename) {
     tinyobj::ObjReaderConfig cfg;
-    cfg.mtl_search_path = fs::path(filename).parent_path();
+    cfg.mtl_search_path = fs::path(filename).parent_path().string();
 
     tinyobj::ObjReader reader;
     if (!reader.ParseFromFile(filename, cfg)) {

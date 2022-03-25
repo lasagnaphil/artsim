@@ -555,7 +555,7 @@ contact_points_between_art_links_and_ground(const ArticulatedBodySpec& art, cons
                     cp.pos = glm::vec3(p.x, 0, p.z);
                     cp.normal = Ey<real>();
                     cp.distance = -d;
-                    cp.area = M_PI * (r*r - (r - p.y)*(r - p.y));
+                    cp.area = glm::pi<real>() * (r*r - (r - p.y)*(r - p.y));
                     cp.body1_id = BodyLinkId::from_articulation_link(art_id, i);
                     cp.body2_id = BodyLinkId::from_ground();
                     contact_points.push_back(cp);
