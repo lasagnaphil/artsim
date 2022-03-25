@@ -2,5 +2,6 @@ build/
 cmake-build-*/
 .idea/
 .xmake/
+.cache/
 renderer/generated
 compile_commands.json
