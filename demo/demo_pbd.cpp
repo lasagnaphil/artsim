@@ -132,7 +132,7 @@ public:
         link1->is_dynamic = false;
         // link1->rot = glmx::Rz<real>(M_PI/3);
         auto link2 = world.get_rigid_body(link2_id);
-        link2->rot = glmx::Rz(M_PI/4) * glmx::Rx(M_PI/5);
+        link2->rot = glmx::Rz<real>(M_PI/4) * glmx::Rx<real>(M_PI/5);
         auto link3 = world.get_rigid_body(link3_id);
         auto link4 = world.get_rigid_body(link4_id);
 

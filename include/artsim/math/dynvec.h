@@ -2,19 +2,21 @@
 // Created by lasagnaphil on 20. 12. 11..
 //
 
-#ifndef ARTSIM_DYNVEC_H
-#define ARTSIM_DYNVEC_H
+#ifndef ARTLIB_DYNVEC_H
+#define ARTLIB_DYNVEC_H
 
 #include <cstddef>
+#include <memory>
+#include <algorithm>
 
 namespace glmx {
 
 template <class T>
 struct dynvec_view {
-    const T* ptr;
+    T* const ptr;
     uint32_t rows;
 
-    dynvec_view(const T* ptr, uint32_t rows)
+    dynvec_view(T* const ptr, uint32_t rows)
             : ptr(ptr), rows(rows) {}
 
     T& operator()(uint32_t i) {
@@ -57,7 +59,7 @@ struct dynvec {
         ptr = new T[capacity];
         std::copy(m.ptr, m.ptr + size, ptr);
     }
-    dynvec(dynvec&& m) noexcept : ptr(std::move(m.ptr)), size(std::move(m.size)), {}
+    dynvec(dynvec&& m) noexcept : ptr(std::move(m.ptr)), size(std::move(m.size)) {}
     dynvec& operator=(const dynvec& m) {
         *this = dynvec(m); return *this;
     }
@@ -102,4 +104,4 @@ struct dynvec {
 };
 
 }
-#endif //ARTSIM_DYNVEC_H
+#endif //ARTLIB_DYNVEC_H

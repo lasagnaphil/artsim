@@ -15,7 +15,7 @@ namespace artsim {
 
 Link Link::create(CollisionShape col_shape, real density,
                   ttransform<real> local_joint_pose, ttransform<real> local_link_pose,
-                  int parent_idx, Id<Material> mat_id, std::string obj_filename) {
+                  int parent_idx, Id<Material> mat_id, std::string obj_filename, std::string bvh_filename) {
     Link link;
     link.density = density;
     link.mass = col_shape.mass(density);
@@ -34,7 +34,7 @@ Link Link::create(CollisionShape col_shape, real density,
 
 Link
 Link::create(CollisionShape col_shape, real mass, glmx::tsmat3x3<real> inertia, glmx::ttransform<real> local_joint_pose,
-             glmx::ttransform<real> local_link_pose, int parent_idx, Id<Material> mat_id, std::string obj_filename) {
+             glmx::ttransform<real> local_link_pose, int parent_idx, Id<Material> mat_id, std::string obj_filename, std::string bvh_filename) {
     Link link;
     link.mass = mass;
     link.inertia = inertia;

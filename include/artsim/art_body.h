@@ -117,6 +117,7 @@ struct Link {
     int parent_idx;
     Id<Material> mat_id;
     std::string obj_filename;
+    std::string bvh_nodename;
 
     template <class Archive> void serialize(Archive& ar) {
         ar(inertia, I_j, density, mass, col_shape, local_joint_pose, local_link_pose,
@@ -125,11 +126,11 @@ struct Link {
 
     static Link create(CollisionShape col_shape, real density,
                        glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
-                       int parent_idx, Id<Material> mat_id, std::string obj_filename = "");
+                       int parent_idx, Id<Material> mat_id, std::string obj_filename = "", std::string bvh_filename = "");
 
     static Link create(CollisionShape col_shape, real mass, glmx::tsmat3x3<real> inertia,
                        glmx::ttransform<real> local_joint_pose, glmx::ttransform<real> local_link_pose,
-                       int parent_idx, Id<Material> mat_id, std::string obj_filename = "");
+                       int parent_idx, Id<Material> mat_id, std::string obj_filename = "", std::string bvh_filename = "");
 };
 
 struct ArticulatedBodySpec {

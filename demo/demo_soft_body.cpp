@@ -8,6 +8,8 @@
 #include <artsim/artsim.h>
 #include <artsim/soft_body.h>
 #include <artsim/soft_body_dynamics.h>
+#include <artsim/anim/bvh_data.h>
+#include <artsim/math/dynvec.h>
 
 #include <imgui.h>
 #include <gengine/App.h>
