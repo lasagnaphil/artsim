@@ -68,11 +68,26 @@ T distance2(const tbox<Dim, T>& box, const glm::vec<Dim, T>& p) {
     glm::vec<Dim, T> p0 = glm::clamp(p, box.lo, box.hi);
     return glm::distance2(p, p0);
 }
-
 template <int Dim, class T>
 T distance(const tbox<Dim, T>& box, const glm::vec<Dim, T>& p) {
     return glm::sqrt(distance2(box, p));
 }
+
+template <int Dim, class T>
+T signed_distance(const tbox<Dim, T>& box, const glm::vec<Dim, T>& p) {
+    if (box.contains(p)) {
+        T min_dist = std::numeric_limits<T>::max();
+        for (int i = 0; i < Dim; i++) {
+            T dist = glm::min(p[i] - box.lo[i], box.hi[i] - p[i]);
+            if (dist < min_dist) min_dist = dist;
+        }
+        return -min_dist;
+    }
+    else {
+        return distance(box, p);
+    }
+}
+
 
 template <int Dim, class T>
 T distance2(const tbox<Dim, T>& box1, const tbox<Dim, T>& box2) {
